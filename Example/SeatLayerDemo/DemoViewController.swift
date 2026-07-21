@@ -15,6 +15,14 @@ final class DemoViewController: UIViewController {
     private let holdButton = UIButton(type: .system)
     private let bestAvailableButton = UIButton(type: .system)
     private let zoomButton = UIButton(type: .system)
+    private let extendButton = UIButton(type: .system)
+    private let releaseButton = UIButton(type: .system)
+
+    /// The event served by the local `wrangler dev` worker (see README of this
+    /// demo). `apiBase` is plain http://, which is why this app's Info.plist
+    /// carries the narrow `NSAllowsLocalNetworking` ATS exemption.
+    private static let eventKey = "ios-e2e-show"
+    private static let apiBase = "http://localhost:8787"
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -29,15 +37,14 @@ final class DemoViewController: UIViewController {
     // MARK: - Boot
 
     private func start() async {
-        var configuration = SeatLayerConfiguration(event: "ev_ios_demo", currency: "USD")
+        // REAL TRANSPORT. No `pageURL` override and no stub chart: the SDK's
+        // bundled shell builds the bundle's own `SeatingChart`, which fetches
+        // `GET {apiBase}/pub/events/{event}/chart` + `/objects` over HTTP and
+        // opens a WebSocket to `/pub/events/{event}/subscribe`. Every hold,
+        // extend and release below is a real round-trip to that worker.
+        var configuration = SeatLayerConfiguration(event: Self.eventKey, currency: "USD")
+        configuration.apiBase = Self.apiBase
         configuration.hostInfo = ["app": "SeatLayerDemo/1.0"]
-
-        // Point the WebView at the offline fixture page shipped with this demo.
-        // A production app omits this and gets the SDK's bundled shell, which
-        // renders the real event named by `configuration.event`.
-        if let fixture = Bundle.main.url(forResource: "demo", withExtension: "html") {
-            configuration.pageURL = fixture
-        }
 
         log("loading…")
         do {
@@ -95,6 +102,32 @@ final class DemoViewController: UIViewController {
                 NSLog("[SeatLayerDemo] bestAvailable failed: \(error.code)")
                 log("best available: \(error.code)")
             } catch { log("best available failed") }
+        }
+    }
+
+    @objc private func extendTapped() {
+        Task {
+            do {
+                let hold = try await mapView.extendHold()
+                NSLog("[SeatLayerDemo] extendHold -> \(hold?.holdId ?? "nil") expires=\(hold?.expiresAt ?? 0)")
+                log(hold.map { "extended \($0.holdId) · \(Int($0.timeRemaining))s left" } ?? "nothing to extend")
+            } catch let error as SeatLayerError {
+                NSLog("[SeatLayerDemo] extendHold failed: \(error.code)")
+                log("extend failed: \(error.code)")
+            } catch { log("extend failed") }
+        }
+    }
+
+    @objc private func releaseTapped() {
+        Task {
+            do {
+                try await mapView.release()
+                NSLog("[SeatLayerDemo] release -> ok")
+                log("released")
+            } catch let error as SeatLayerError {
+                NSLog("[SeatLayerDemo] release failed: \(error.code)")
+                log("release failed: \(error.code)")
+            } catch { log("release failed") }
         }
     }
 
@@ -163,17 +196,21 @@ final class DemoViewController: UIViewController {
         for (button, title, action) in [
             (holdButton, "Hold", #selector(holdTapped)),
             (bestAvailableButton, "Best 4", #selector(bestAvailableTapped)),
+            (extendButton, "Extend", #selector(extendTapped)),
+            (releaseButton, "Release", #selector(releaseTapped)),
             (zoomButton, "Fit", #selector(zoomTapped)),
         ] {
             button.setTitle(title, for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+            button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
             button.setTitleColor(.black, for: .normal)
             button.backgroundColor = UIColor(red: 0.34, green: 0.85, blue: 0.64, alpha: 1)
             button.layer.cornerRadius = 8
             button.addTarget(self, action: action, for: .touchUpInside)
         }
 
-        let buttons = UIStackView(arrangedSubviews: [holdButton, bestAvailableButton, zoomButton])
+        let buttons = UIStackView(arrangedSubviews: [
+            holdButton, bestAvailableButton, extendButton, releaseButton, zoomButton,
+        ])
         buttons.axis = .horizontal
         buttons.spacing = 8
         buttons.distribution = .fillEqually

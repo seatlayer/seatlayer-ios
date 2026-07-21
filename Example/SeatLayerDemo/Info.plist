@@ -20,6 +20,20 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!--
+	  DEMO-ONLY. Lets this demo app reach a SeatLayer API worker running on the
+	  developer's machine over plain http:// (`wrangler dev` serves :8787 without
+	  TLS). NSAllowsLocalNetworking is the narrow exemption: it covers localhost,
+	  *.local and link-local addresses ONLY and leaves ATS fully enforced for
+	  every public host. It is NOT NSAllowsArbitraryLoads, and it does NOT belong
+	  in the SeatLayer package — a production app ships an https:// apiBase and
+	  needs no exemption at all.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
