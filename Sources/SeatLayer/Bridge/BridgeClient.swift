@@ -31,14 +31,38 @@ public actor BridgeClient {
     /// Default native-side command deadline.
     public static let defaultTimeout: TimeInterval = 15
 
+    /// Commands whose failure the web bundle reports OUT OF BAND.
+    ///
+    /// The bundle's `SeatingChart` catches an API error inside these mutating
+    /// commands, hands it to `onError`, and resolves the command with a null
+    /// hold. On the wire that is an uncorrelated `error` event immediately
+    /// followed by a `res` carrying `{ hold: null }` — so a naive client returns
+    /// `nil` from `try await` and the real failure only shows up on the delegate.
+    /// For exactly these commands, an `error` event that lands while one is in
+    /// flight is that command's failure, and must throw from its call. Getters
+    /// and view commands are deliberately absent: an error during one of those is
+    /// genuinely out of band and belongs on the delegate.
+    public static let defaultFailableCommands: Set<String> = [
+        "hold", "holdGA", "bestAvailable", "resumeHold", "extendHold",
+        "release", "releaseLabels",
+    ]
+
+    /// Event types the bundle uses to report a command failure out of band.
+    public static let defaultCommandErrorEvents: Set<String> = ["error"]
+
     private struct Pending {
         let command: String
+        /// Issue order — the pending command with the highest order is the most
+        /// recently sent, which is the one an out-of-band `error` belongs to.
+        let order: UInt64
         let continuation: CheckedContinuation<JSONValue, Error>
         let timeoutTask: Task<Void, Never>
     }
 
     private weak var channel: BridgeChannel?
     private let timeout: TimeInterval
+    private let failableCommands: Set<String>
+    private let commandErrorEvents: Set<String>
     private var pending: [String: Pending] = [:]
     /// Highest applied sequence per event type — the stale-event filter.
     private var lastSequence: [String: Int] = [:]
@@ -46,9 +70,16 @@ public actor BridgeClient {
     private var isClosed = false
     private var signalHandler: (@Sendable (BridgeSignal) -> Void)?
 
-    public init(channel: BridgeChannel? = nil, timeout: TimeInterval = BridgeClient.defaultTimeout) {
+    public init(
+        channel: BridgeChannel? = nil,
+        timeout: TimeInterval = BridgeClient.defaultTimeout,
+        failableCommands: Set<String> = BridgeClient.defaultFailableCommands,
+        commandErrorEvents: Set<String> = BridgeClient.defaultCommandErrorEvents
+    ) {
         self.channel = channel
         self.timeout = timeout
+        self.failableCommands = failableCommands
+        self.commandErrorEvents = commandErrorEvents
     }
 
     public func attach(channel: BridgeChannel) {
@@ -68,6 +99,7 @@ public actor BridgeClient {
 
         nextID += 1
         let id = "n\(nextID)"
+        let order = nextID
         let envelope = Envelope(kind: .cmd, type: name, id: id, payload: payload)
 
         // Register the continuation BEFORE sending: a synchronous reply must
@@ -78,7 +110,7 @@ public actor BridgeClient {
                 guard !Task.isCancelled else { return }
                 await self?.expire(id: id)
             }
-            pending[id] = Pending(command: name, continuation: continuation, timeoutTask: timeoutTask)
+            pending[id] = Pending(command: name, order: order, continuation: continuation, timeoutTask: timeoutTask)
             Task { await channel.send(envelope) }
         }
     }
@@ -113,6 +145,23 @@ public actor BridgeClient {
             resolve(envelope, with: .failure(SeatLayerError.bridge(BridgeErrorPayload(envelope.payload))))
 
         case .evt:
+            // A command whose failure the bundle reports out of band: the `error`
+            // event lands HERE, synchronously, immediately before the command's
+            // own `res { hold: null }`. Turn it back into that command's failure
+            // so `try await` throws instead of returning nil — and do it before
+            // the trailing `res`, which then finds no pending entry and is
+            // dropped. Because the command is failed here and NOT forwarded as an
+            // event, the delegate does not also see it: one failure, one report.
+            if commandErrorEvents.contains(envelope.type),
+               let (id, entry) = mostRecentFailablePending() {
+                pending.removeValue(forKey: id)
+                entry.timeoutTask.cancel()
+                entry.continuation.resume(
+                    throwing: SeatLayerError.bridge(BridgeErrorPayload(envelope.payload))
+                )
+                return
+            }
+
             // A missing `n` cannot be ordered; treat it as fresh rather than
             // dropping a real event.
             let sequence = envelope.sequence ?? Int.min
@@ -139,6 +188,16 @@ public actor BridgeClient {
         guard let id = envelope.id, let entry = pending.removeValue(forKey: id) else { return }
         entry.timeoutTask.cancel()
         entry.continuation.resume(with: result)
+    }
+
+    /// The in-flight command an out-of-band `error` event should be attributed
+    /// to: the most recently issued command from the failable set. `nil` when no
+    /// such command is open, in which case the error is genuinely out of band.
+    private func mostRecentFailablePending() -> (id: String, entry: Pending)? {
+        pending
+            .filter { failableCommands.contains($0.value.command) }
+            .max { $0.value.order < $1.value.order }
+            .map { ($0.key, $0.value) }
     }
 
     /// Convenience for the WebView message handler.

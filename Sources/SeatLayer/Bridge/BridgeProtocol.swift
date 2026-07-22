@@ -81,7 +81,23 @@ public enum BridgeErrorCode {
     public static let timeout = "sl_timeout"
 }
 
-/// Payload of an `err` envelope, and of the `sys.error` event.
+/// One seat the server reported as no longer holdable — the `conflicts` an
+/// availability failure (a 409) carries. Decoded leniently: the server's
+/// vocabulary grows, and a missing or unfamiliar field must never turn a real
+/// conflict into a decode failure.
+public struct HoldConflict: Codable, Sendable, Equatable {
+    /// The inventory label of the seat that conflicted (e.g. `A-1`).
+    public var label: String?
+    /// Why it conflicted, as the server named it (`booked`, `held`, …).
+    public var status: String?
+
+    public init(label: String? = nil, status: String? = nil) {
+        self.label = label
+        self.status = status
+    }
+}
+
+/// Payload of an `err` envelope, and of the `sys.error` / `error` event.
 public struct BridgeErrorPayload: Sendable, Equatable {
     public var code: String
     public var message: String
@@ -97,5 +113,16 @@ public struct BridgeErrorPayload: Sendable, Equatable {
         self.code = value?["code"]?.stringValue ?? "unknown_error"
         self.message = value?["message"]?.stringValue ?? ""
         self.details = value?["details"]
+    }
+
+    /// The seats an availability failure (`sold_out`, `not_enough_together`, a
+    /// hold 409) reported as already gone, or `nil` when the error carries none.
+    ///
+    /// The API nests these under `details.conflicts`; a decode is best-effort so
+    /// one malformed entry never masks the rest.
+    public var conflicts: [HoldConflict]? {
+        guard let raw = details?["conflicts"]?.arrayValue, !raw.isEmpty else { return nil }
+        let decoded = raw.compactMap { try? $0.decode(HoldConflict.self) }
+        return decoded.isEmpty ? nil : decoded
     }
 }

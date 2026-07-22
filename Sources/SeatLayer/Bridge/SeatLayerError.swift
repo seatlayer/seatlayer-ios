@@ -79,4 +79,13 @@ extension SeatLayerError: LocalizedError {
         if case .incompatible = self { return true }
         return false
     }
+
+    /// The seats an availability failure reported as already taken, when the
+    /// error carries them (a `bestAvailable` / `hold` / `holdGA` 409). `nil` for
+    /// every other failure. Lets a caller show "A-1, A-2 were just taken"
+    /// straight from the thrown error, without reaching into `details`.
+    public var conflicts: [HoldConflict]? {
+        if case .bridge(let payload) = self { return payload.conflicts }
+        return nil
+    }
 }

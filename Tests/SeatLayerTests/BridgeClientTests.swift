@@ -109,6 +109,160 @@ final class BridgeClientTests: XCTestCase {
         }
     }
 
+    /// A correlated `err` throws with the API code AND the typed `conflicts`
+    /// intact — a 409 must reach the caller as data it can render, not a blob.
+    func testACorrelatedErrThrowsWithCodeAndConflicts() async {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 5)
+        channel.onSend = { envelope in
+            Task {
+                await client.ingest(Envelope(kind: .err, type: envelope.type, id: envelope.id, payload: [
+                    "code": "not_enough_together",
+                    "message": "no 4 seats side by side",
+                    "details": ["status": 409, "conflicts": .array([
+                        ["label": "A-1", "status": "booked"],
+                        ["label": "A-2", "status": "held"],
+                    ])],
+                ]))
+            }
+        }
+        do {
+            _ = try await client.command("bestAvailable", payload: ["qty": 4])
+            XCTFail("expected a throw")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "not_enough_together")
+            XCTAssertEqual(error.conflicts?.count, 2)
+            XCTAssertEqual(error.conflicts?.first?.label, "A-1")
+            XCTAssertEqual(error.conflicts?.first?.status, "booked")
+            XCTAssertEqual(error.conflicts?.last?.label, "A-2")
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+    }
+
+    /// The reported bug. The web bundle answers a failed `bestAvailable` OUT OF
+    /// BAND: an uncorrelated `error` event, then a `res { hold: null }`. The call
+    /// must THROW that error — not return nil while the failure escapes to the
+    /// delegate — and the event must NOT also reach the signal handler.
+    func testAnOutOfBandErrorEventFailsTheInFlightCommandAndIsNotAlsoAnEvent() async {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 5)
+
+        let events = Received()
+        await client.onSignal { signal in
+            if case .event(let name, let payload, let sequence) = signal {
+                events.append((name, payload, sequence))
+            }
+        }
+
+        channel.onSend = { envelope in
+            Task {
+                // Exactly what the bundle sends: the `error` event first…
+                await client.ingest(Envelope(kind: .evt, type: "error", sequence: 7, payload: [
+                    "code": "sold_out",
+                    "message": "seats gone",
+                    "details": ["conflicts": .array([["label": "A-1", "status": "booked"]])],
+                ]))
+                // …then the command's own success reply carrying a null hold.
+                await client.ingest(Envelope(kind: .res, type: envelope.type, id: envelope.id,
+                                             payload: ["hold": .null]))
+            }
+        }
+
+        do {
+            _ = try await client.command("bestAvailable", payload: ["qty": 4])
+            XCTFail("expected a throw, not a silent nil")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "sold_out")
+            XCTAssertEqual(error.conflicts?.first?.label, "A-1")
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+
+        // Not double-reported: the delegate/signal path never saw the error.
+        XCTAssertTrue(events.all.isEmpty, "a reconciled command failure must not also fire as an event")
+        let open = await client.openCommandCount
+        XCTAssertEqual(open, 0, "the trailing res must be dropped, leaving nothing pending")
+    }
+
+    /// An `error` event with NO command in flight is genuinely out of band and
+    /// must reach the delegate (as a signal), throwing nowhere.
+    func testAnOutOfBandErrorEventWithNoPendingCommandReachesTheDelegate() async {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 5)
+        let events = Received()
+        await client.onSignal { signal in
+            if case .event(let name, let payload, let sequence) = signal {
+                events.append((name, payload, sequence))
+            }
+        }
+
+        await client.ingest(Envelope(kind: .evt, type: "error", sequence: 1, payload: [
+            "code": "ws_dropped", "message": "reconnecting",
+        ]))
+
+        XCTAssertEqual(events.all.map(\.0), ["error"])
+        XCTAssertEqual(events.all.first?.1?["code"]?.stringValue, "ws_dropped")
+    }
+
+    /// The reconciliation is SCOPED to mutating commands. An `error` event while
+    /// a getter is in flight is out of band: the getter must NOT be failed by it,
+    /// and the event still reaches the delegate.
+    func testAnErrorEventDoesNotFailANonFailableGetter() async throws {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 5)
+        let events = Received()
+        await client.onSignal { signal in
+            if case .event(let name, _, _) = signal { events.append((name, nil, 0)) }
+        }
+
+        async let selection = client.command("getSelection")
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        // An out-of-band error arrives while the getter is open.
+        await client.ingest(Envelope(kind: .evt, type: "error", sequence: 1, payload: [
+            "code": "picker_error", "message": "hover glitch",
+        ]))
+        // It went to the delegate, not into the getter.
+        XCTAssertEqual(events.all.map(\.0), ["error"])
+        let stillOpen = await client.openCommandCount
+        XCTAssertEqual(stillOpen, 1, "the getter must remain in flight")
+
+        // The getter still resolves normally with its own reply.
+        let id = try XCTUnwrap(channel.sent.first { $0.type == "getSelection" }?.id)
+        await client.ingest(Envelope(kind: .res, type: "getSelection", id: id,
+                                     payload: ["seats": .array([["id": "s1", "label": "A-1"]])]))
+        let result = try await selection
+        XCTAssertEqual(result["seats"]?[0]?["label"]?.stringValue, "A-1")
+    }
+
+    /// `sys.error` is never a command failure: it must stay on the delegate path
+    /// and never fail an in-flight command, whatever is open.
+    func testSysErrorEventNeverFailsAnInFlightCommand() async throws {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 5)
+        let events = Received()
+        await client.onSignal { signal in
+            if case .event(let name, _, _) = signal { events.append((name, nil, 0)) }
+        }
+
+        async let hold = client.command("hold")
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        await client.ingest(Envelope(kind: .evt, type: "sys.error", sequence: 1, payload: [
+            "code": "internal_error", "message": "boom",
+        ]))
+        XCTAssertEqual(events.all.map(\.0), ["sys.error"])
+        let open = await client.openCommandCount
+        XCTAssertEqual(open, 1, "sys.error must not fail the pending command")
+
+        // Clean up the still-open command so the test task can finish.
+        let id = try XCTUnwrap(channel.sent.first { $0.type == "hold" }?.id)
+        await client.ingest(Envelope(kind: .res, type: "hold", id: id,
+                                     payload: ["hold": ["holdId": "h1", "expiresAt": 1]]))
+        _ = try await hold
+    }
+
     func testUnsupportedCommandComesBackAsATypedBridgeError() async {
         let channel = FakeChannel()
         let client = BridgeClient(channel: channel, timeout: 5)
