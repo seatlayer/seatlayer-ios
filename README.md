@@ -5,7 +5,7 @@ versioned bridge protocol. The web bundle is vendored into the package, so a
 seat map opens with **zero network dependency at startup**.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.25.0` (sha256 verified against `release.json`)
+- Vendored bundle: `seatlayer-js@0.26.0` (sha256 `58406af6…`, verified against the published CDN `release.json`)
 - Protocol revision: 1
 
 ```swift
