@@ -2,11 +2,23 @@
 
 A `WKWebView` wrapper that drives the SeatLayer web seat-map widget over the
 versioned bridge protocol. The web bundle is vendored into the package, so a
-seat map opens with **zero network dependency at startup**.
+seat map does not need a separate CDN fetch at startup. Chart and inventory data
+still come from the configured SeatLayer API.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.26.0` (sha256 `58406af6…`, verified against the published CDN `release.json`)
+- Vendored bundle release candidate: `seatlayer-js@0.29.0`
+  (sha256 `608e33e1…`; publish the identical web SDK artifact before tagging
+  this package)
 - Protocol revision: 1
+
+## Install
+
+After the `0.1.0` tag is public, add this package in Xcode or in
+`Package.swift`:
+
+```swift
+.package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.1.0")
+```
 
 ```swift
 let map = SeatLayerView()
@@ -35,9 +47,10 @@ bounce, double-tap zoom, long-press callout, and text selection.
 
 `hold` · `resumeHold` · `extendHold` · `release` · `releaseLabels` ·
 `bestAvailable` · `holdGA` · `setSeatTier` · `getSelection` · `getCurrentHold` ·
-`getGAAreas` · `getFloors` · `setFloor` · `setColorblindSafe` · `zoomIn` ·
-`zoomOut` · `zoomToFit` · `destroy` — all `async throws`, all named to match the
-web `SeatingChart` so the two SDKs read as one product.
+`getGAAreas` · `getFloors` · `setFloor` · `setColorblindSafe` · `setViewMode` ·
+`getViewMode` · `zoomIn` · `zoomOut` · `zoomToFit` · `destroy` — all
+`async throws`, all named to match the web `SeatingChart` so the two SDKs read
+as one product.
 
 Events reach `SeatLayerViewDelegate`, which has a no-op default for every
 method: `ready`, `selectionChanged`, `holdChanged`, `holdRestored`,
@@ -50,7 +63,8 @@ The bundle ships new enum values to apps compiled a year earlier, so **every
 bridged enum has an `unknown(String)` case** and no decoder throws on an
 unfamiliar value:
 
-- `EventMode`, `TransportName`, `ObjectType`, `SeatStatus`, `EnvelopeKind`
+- `EventMode`, `TransportName`, `ObjectType`, `SeatStatus`,
+  `SeatLayerViewMode`, `EnvelopeKind`
 - unknown payload fields survive on `JSONValue` and are ignored by the typed structs
 - error `code` is an **open** string set — API codes like `sold_out` pass through untouched
 - an unknown command name comes back as `unsupported_command`, never a crash
@@ -89,8 +103,10 @@ side receives pre-coalesced traffic and only needs the stale-`n` filter.
 ## Verification
 
 ```
-xcodebuild -scheme SeatLayer -destination 'generic/platform=iOS'   # BUILD SUCCEEDED
-swift test                                                          # 55 tests, 0 failures
+xcodebuild -scheme SeatLayer -destination 'generic/platform=iOS'        # library
+xcodebuild -project Example/SeatLayerDemo.xcodeproj \
+  -scheme SeatLayerDemo -destination 'generic/platform=iOS Simulator'   # example
+swift test                                                               # contract suite
 ```
 
 Tests cover envelope encode/decode, correlation, concurrent commands, timeout
@@ -100,24 +116,15 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView** —
 
 ### Simulator
 
-`Example/SeatLayerDemo.xcodeproj` runs on a simulator and completes the
-handshake end to end. Because no public demo event key was found to exist
-(`/pub/events/{key}/chart` returns `not_found` for every key in the repos), the
-demo drives the **real** bridge runtime from the shipped bundle via its
-documented `createChart` option, backed by a stub chart whose `render()` calls
-the bundle's own `renderChartDocument`. The seats on screen are painted by the
-real buyer renderer from a real `ChartDoc`; only the network-backed hold calls
-are simulated in memory.
+`Example/SeatLayerDemo.xcodeproj` runs on a simulator against a real SeatLayer
+API. It loads the bundled shell, fetches chart and object data, upgrades to the
+event WebSocket, and exercises hold, extend and release. By default it expects
+the locally seeded `ios-e2e-show` event at `http://localhost:8787`; replace
+those two constants with a production HTTPS API and event key for a hosted
+smoke test.
 
-Captured on iPhone 17 Pro / iOS 26.5 — see `Docs/simulator-handshake.png`:
-
-```
-[SeatLayerDemo] sys.ready protocol=1 mode=test transport=ios event=ev_ios_demo
-[SeatLayerDemo] bundle=0.25.0 protocol=1...1 commands=18 events=12
-[SeatLayerDemo] getFloors -> ["Main floor"]
-[SeatLayerDemo] selection.changed -> ["A-4", "A-5"]
-[SeatLayerDemo] getSelection -> ["A-4", "A-5"]
-```
+`Docs/simulator-handshake.png` is the historical first successful bridge
+capture. Re-capture it against bundle 0.29.0 before publishing 0.1.0.
 
 ### One bug the simulator run caught
 

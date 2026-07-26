@@ -360,10 +360,19 @@ public final class SeatLayerView: UIView {
 
     /// Ask the server for the best `qty` seats and hold them.
     @discardableResult
-    public func bestAvailable(qty: Int, categoryKey: String? = nil) async throws -> BestAvailableResult? {
+    public func bestAvailable(
+        qty: Int,
+        categoryKey: String? = nil,
+        zoneId: String? = nil,
+        preferPremium: Bool? = nil,
+        ttlMs: Int? = nil
+    ) async throws -> BestAvailableResult? {
         let result = try await run("bestAvailable", .object(compacting: [
             "qty": .int(qty),
             "categoryKey": categoryKey.map(JSONValue.string),
+            "zoneId": zoneId.map(JSONValue.string),
+            "preferPremium": preferPremium.map(JSONValue.bool),
+            "ttlMs": ttlMs.map(JSONValue.int),
         ]))
         return try optional(result["hold"], as: BestAvailableResult.self)
     }
@@ -425,6 +434,16 @@ public final class SeatLayerView: UIView {
 
     public func setColorblindSafe(_ on: Bool) async throws {
         _ = try await run("setColorblindSafe", ["on": .bool(on)])
+    }
+
+    public func setViewMode(_ mode: SeatLayerViewMode) async throws {
+        _ = try await run("setViewMode", ["mode": .string(mode.rawValue)])
+    }
+
+    public func getViewMode() async throws -> SeatLayerViewMode {
+        let result = try await run("getViewMode")
+        let raw = result["mode"]?.stringValue ?? "flat"
+        return SeatLayerViewMode(rawValue: raw) ?? .unknown(raw)
     }
 
     public func zoomIn() async throws { _ = try await run("zoomIn") }

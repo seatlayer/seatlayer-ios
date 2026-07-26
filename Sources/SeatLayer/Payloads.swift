@@ -145,6 +145,32 @@ public enum SeatStatus: OpenEnum {
     }
 }
 
+/// Canvas projection used by the shared buyer renderer.
+public enum SeatLayerViewMode: OpenEnum {
+    case flat, iso, perspective
+    case unknown(String)
+
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "flat": self = .flat
+        case "iso": self = .iso
+        case "perspective": self = .perspective
+        default: return nil
+        }
+    }
+
+    public init(unknown: String) { self = .unknown(unknown) }
+
+    public var rawValue: String {
+        switch self {
+        case .flat: return "flat"
+        case .iso: return "iso"
+        case .perspective: return "perspective"
+        case .unknown(let raw): return raw
+        }
+    }
+}
+
 // MARK: - Value types
 
 /// A ticket tier a category offers (Adult / Child / …).

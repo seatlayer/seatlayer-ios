@@ -36,6 +36,14 @@ final class UnknownToleranceTests: XCTestCase {
         XCTAssertEqual(try decode(SeatStatus.self, from: "\"reserved_for_donor\""), .unknown("reserved_for_donor"))
     }
 
+    func testViewModeDecodesAnUnfamiliarValue() throws {
+        XCTAssertEqual(try decode(SeatLayerViewMode.self, from: "\"perspective\""), .perspective)
+        XCTAssertEqual(
+            try decode(SeatLayerViewMode.self, from: "\"immersive\""),
+            .unknown("immersive")
+        )
+    }
+
     // MARK: - Structs
 
     /// A payload gaining fields is the normal case, not an error case.
@@ -149,7 +157,8 @@ final class UnknownToleranceTests: XCTestCase {
             event: "ev_9",
             apiBase: "https://api.test",
             maxSelection: 4,
-            locale: "de"
+            locale: "de",
+            initialView: .perspective
         )
         configuration.hostInfo = ["app": "1.4.0"]
 
@@ -159,6 +168,7 @@ final class UnknownToleranceTests: XCTestCase {
         XCTAssertEqual(payload["config"]?["apiBase"]?.stringValue, "https://api.test")
         XCTAssertEqual(payload["config"]?["maxSelection"]?.intValue, 4)
         XCTAssertEqual(payload["config"]?["locale"]?.stringValue, "de")
+        XCTAssertEqual(payload["config"]?["initialView"]?.stringValue, "perspective")
         XCTAssertEqual(payload["host"]?["platform"]?.stringValue, "ios")
         XCTAssertEqual(payload["host"]?["app"]?.stringValue, "1.4.0")
         // The native side draws its own seat sheet by default.

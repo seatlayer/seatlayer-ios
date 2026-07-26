@@ -25,10 +25,9 @@
   }
 </style>
 <!--
-  The bundle is loaded from the package resources, never the network: the whole
-  point of vendoring it is that a seat map opens with zero network dependency at
-  startup. `seatlayer.js` sits next to this file and WKWebView is given read
-  access to that directory only.
+  The bundle is loaded from package resources instead of a CDN. Chart and
+  inventory data still use the configured API. `seatlayer.js` sits next to this
+  file and WKWebView is given read access to that directory only.
 -->
 <script src="seatlayer.js"></script>
 </head>

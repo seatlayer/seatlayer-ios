@@ -10,14 +10,11 @@ private final class FakeChannel: BridgeChannel, @unchecked Sendable {
     var onSend: (@Sendable (Envelope) -> Void)?
 
     var sent: [Envelope] {
-        lock.lock(); defer { lock.unlock() }
-        return _sent
+        lock.withLock { _sent }
     }
 
     func send(_ envelope: Envelope) async {
-        lock.lock()
-        _sent.append(envelope)
-        lock.unlock()
+        lock.withLock { _sent.append(envelope) }
         onSend?(envelope)
     }
 }

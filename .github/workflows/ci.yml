@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test bridge and payload contracts
+        run: swift test
+      - name: Build the iOS library
+        run: >-
+          xcodebuild
+          -scheme SeatLayer
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Build the simulator example
+        run: >-
+          xcodebuild
+          -project Example/SeatLayerDemo.xcodeproj
+          -scheme SeatLayerDemo
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Verify vendored bundle version
+        run: |
+          grep -q '0.29.0' Sources/SeatLayer/Web/seatlayer.js
+          grep -q 'bundledWebVersion = "0.29.0"' Sources/SeatLayer/SeatLayerConfiguration.swift

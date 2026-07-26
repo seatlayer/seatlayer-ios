@@ -23,6 +23,8 @@ public struct SeatLayerConfiguration: Sendable {
     /// Colorblind-safe rendering: category hues switch to an Okabe-Ito palette
     /// and booked seats render hollow, so state never relies on hue alone.
     public var colorblindSafe: Bool?
+    /// Initial canvas projection. Defaults to `.flat`.
+    public var initialView: SeatLayerViewMode?
     /// Whether the WEB side draws its in-canvas seat tooltip. Leave `false` when
     /// the app presents its own seat sheet natively — the default here, because
     /// a hover tooltip is a pointer affordance that does not belong on touch.
@@ -49,6 +51,7 @@ public struct SeatLayerConfiguration: Sendable {
         messages: [String: String]? = nil,
         currency: String? = nil,
         colorblindSafe: Bool? = nil,
+        initialView: SeatLayerViewMode? = nil,
         showsWebSeatTooltip: Bool = false
     ) {
         self.event = event
@@ -59,6 +62,7 @@ public struct SeatLayerConfiguration: Sendable {
         self.messages = messages
         self.currency = currency
         self.colorblindSafe = colorblindSafe
+        self.initialView = initialView
         self.showsWebSeatTooltip = showsWebSeatTooltip
     }
 
@@ -77,6 +81,7 @@ public struct SeatLayerConfiguration: Sendable {
         if let locale { config["locale"] = .string(locale) }
         if let currency { config["currency"] = .string(currency) }
         if let colorblindSafe { config["colorblindSafe"] = .bool(colorblindSafe) }
+        if let initialView { config["initialView"] = .string(initialView.rawValue) }
         if let messages {
             config["messages"] = .object(messages.mapValues { JSONValue.string($0) })
         }
@@ -94,5 +99,5 @@ public enum SeatLayer {
     /// This SDK's version.
     public static let sdkVersion = "0.1.0"
     /// The web bundle vendored into this package.
-    public static let bundledWebVersion = "0.25.0"
+    public static let bundledWebVersion = "0.29.0"
 }
