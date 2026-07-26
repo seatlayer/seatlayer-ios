@@ -13,6 +13,8 @@ typed Swift API.
 [Live demo](https://app.seatlayer.io/demo/play) ·
 [Website](https://seatlayer.io/developers/) ·
 [Flutter SDK](https://github.com/seatlayer/seatlayer-flutter) ·
+[Native Android](https://github.com/seatlayer/seatlayer-android) ·
+[React Native](https://github.com/seatlayer/seatlayer-react-native) ·
 [AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
 > **Public preview:** the source is public while the first semantic release is
