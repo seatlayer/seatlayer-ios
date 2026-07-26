@@ -5,6 +5,13 @@ versioned bridge protocol. The web bundle is vendored into the package, so a
 seat map does not need a separate CDN fetch at startup. Chart and inventory data
 still come from the configured SeatLayer API.
 
+[Developer docs](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
+[Live demo](https://app.seatlayer.io/demo/play) ·
+[Native Android](https://github.com/seatlayer/seatlayer-android) ·
+[Flutter](https://pub.dev/packages/seatlayer) ·
+[React Native](https://github.com/seatlayer/seatlayer-react-native) ·
+[AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
+
 - Swift package (SPM), iOS 15+
 - Vendored bundle release candidate: `seatlayer-js@0.29.0`
   (sha256 `608e33e1…`; publish the identical web SDK artifact before tagging
