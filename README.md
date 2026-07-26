@@ -1,12 +1,59 @@
 # SeatLayer iOS SDK
 
-A `WKWebView` wrapper that drives the SeatLayer web seat-map widget over the
-versioned bridge protocol. The web bundle is vendored into the package, so a
-seat map opens with **zero network dependency at startup**.
+[![Swift](https://img.shields.io/badge/Swift-%E2%89%A55.9-F05138.svg)](https://swift.org/)
+[![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
+
+The official iOS SDK for embedding interactive SeatLayer reserved-seating maps.
+It hosts the SeatLayer buyer experience in `WKWebView` and exposes selection,
+holds, best available, general admission, floors, and live events through a
+typed Swift API.
+
+[Developer docs](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
+[Live demo](https://app.seatlayer.io/demo/play) ·
+[Website](https://seatlayer.io/developers/) ·
+[Flutter SDK](https://github.com/seatlayer/seatlayer-flutter) ·
+[AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
+
+> **Public preview:** the source is public while the first semantic release is
+> being qualified. Pin `main` only for evaluation; wait for the documented tag
+> before a production dependency.
+
+The web bundle is vendored into the package, so the SDK JavaScript is available
+without a startup download. Live chart and inventory data still come from the
+configured SeatLayer API.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.26.0` (sha256 `58406af6…`, verified against the published CDN `release.json`)
+- Vendored bundle: `seatlayer-js@0.25.0`
 - Protocol revision: 1
+
+## Evaluate with Swift Package Manager
+
+In Xcode, choose **File → Add Package Dependencies** and enter:
+
+```text
+https://github.com/seatlayer/seatlayer-ios.git
+```
+
+Until the first stable tag is published, select the `main` branch for
+evaluation. A manifest can declare the same dependency explicitly:
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/seatlayer/seatlayer-ios.git",
+        branch: "main"
+    )
+]
+```
+
+Add the `SeatLayer` product to your iOS target, then import it:
+
+```swift
+import SeatLayer
+```
+
+## Quick start
 
 ```swift
 let map = SeatLayerView()
@@ -21,7 +68,22 @@ if case .test = info.mode { showTestBadge() }   // books no real inventory
 let hold = try await map.hold()
 ```
 
-## Known constraint (v0.1)
+Give `SeatLayerView` an explicit height or make it full-screen.
+
+## Security boundary
+
+The iOS app **selects and holds** inventory. Your trusted backend **inspects and
+books** the hold after payment or order validation.
+
+- Never ship a SeatLayer secret key in the app binary or WebView.
+- Send only the `holdId` and your normal checkout context to your backend.
+- Calculate the charge from server-inspected hold items, not app input.
+- Reuse your stable order id as `bookingRef` for safe booking retries.
+
+Read [how the integration works](https://docs.seatlayer.io/start/how-it-works/)
+before connecting checkout.
+
+## Layout requirement
 
 **The map must be a fixed-height or full-screen box.** Do not put it inside a
 `UIScrollView`, `List`, or SwiftUI `ScrollView`. The canvas consumes pan and
@@ -129,3 +191,17 @@ including `sys.ready`. `hello`, `init`, `res` and `err` carry no `n`, which is
 exactly why the handshake got as far as a fully drawn map and no further. The
 decoder now matches the web's `isFiniteInt` (any finite, integral number), with
 a regression test.
+
+## Related resources
+
+- [Mobile SDK guide](https://docs.seatlayer.io/buyer-sdk/mobile/)
+- [Buyer SDK installation](https://docs.seatlayer.io/buyer-sdk/install/)
+- [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
+- [Complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)
+- [JavaScript and React SDKs](https://github.com/seatlayer/seatlayer-sdk)
+- [SeatLayer Flutter SDK](https://github.com/seatlayer/seatlayer-flutter)
+- [Agent-readable documentation](https://docs.seatlayer.io/llms.txt)
+
+## License
+
+MIT © SeatLayer
