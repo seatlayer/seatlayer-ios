@@ -1,5 +1,7 @@
 # SeatLayer iOS SDK
 
+[![CI](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml/badge.svg)](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/seatlayer/seatlayer-ios)](https://github.com/seatlayer/seatlayer-ios/releases/latest)
 [![Swift](https://img.shields.io/badge/Swift-%E2%89%A55.9-F05138.svg)](https://swift.org/)
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
