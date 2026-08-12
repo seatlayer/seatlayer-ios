@@ -22,7 +22,7 @@ without a startup download. Live chart and inventory data still come from the
 configured SeatLayer API.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.35.0` (sha256 `814657ba…`)
+- Vendored bundle: `seatlayer-js@0.48.1` (sha256 `b459b0b6…`)
 - Protocol revision: 1
 
 ## Evaluate with Swift Package Manager
@@ -37,7 +37,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.1.0")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.1.1")
 ]
 ```
 
@@ -192,6 +192,17 @@ a regression test.
 - [JavaScript and React SDKs](https://github.com/seatlayer/seatlayer-sdk)
 - [SeatLayer Flutter SDK](https://github.com/seatlayer/seatlayer-flutter)
 - [Agent-readable documentation](https://docs.seatlayer.io/llms.txt)
+
+## SeatLayer SDK ecosystem
+
+| Surface | Package or source |
+| --- | --- |
+| JavaScript | [`@seatlayer/js`](https://www.npmjs.com/package/@seatlayer/js) |
+| React | [`@seatlayer/react`](https://www.npmjs.com/package/@seatlayer/react) |
+| React Native | [`@seatlayer/react-native`](https://www.npmjs.com/package/@seatlayer/react-native) |
+| Flutter | [`seatlayer`](https://pub.dev/packages/seatlayer) |
+| Android | [`seatlayer-android`](https://github.com/seatlayer/seatlayer-android) |
+| Server SDKs | [Node.js, Python, PHP, Ruby, .NET, Java, and Go](https://docs.seatlayer.io/server-sdk/install/) |
 
 ## License
 

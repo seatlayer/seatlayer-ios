@@ -28,5 +28,5 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
       - name: Verify vendored bundle version
         run: |
-          grep -q '0.29.0' Sources/SeatLayer/Web/seatlayer.js
-          grep -q 'bundledWebVersion = "0.29.0"' Sources/SeatLayer/SeatLayerConfiguration.swift
+          grep -q '0.48.1' Sources/SeatLayer/Web/seatlayer.js
+          grep -q 'bundledWebVersion = "0.48.1"' Sources/SeatLayer/SeatLayerConfiguration.swift
