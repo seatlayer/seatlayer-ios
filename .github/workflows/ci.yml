@@ -28,5 +28,12 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
       - name: Verify vendored bundle version
         run: |
-          grep -q '0.48.1' Sources/SeatLayer/Web/seatlayer.js
-          grep -q 'bundledWebVersion = "0.48.1"' Sources/SeatLayer/SeatLayerConfiguration.swift
+          # Derived, not hard-coded. This step pinned 0.48.1 literally, so the
+          # first honest bundle refresh failed CI for being correct and the
+          # version had to be edited in three places instead of one. The Swift
+          # constant is the single source of truth; the bundle must agree.
+          version="$(sed -n 's/.*bundledWebVersion = "\(.*\)".*/\1/p' Sources/SeatLayer/SeatLayerConfiguration.swift)"
+          test -n "$version" || { echo "could not read bundledWebVersion"; exit 1; }
+          echo "declared bundled web version: $version"
+          grep -q "$version" Sources/SeatLayer/Web/seatlayer.js \
+            || { echo "vendored seatlayer.js does not carry $version"; exit 1; }
