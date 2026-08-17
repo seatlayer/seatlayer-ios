@@ -97,7 +97,7 @@ public struct SeatLayerConfiguration: Sendable {
 
 public enum SeatLayer {
     /// This SDK's version.
-    public static let sdkVersion = "0.1.1"
+    public static let sdkVersion = "0.1.2"
     /// The web bundle vendored into this package.
-    public static let bundledWebVersion = "0.48.1"
+    public static let bundledWebVersion = "0.59.0"
 }

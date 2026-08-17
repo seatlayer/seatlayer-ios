@@ -24,7 +24,7 @@ without a startup download. Live chart and inventory data still come from the
 configured SeatLayer API.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.48.1` (sha256 `b459b0b6…`)
+- Vendored bundle: `seatlayer-js@0.59.0` (sha256 `89bc29fb…`)
 - Protocol revision: 1
 
 ## Evaluate with Swift Package Manager
