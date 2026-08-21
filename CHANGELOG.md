@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+- Loads the pinned hosted `seatlayer-js@0.66.0/mobile.html` document at the
+  exact buyer-access allowed origin `https://cdn.seatlayer.io`.
+- Separates `hostedWebVersion` (`0.66.0`) from the explicit legacy fixture
+  version (`0.59.0`) and synchronizes the runnable demo to the verified fixture.
+- Adds renewable private buyer access, origin-locked navigation, programmatic
+  selection/category controls, exact-count validators, typed validity/access
+  events, and fail-closed capability negotiation.
+- Retains explicit local fixture loading for demo and contract-test pages.
+
 ## 0.1.2
 
 - Updated the vendored buyer runtime to `seatlayer-js@0.59.0` (sha256

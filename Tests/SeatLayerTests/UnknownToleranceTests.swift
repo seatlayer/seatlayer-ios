@@ -5,6 +5,15 @@ import XCTest
 /// here may throw, and nothing may crash.
 final class UnknownToleranceTests: XCTestCase {
 
+    func testHostedAndFixtureVersionsRemainDistinctAndPinned() {
+        XCTAssertEqual(SeatLayer.hostedWebVersion, "0.66.0")
+        XCTAssertEqual(SeatLayer.legacyFixtureWebVersion, "0.59.0")
+        XCTAssertEqual(
+            SeatLayer.mobilePageURL.absoluteString,
+            "https://cdn.seatlayer.io/seatlayer-js@\(SeatLayer.hostedWebVersion)/mobile.html"
+        )
+    }
+
     // MARK: - Open enums
 
     func testEventModeDecodesAnUnfamiliarValue() throws {
@@ -176,6 +185,58 @@ final class UnknownToleranceTests: XCTestCase {
         // Absent options must be OMITTED, not sent as null.
         XCTAssertNil(payload["config"]?["currency"])
         XCTAssertNil(payload["config"]?["publicKey"])
+    }
+
+    func testPrivateSelectionConfigurationMatchesTheMobileBridgeContract() {
+        let configuration = SeatLayerConfiguration(
+            event: "ev_private",
+            buyerAccessToken: BuyerAccessToken(token: "bse_seed", expiresAt: 123),
+            buyerAccessTokenProvider: { context in
+                BuyerAccessToken(token: "bse_\(context.reason.rawValue)")
+            },
+            selectedObjects: ["A-1"],
+            selectableObjects: ["A-1", "A-2"],
+            numberOfPlacesToSelect: 2,
+            selectionValidators: [.minimumSelectedPlaces(2), .consecutiveSeats]
+        )
+
+        let config = configuration.initPayload()["config"]
+        XCTAssertEqual(config?["buyerAccessToken"]?["token"]?.stringValue, "bse_seed")
+        XCTAssertEqual(config?["buyerAccessToken"]?["expiresAt"]?.doubleValue, 123)
+        XCTAssertEqual(config?["nativeAccessProvider"]?.boolValue, true)
+        XCTAssertEqual(config?["selectedObjects"], .array(["A-1"]))
+        XCTAssertEqual(config?["selectableObjects"], .array(["A-1", "A-2"]))
+        XCTAssertEqual(config?["numberOfPlacesToSelect"]?.intValue, 2)
+        XCTAssertEqual(
+            config?["selectionValidators"],
+            .array([
+                ["type": "minimumSelectedPlaces", "minimum": 2],
+                ["type": "consecutiveSeats"],
+            ])
+        )
+        XCTAssertTrue(configuration.usesPrivateAccess)
+        XCTAssertTrue(configuration.usesSelectionPolicy)
+    }
+
+    func testSelectionAndAccessEventsDecodeUnknownValuesWithoutFailing() throws {
+        let validity: JSONValue = [
+            "isValid": false,
+            "count": 1,
+            "required": 2,
+            "remaining": 1,
+            "seats": [["id": "s1", "label": "A-1"]],
+            "violations": ["futureRule"],
+        ]
+        let decoded = try validity.decode(SelectionValidity.self)
+        XCTAssertEqual(decoded.seats.first?.label, "A-1")
+        XCTAssertEqual(decoded.violations, [.unknown("futureRule")])
+
+        let unavailable: JSONValue = [
+            "reason": "future_access_state",
+            "retryable": false,
+        ]
+        let event = try unavailable.decode(BuyerAccessUnavailableEvent.self)
+        XCTAssertEqual(event.reason, .unknown("future_access_state"))
     }
 
     // MARK: - Helper

@@ -9,7 +9,7 @@ public struct SeatLayerConfiguration: Sendable {
     public var event: String
     /// API origin. Defaults to `https://api.seatlayer.io`.
     public var apiBase: String?
-    /// Reserved for future authenticated rendering.
+    /// Optional public rendering key.
     public var publicKey: String?
     /// Max seats selectable at once (web default 10).
     public var maxSelection: Int?
@@ -29,6 +29,20 @@ public struct SeatLayerConfiguration: Sendable {
     /// the app presents its own seat sheet natively — the default here, because
     /// a hover tooltip is a pointer affordance that does not belong on touch.
     public var showsWebSeatTooltip: Bool = false
+    /// One-shot private-inventory bearer. Prefer `buyerAccessTokenProvider` so
+    /// the picker can renew without rebuilding the view.
+    public var buyerAccessToken: BuyerAccessToken?
+    /// Called in memory whenever private buyer access needs a fresh bearer.
+    /// Bearers are never put in URLs, logs, events, or persistent storage.
+    public var buyerAccessTokenProvider: BuyerAccessTokenProvider?
+    /// Objects selected as soon as the chart is ready (id or public label).
+    public var selectedObjects: [String]?
+    /// Restrict buyer selection to these objects. `nil` means unrestricted.
+    public var selectableObjects: [String]?
+    /// Exact guest count required before the selection is valid.
+    public var numberOfPlacesToSelect: Int?
+    /// Additional data-only selection rules enforced by the shared picker.
+    public var selectionValidators: [SelectionValidator]?
 
     /// Native-side deadline for a single command before it fails `sl_timeout`.
     public var commandTimeout: TimeInterval = BridgeClient.defaultTimeout
@@ -38,8 +52,8 @@ public struct SeatLayerConfiguration: Sendable {
     /// bundle-side diagnostics.
     public var hostInfo: [String: String] = [:]
 
-    /// Override the page the WebView loads. Defaults to the bundled
-    /// `index.html`. Used by the demo app to load a self-contained fixture page.
+    /// Override the page the WebView loads. Production defaults to the immutable
+    /// hosted mobile page. Demos may supply a self-contained local fixture.
     public var pageURL: URL?
 
     public init(
@@ -52,7 +66,13 @@ public struct SeatLayerConfiguration: Sendable {
         currency: String? = nil,
         colorblindSafe: Bool? = nil,
         initialView: SeatLayerViewMode? = nil,
-        showsWebSeatTooltip: Bool = false
+        showsWebSeatTooltip: Bool = false,
+        buyerAccessToken: BuyerAccessToken? = nil,
+        buyerAccessTokenProvider: BuyerAccessTokenProvider? = nil,
+        selectedObjects: [String]? = nil,
+        selectableObjects: [String]? = nil,
+        numberOfPlacesToSelect: Int? = nil,
+        selectionValidators: [SelectionValidator]? = nil
     ) {
         self.event = event
         self.apiBase = apiBase
@@ -64,6 +84,12 @@ public struct SeatLayerConfiguration: Sendable {
         self.colorblindSafe = colorblindSafe
         self.initialView = initialView
         self.showsWebSeatTooltip = showsWebSeatTooltip
+        self.buyerAccessToken = buyerAccessToken
+        self.buyerAccessTokenProvider = buyerAccessTokenProvider
+        self.selectedObjects = selectedObjects
+        self.selectableObjects = selectableObjects
+        self.numberOfPlacesToSelect = numberOfPlacesToSelect
+        self.selectionValidators = selectionValidators
     }
 
     /// The `init` payload: `{ protocol, host, chrome, config }`.
@@ -85,6 +111,20 @@ public struct SeatLayerConfiguration: Sendable {
         if let messages {
             config["messages"] = .object(messages.mapValues { JSONValue.string($0) })
         }
+        if let buyerAccessToken { config["buyerAccessToken"] = buyerAccessToken.jsonValue() }
+        if buyerAccessTokenProvider != nil { config["nativeAccessProvider"] = .bool(true) }
+        if let selectedObjects {
+            config["selectedObjects"] = .array(selectedObjects.map(JSONValue.string))
+        }
+        if let selectableObjects {
+            config["selectableObjects"] = .array(selectableObjects.map(JSONValue.string))
+        }
+        if let numberOfPlacesToSelect {
+            config["numberOfPlacesToSelect"] = .int(numberOfPlacesToSelect)
+        }
+        if let selectionValidators {
+            config["selectionValidators"] = .array(selectionValidators.map { $0.jsonValue() })
+        }
 
         return [
             "protocol": protocolRange.json,
@@ -93,11 +133,26 @@ public struct SeatLayerConfiguration: Sendable {
             "config": .object(config),
         ]
     }
+
+    var usesPrivateAccess: Bool {
+        buyerAccessToken != nil || buyerAccessTokenProvider != nil
+    }
+
+    var usesSelectionPolicy: Bool {
+        selectedObjects != nil || selectableObjects != nil
+            || numberOfPlacesToSelect != nil || selectionValidators != nil
+    }
 }
 
 public enum SeatLayer {
     /// This SDK's version.
-    public static let sdkVersion = "0.1.2"
-    /// The web bundle vendored into this package.
-    public static let bundledWebVersion = "0.59.0"
+    public static let sdkVersion = "0.2.0"
+    /// Immutable hosted runtime loaded by production views.
+    public static let hostedWebVersion = "0.66.0"
+    /// Runtime retained only for explicit offline demo/test fixtures.
+    public static let legacyFixtureWebVersion = "0.59.0"
+    @available(*, deprecated, renamed: "hostedWebVersion")
+    public static let bundledWebVersion = hostedWebVersion
+    public static let mobileOrigin = "https://cdn.seatlayer.io"
+    public static let mobilePageURL = URL(string: "https://cdn.seatlayer.io/seatlayer-js@0.66.0/mobile.html")!
 }

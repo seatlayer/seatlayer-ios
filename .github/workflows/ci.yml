@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -26,14 +27,38 @@ jobs:
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
-      - name: Verify vendored bundle version
+      - name: Verify hosted runtime and legacy fixture metadata
         run: |
-          # Derived, not hard-coded. This step pinned 0.48.1 literally, so the
-          # first honest bundle refresh failed CI for being correct and the
-          # version had to be edited in three places instead of one. The Swift
-          # constant is the single source of truth; the bundle must agree.
-          version="$(sed -n 's/.*bundledWebVersion = "\(.*\)".*/\1/p' Sources/SeatLayer/SeatLayerConfiguration.swift)"
-          test -n "$version" || { echo "could not read bundledWebVersion"; exit 1; }
-          echo "declared bundled web version: $version"
-          grep -q "$version" Sources/SeatLayer/Web/seatlayer.js \
-            || { echo "vendored seatlayer.js does not carry $version"; exit 1; }
+          source=Sources/SeatLayer/SeatLayerConfiguration.swift
+          hosted="$(sed -n 's/.*hostedWebVersion = "\(.*\)".*/\1/p' "$source")"
+          fixture="$(sed -n 's/.*legacyFixtureWebVersion = "\(.*\)".*/\1/p' "$source")"
+          page="$(sed -n 's/.*mobilePageURL = URL(string: "\(.*\)")!.*/\1/p' "$source")"
+          test -n "$hosted" || { echo "could not read hostedWebVersion"; exit 1; }
+          test -n "$fixture" || { echo "could not read legacyFixtureWebVersion"; exit 1; }
+          test "$page" = "https://cdn.seatlayer.io/seatlayer-js@$hosted/mobile.html" \
+            || { echo "mobilePageURL does not match hostedWebVersion"; exit 1; }
+          test "$fixture" = "0.59.0" \
+            || { echo "unexpected legacy fixture version: $fixture"; exit 1; }
+          test "$(shasum -a 256 Sources/SeatLayer/Web/seatlayer.js | cut -d' ' -f1)" \
+            = "89bc29fbccad5d3c30e52cf5381c974b95ac034b32c28b400248b4ebb4ee22a9" \
+            || { echo "legacy seatlayer.js checksum changed"; exit 1; }
+          test "$(shasum -a 256 Example/SeatLayerDemo/Resources/seatlayer.js | cut -d' ' -f1)" \
+            = "89bc29fbccad5d3c30e52cf5381c974b95ac034b32c28b400248b4ebb4ee22a9" \
+            || { echo "example and package fixture runtimes differ"; exit 1; }
+          test "$(shasum -a 256 Sources/SeatLayer/Web/index.html | cut -d' ' -f1)" \
+            = "a9a7254b0e764ba3ee602bf74bccadda9c52e1576fedc47c0afc385490a8eb4f" \
+            || { echo "legacy index.html checksum changed"; exit 1; }
+      - name: Verify release tag and deployed hosted runtime
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          source=Sources/SeatLayer/SeatLayerConfiguration.swift
+          sdk="$(sed -n 's/.*sdkVersion = "\(.*\)".*/\1/p' "$source")"
+          runtime="$(sed -n 's/.*hostedWebVersion = "\(.*\)".*/\1/p' "$source")"
+          test "$RELEASE_TAG" = "v$sdk"
+          metadata="$(curl --fail --silent --show-error "https://cdn.seatlayer.io/seatlayer-js@$runtime/release.json")"
+          test "$(printf '%s' "$metadata" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')" = "$runtime"
+          test "$(printf '%s' "$metadata" | python3 -c 'import json,sys; print(str(json.load(sys.stdin)["promotable"]).lower())')" = true
+          curl --fail --silent --show-error --output /dev/null \
+            "https://cdn.seatlayer.io/seatlayer-js@$runtime/mobile.html"

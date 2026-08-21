@@ -171,7 +171,179 @@ public enum SeatLayerViewMode: OpenEnum {
     }
 }
 
+/// Why the picker is asking the host app for a fresh buyer-access bearer.
+public enum BuyerAccessRefreshReason: OpenEnum {
+    case initial, expiring, expired, unauthorized, reconnect, manual
+    case unknown(String)
+
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "initial": self = .initial
+        case "expiring": self = .expiring
+        case "expired": self = .expired
+        case "unauthorized": self = .unauthorized
+        case "reconnect": self = .reconnect
+        case "manual": self = .manual
+        default: return nil
+        }
+    }
+
+    public init(unknown: String) { self = .unknown(unknown) }
+
+    public var rawValue: String {
+        switch self {
+        case .initial: return "initial"
+        case .expiring: return "expiring"
+        case .expired: return "expired"
+        case .unauthorized: return "unauthorized"
+        case .reconnect: return "reconnect"
+        case .manual: return "manual"
+        case .unknown(let raw): return raw
+        }
+    }
+}
+
+/// Why private inventory cannot currently be shown to this buyer.
+public enum BuyerAccessUnavailableReason: OpenEnum {
+    case revoked, paused, invalid, originMismatch, eventMismatch, groupMismatch
+    case modeMismatch, channelDenied, invalidScope, providerFailed, noToken
+    case unknown(String)
+
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "revoked": self = .revoked
+        case "paused": self = .paused
+        case "invalid": self = .invalid
+        case "origin_mismatch": self = .originMismatch
+        case "event_mismatch": self = .eventMismatch
+        case "group_mismatch": self = .groupMismatch
+        case "mode_mismatch": self = .modeMismatch
+        case "channel_denied": self = .channelDenied
+        case "invalid_scope": self = .invalidScope
+        case "provider_failed": self = .providerFailed
+        case "no_token": self = .noToken
+        default: return nil
+        }
+    }
+
+    public init(unknown: String) { self = .unknown(unknown) }
+
+    public var rawValue: String {
+        switch self {
+        case .revoked: return "revoked"
+        case .paused: return "paused"
+        case .invalid: return "invalid"
+        case .originMismatch: return "origin_mismatch"
+        case .eventMismatch: return "event_mismatch"
+        case .groupMismatch: return "group_mismatch"
+        case .modeMismatch: return "mode_mismatch"
+        case .channelDenied: return "channel_denied"
+        case .invalidScope: return "invalid_scope"
+        case .providerFailed: return "provider_failed"
+        case .noToken: return "no_token"
+        case .unknown(let raw): return raw
+        }
+    }
+}
+
+public enum SelectedObjectUnavailableReason: OpenEnum {
+    case ineligible, taken, exhausted
+    case unknown(String)
+
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "ineligible": self = .ineligible
+        case "taken": self = .taken
+        case "exhausted": self = .exhausted
+        default: return nil
+        }
+    }
+
+    public init(unknown: String) { self = .unknown(unknown) }
+
+    public var rawValue: String {
+        switch self {
+        case .ineligible: return "ineligible"
+        case .taken: return "taken"
+        case .exhausted: return "exhausted"
+        case .unknown(let raw): return raw
+        }
+    }
+}
+
+public enum SelectionViolation: OpenEnum {
+    case numberOfPlacesToSelect, minimumSelectedPlaces, consecutiveSeats, noOrphanSeats
+    case unknown(String)
+
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "numberOfPlacesToSelect": self = .numberOfPlacesToSelect
+        case "minimumSelectedPlaces": self = .minimumSelectedPlaces
+        case "consecutiveSeats": self = .consecutiveSeats
+        case "noOrphanSeats": self = .noOrphanSeats
+        default: return nil
+        }
+    }
+
+    public init(unknown: String) { self = .unknown(unknown) }
+
+    public var rawValue: String {
+        switch self {
+        case .numberOfPlacesToSelect: return "numberOfPlacesToSelect"
+        case .minimumSelectedPlaces: return "minimumSelectedPlaces"
+        case .consecutiveSeats: return "consecutiveSeats"
+        case .noOrphanSeats: return "noOrphanSeats"
+        case .unknown(let raw): return raw
+        }
+    }
+}
+
 // MARK: - Value types
+
+/// An opaque, short-lived buyer-access bearer minted by the host's backend.
+public struct BuyerAccessToken: Sendable, Equatable {
+    public var token: String
+    /// Epoch milliseconds. When absent, refresh happens reactively.
+    public var expiresAt: Double?
+
+    public init(token: String, expiresAt: Double? = nil) {
+        self.token = token
+        self.expiresAt = expiresAt
+    }
+
+    func jsonValue() -> JSONValue {
+        .object(compacting: [
+            "token": .string(token),
+            "expiresAt": expiresAt.map(JSONValue.double),
+        ])
+    }
+}
+
+public struct BuyerAccessRequestContext: Sendable, Equatable {
+    public var reason: BuyerAccessRefreshReason
+
+    public init(reason: BuyerAccessRefreshReason) { self.reason = reason }
+}
+
+public typealias BuyerAccessTokenProvider = @Sendable (BuyerAccessRequestContext) async throws -> BuyerAccessToken
+
+/// Selection rules supported by the shared buyer picker.
+public enum SelectionValidator: Sendable, Equatable {
+    case minimumSelectedPlaces(Int)
+    case consecutiveSeats
+    case noOrphanSeats
+
+    func jsonValue() -> JSONValue {
+        switch self {
+        case .minimumSelectedPlaces(let minimum):
+            return ["type": "minimumSelectedPlaces", "minimum": .int(minimum)]
+        case .consecutiveSeats:
+            return ["type": "consecutiveSeats"]
+        case .noOrphanSeats:
+            return ["type": "noOrphanSeats"]
+        }
+    }
+}
 
 /// A ticket tier a category offers (Adult / Child / …).
 public struct CategoryTier: Codable, Sendable, Equatable {
@@ -205,6 +377,35 @@ public struct SelectedSeat: Codable, Sendable, Equatable {
 
     /// What to show the buyer. Booking still uses `label`.
     public var buyerFacingLabel: String { displayLabel ?? label }
+}
+
+/// Current exact-count and validator state for the buyer's selection.
+public struct SelectionValidity: Codable, Sendable, Equatable {
+    public var isValid: Bool
+    public var count: Int
+    public var required: Int
+    public var remaining: Int
+    public var seats: [SelectedSeat]
+    public var violations: [SelectionViolation]
+}
+
+public struct BuyerAccessExpiredEvent: Codable, Sendable, Equatable {
+    public var reason: BuyerAccessRefreshReason
+    public var code: String?
+    public var refreshed: Bool
+}
+
+public struct BuyerAccessUnavailableEvent: Codable, Sendable, Equatable {
+    public var reason: BuyerAccessUnavailableReason
+    public var code: String?
+    public var status: Int?
+    public var retryable: Bool
+}
+
+public struct SelectedObjectUnavailableEvent: Codable, Sendable, Equatable {
+    public var labels: [String]
+    public var reason: SelectedObjectUnavailableReason
+    public var code: String?
 }
 
 /// One line of a hold.
