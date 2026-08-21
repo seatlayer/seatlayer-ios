@@ -14,6 +14,27 @@ public protocol SeatLayerViewDelegate: AnyObject {
     /// The buyer's selection changed. Carries the FULL current selection.
     func seatLayerView(_ view: SeatLayerView, selectionDidChange seats: [SelectedSeat])
 
+    /// Exact-count and validator state changed.
+    func seatLayerView(_ view: SeatLayerView, selectionValidityDidChange validity: SelectionValidity)
+
+    /// The current selection now satisfies every configured rule.
+    func seatLayerView(_ view: SeatLayerView, selectionDidBecomeValid seats: [SelectedSeat])
+
+    /// The current selection no longer satisfies every configured rule.
+    func seatLayerView(_ view: SeatLayerView, selectionDidBecomeInvalid validity: SelectionValidity)
+
+    /// The buyer tried to exceed the active selection cap.
+    func seatLayerView(_ view: SeatLayerView, didReachSelectionLimit maximum: Int)
+
+    /// The current buyer-access session expired, with refresh outcome.
+    func seatLayerView(_ view: SeatLayerView, buyerAccessDidExpire event: BuyerAccessExpiredEvent)
+
+    /// Private inventory cannot currently be shown.
+    func seatLayerView(_ view: SeatLayerView, buyerAccessBecameUnavailable event: BuyerAccessUnavailableEvent)
+
+    /// Selected inventory became ineligible or unavailable before hold.
+    func seatLayerView(_ view: SeatLayerView, selectedObjectsBecameUnavailable event: SelectedObjectUnavailableEvent)
+
     /// A hold was created or updated.
     func seatLayerView(_ view: SeatLayerView, holdDidChange hold: HoldResult)
 
@@ -50,6 +71,13 @@ public protocol SeatLayerViewDelegate: AnyObject {
 public extension SeatLayerViewDelegate {
     func seatLayerViewDidBecomeReady(_ view: SeatLayerView, info: ReadyInfo) {}
     func seatLayerView(_ view: SeatLayerView, selectionDidChange seats: [SelectedSeat]) {}
+    func seatLayerView(_ view: SeatLayerView, selectionValidityDidChange validity: SelectionValidity) {}
+    func seatLayerView(_ view: SeatLayerView, selectionDidBecomeValid seats: [SelectedSeat]) {}
+    func seatLayerView(_ view: SeatLayerView, selectionDidBecomeInvalid validity: SelectionValidity) {}
+    func seatLayerView(_ view: SeatLayerView, didReachSelectionLimit maximum: Int) {}
+    func seatLayerView(_ view: SeatLayerView, buyerAccessDidExpire event: BuyerAccessExpiredEvent) {}
+    func seatLayerView(_ view: SeatLayerView, buyerAccessBecameUnavailable event: BuyerAccessUnavailableEvent) {}
+    func seatLayerView(_ view: SeatLayerView, selectedObjectsBecameUnavailable event: SelectedObjectUnavailableEvent) {}
     func seatLayerView(_ view: SeatLayerView, holdDidChange hold: HoldResult) {}
     func seatLayerView(_ view: SeatLayerView, holdWasRestored hold: HoldResult) {}
     func seatLayerViewHoldDidExpire(_ view: SeatLayerView) {}

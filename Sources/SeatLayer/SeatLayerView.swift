@@ -4,7 +4,8 @@ import WebKit
 
 /// A seat map.
 ///
-/// Hosts a `WKWebView` running the vendored SeatLayer bundle, performs the
+/// Hosts a `WKWebView` running the immutable, version-pinned SeatLayer mobile
+/// page, performs the
 /// bridge handshake, and exposes the chart as async Swift methods.
 ///
 /// ## Known constraint (v0.1)
@@ -39,6 +40,7 @@ public final class SeatLayerView: UIView {
     private var readyContinuations: [CheckedContinuation<ReadyInfo, Error>] = []
     private var handshakeTimeoutTask: Task<Void, Never>?
     private var hasFinished = false
+    private var allowedPageURL: URL?
 
     // MARK: - Init
 
@@ -144,27 +146,28 @@ public final class SeatLayerView: UIView {
         guard let channel else { throw SeatLayerError.transport("web view unavailable") }
         client = BridgeClient(channel: channel, timeout: configuration.commandTimeout)
 
-        let pageURL: URL
-        if let override = configuration.pageURL {
-            pageURL = override
-        } else {
-            pageURL = try Self.bundledPageURL()
-        }
+        let pageURL = configuration.pageURL ?? SeatLayer.mobilePageURL
+        allowedPageURL = pageURL
 
         await client.onSignal { [weak self] signal in
             Task { @MainActor [weak self] in self?.handle(signal) }
         }
 
         startHandshakeTimeout(configuration.handshakeTimeout)
-        webView.loadFileURL(pageURL, allowingReadAccessTo: pageURL.deletingLastPathComponent())
+        if pageURL.isFileURL {
+            webView.loadFileURL(pageURL, allowingReadAccessTo: pageURL.deletingLastPathComponent())
+        } else {
+            webView.load(URLRequest(url: pageURL))
+        }
 
         return try await withCheckedThrowingContinuation { continuation in
             readyContinuations.append(continuation)
         }
     }
 
-    /// The vendored page shell. Nothing is fetched from the network at startup —
-    /// the shell and the 532 KB bundle both live in the package resources.
+    /// Legacy bundled page shell retained for offline fixtures and migration.
+    /// Production loads the immutable hosted page so its lazy locale, 3D,
+    /// panorama, checkout, and worker assets resolve from the same origin.
     static func bundledPageURL() throws -> URL {
         guard let root = Bundle.module.resourceURL?.appendingPathComponent("Web") else {
             throw SeatLayerError.missingResource("Web")
@@ -217,9 +220,16 @@ public final class SeatLayerView: UIView {
 
     // MARK: - Inbound
 
-    fileprivate func receive(_ body: Any) {
+    fileprivate func receive(_ body: Any, from frame: WKFrameInfo) {
+        guard frame.isMainFrame, accepts(origin: frame.securityOrigin) else { return }
         guard let envelope = Envelope.decode(foundation: body) else { return }
         Task { [client] in await client?.ingest(envelope) }
+    }
+
+    private func accepts(origin: WKSecurityOrigin) -> Bool {
+        guard let page = allowedPageURL else { return false }
+        if page.isFileURL { return origin.protocol == "file" }
+        return origin.protocol == page.scheme && origin.host == page.host
     }
 
     private func handle(_ signal: BridgeSignal) {
@@ -249,6 +259,25 @@ public final class SeatLayerView: UIView {
             )))
         case .agreed:
             guard let configuration else { return }
+            if configuration.usesPrivateAccess,
+               !info.supports(capability: "native-access-provider") {
+                finishHandshake(.failure(.incompatible(
+                    native: .native,
+                    web: info.protocolRange,
+                    reason: "the bundle does not support private buyer access"
+                )))
+                return
+            }
+            if configuration.usesSelectionPolicy,
+               (!info.supports(capability: "selection-controls")
+                || !info.supports(capability: "selection-validity")) {
+                finishHandshake(.failure(.incompatible(
+                    native: .native,
+                    web: info.protocolRange,
+                    reason: "the bundle does not support the configured selection policy"
+                )))
+                return
+            }
             Task { [client] in
                 await client?.sendInit(payload: configuration.initPayload())
             }
@@ -273,6 +302,45 @@ public final class SeatLayerView: UIView {
         case "selection.changed":
             let seats = decodeList(payload?["seats"], as: SelectedSeat.self)
             delegate?.seatLayerView(self, selectionDidChange: seats)
+
+        case "selection.validity.changed":
+            if let validity = try? payload?["validity"]?.decode(SelectionValidity.self) {
+                delegate?.seatLayerView(self, selectionValidityDidChange: validity)
+            }
+
+        case "selection.valid":
+            delegate?.seatLayerView(
+                self,
+                selectionDidBecomeValid: decodeList(payload?["seats"], as: SelectedSeat.self)
+            )
+
+        case "selection.invalid":
+            if let validity = try? payload?["validity"]?.decode(SelectionValidity.self) {
+                delegate?.seatLayerView(self, selectionDidBecomeInvalid: validity)
+            }
+
+        case "selection.limit":
+            if let maximum = payload?["maxSelection"]?.intValue {
+                delegate?.seatLayerView(self, didReachSelectionLimit: maximum)
+            }
+
+        case "access.token.request":
+            provideBuyerAccessToken(payload)
+
+        case "access.expired":
+            if let event = try? payload?.decode(BuyerAccessExpiredEvent.self) {
+                delegate?.seatLayerView(self, buyerAccessDidExpire: event)
+            }
+
+        case "access.unavailable":
+            if let event = try? payload?.decode(BuyerAccessUnavailableEvent.self) {
+                delegate?.seatLayerView(self, buyerAccessBecameUnavailable: event)
+            }
+
+        case "selection.unavailable":
+            if let event = try? payload?.decode(SelectedObjectUnavailableEvent.self) {
+                delegate?.seatLayerView(self, selectedObjectsBecameUnavailable: event)
+            }
 
         case "hold.changed":
             if let hold = try? payload?["hold"]?.decode(HoldResult.self) {
@@ -310,6 +378,44 @@ public final class SeatLayerView: UIView {
         default:
             // An event name this build predates. Never a crash.
             delegate?.seatLayerView(self, didReceiveUnknownEvent: name, payload: payload)
+        }
+    }
+
+    private func provideBuyerAccessToken(_ payload: JSONValue?) {
+        guard let requestId = payload?["requestId"]?.stringValue else { return }
+        let rawReason = payload?["reason"]?.stringValue ?? "initial"
+        let reason = BuyerAccessRefreshReason(rawValue: rawReason) ?? .unknown(rawReason)
+        let provider = configuration?.buyerAccessTokenProvider
+
+        Task { [client] in
+            guard let provider else {
+                _ = try? await client?.command(
+                    "access.token.unavailable",
+                    payload: ["requestId": .string(requestId)]
+                )
+                return
+            }
+
+            do {
+                let token = try await provider(.init(reason: reason))
+                guard !token.token.isEmpty,
+                      token.expiresAt.map(\.isFinite) ?? true else {
+                    throw SeatLayerError.decoding("buyer access provider returned an invalid token")
+                }
+                var response: [String: JSONValue] = [
+                    "requestId": .string(requestId),
+                    "token": .string(token.token),
+                ]
+                if let expiresAt = token.expiresAt { response["expiresAt"] = .double(expiresAt) }
+                _ = try await client?.command("access.token.provide", payload: .object(response))
+            } catch {
+                // Provider errors are deliberately sanitized; neither an error
+                // description nor a bearer is sent to the web runtime.
+                _ = try? await client?.command(
+                    "access.token.unavailable",
+                    payload: ["requestId": .string(requestId)]
+                )
+            }
         }
     }
 
@@ -410,6 +516,59 @@ public final class SeatLayerView: UIView {
         return decodeList(result["seats"], as: SelectedSeat.self)
     }
 
+    /// Select free objects by engine id or public label.
+    @discardableResult
+    public func selectObjects(_ objects: [String]) async throws -> [SelectedSeat] {
+        let result = try await run("selectObjects", ["objects": .array(objects.map(JSONValue.string))])
+        return decodeList(result["seats"], as: SelectedSeat.self)
+    }
+
+    public func deselectObjects(_ objects: [String]) async throws {
+        _ = try await run("deselectObjects", ["objects": .array(objects.map(JSONValue.string))])
+    }
+
+    public func clearSelection() async throws { _ = try await run("clearSelection") }
+
+    @discardableResult
+    public func selectCategories(_ categoryKeys: [String]) async throws -> [SelectedSeat] {
+        let result = try await run(
+            "selectCategories",
+            ["categoryKeys": .array(categoryKeys.map(JSONValue.string))]
+        )
+        return decodeList(result["seats"], as: SelectedSeat.self)
+    }
+
+    public func deselectCategories(_ categoryKeys: [String]) async throws {
+        _ = try await run(
+            "deselectCategories",
+            ["categoryKeys": .array(categoryKeys.map(JSONValue.string))]
+        )
+    }
+
+    /// Replace the buyer-selectable allow-list. `nil` restores all objects.
+    public func setSelectableObjects(_ objects: [String]?) async throws {
+        _ = try await run(
+            "setSelectableObjects",
+            ["objects": objects.map { .array($0.map(JSONValue.string)) } ?? .null]
+        )
+    }
+
+    public func setMaxSelection(_ maximum: Int) async throws {
+        _ = try await run("setMaxSelection", ["maxSelection": .int(maximum)])
+    }
+
+    public func getSelectionValidity() async throws -> SelectionValidity? {
+        let result = try await run("getSelectionValidity")
+        return try optional(result["validity"], as: SelectionValidity.self)
+    }
+
+    /// Ask the shared picker to renew private buyer access immediately.
+    @discardableResult
+    public func refreshAccess() async throws -> Bool {
+        let result = try await run("refreshAccess")
+        return result["refreshed"]?.boolValue ?? false
+    }
+
     /// The open hold, if any.
     public func getCurrentHold() async throws -> HoldResult? {
         let result = try await run("getCurrentHold")
@@ -470,6 +629,9 @@ public final class SeatLayerView: UIView {
 // MARK: - Navigation
 
 extension SeatLayerView: WKNavigationDelegate {
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        decisionHandler(navigationAction.request.url == allowedPageURL ? .allow : .cancel)
+    }
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         finishHandshake(.failure(.transport("page load failed: \(error.localizedDescription)")))
     }
@@ -499,7 +661,7 @@ private final class MessageProxy: NSObject, WKScriptMessageHandler {
         // bridges JS values to NSDictionary natively, so there is nothing to
         // parse here.
         MainActor.assumeIsolated {
-            view?.receive(message.body)
+            view?.receive(message.body, from: message.frameInfo)
         }
     }
 }

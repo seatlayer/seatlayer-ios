@@ -19,12 +19,14 @@ typed Swift API.
 [React Native](https://github.com/seatlayer/seatlayer-react-native) ·
 [AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-The web bundle is vendored into the package, so the SDK JavaScript is available
-without a startup download. Live chart and inventory data still come from the
-configured SeatLayer API.
+Production views load the immutable, version-pinned mobile document and its lazy
+assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
+for origin-bound private buyer sessions; no event key or bearer is put in the
+page URL.
 
 - Swift package (SPM), iOS 15+
-- Vendored bundle: `seatlayer-js@0.59.0` (sha256 `89bc29fb…`)
+- Hosted runtime: `seatlayer-js@0.66.0/mobile.html`
+- Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
 - Protocol revision: 1
 
 ## Evaluate with Swift Package Manager
@@ -39,7 +41,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.1.1")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.2.0")
 ]
 ```
 
@@ -62,6 +64,16 @@ let info = try await map.load(config)
 if case .test = info.mode { showTestBadge() }   // books no real inventory
 
 let hold = try await map.hold()
+```
+
+For private channel inventory, mint short-lived sessions on your backend for
+the exact allowed origin `https://cdn.seatlayer.io` and provide renewals in
+memory:
+
+```swift
+config.buyerAccessTokenProvider = { context in
+    try await buyerBackend.mintSeatLayerAccess(reason: context.reason)
+}
 ```
 
 Give `SeatLayerView` an explicit height or make it full-screen.
@@ -93,14 +105,18 @@ bounce, double-tap zoom, long-press callout, and text selection.
 
 `hold` · `resumeHold` · `extendHold` · `release` · `releaseLabels` ·
 `bestAvailable` · `holdGA` · `setSeatTier` · `getSelection` · `getCurrentHold` ·
-`getGAAreas` · `getFloors` · `setFloor` · `setColorblindSafe` · `setViewMode` ·
-`getViewMode` · `zoomIn` · `zoomOut` · `zoomToFit` · `destroy` — all
+`selectObjects` · `deselectObjects` · `clearSelection` · `selectCategories` ·
+`deselectCategories` · `setSelectableObjects` · `setMaxSelection` ·
+`getSelectionValidity` · `refreshAccess` · `getGAAreas` · `getFloors` ·
+`setFloor` · `setColorblindSafe` · `setViewMode` · `getViewMode` · `zoomIn` ·
+`zoomOut` · `zoomToFit` · `destroy` — all
 `async throws`, all named to match the web `SeatingChart` so the two SDKs read
 as one product.
 
 Events reach `SeatLayerViewDelegate`, which has a no-op default for every
-method: `ready`, `selectionChanged`, `holdChanged`, `holdRestored`,
-`holdExpired`, `gaClick`, `hint`, `seatHover`, `deckTap`, `error`, plus
+method: `ready`, `selectionChanged`, selection validity/valid/invalid/limit,
+buyer-access expired/unavailable, selected-object unavailable, `holdChanged`,
+`holdRestored`, `holdExpired`, `gaClick`, `hint`, `seatHover`, `deckTap`, `error`, plus
 `didReceiveUnknownEvent` for anything a newer bundle introduces.
 
 ## Forward compatibility
@@ -163,8 +179,9 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView** —
 ### Simulator
 
 `Example/SeatLayerDemo.xcodeproj` runs on a simulator against a real SeatLayer
-API. It loads the bundled shell, fetches chart and object data, upgrades to the
-event WebSocket, and exercises hold, extend and release. By default it expects
+API. Its explicit local fixture override is retained for development; production
+uses the pinned hosted page. The example fetches chart and object data, upgrades
+to the event WebSocket, and exercises hold, extend and release. By default it expects
 the locally seeded `ios-e2e-show` event at `http://localhost:8787`; replace
 those two constants with a production HTTPS API and event key for a hosted
 smoke test.
