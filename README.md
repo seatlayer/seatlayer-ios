@@ -1,4 +1,4 @@
-# SeatLayer iOS SDK
+# SeatLayer iOS Seat Map SDK for Reserved Seating
 
 [![CI](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml/badge.svg)](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/seatlayer/seatlayer-ios)](https://github.com/seatlayer/seatlayer-ios/releases/latest)
@@ -6,18 +6,18 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-The official iOS SDK for embedding interactive SeatLayer reserved-seating maps.
-It hosts the SeatLayer buyer experience in `WKWebView` and exposes selection,
-holds, best available, general admission, floors, and live events through a
-typed Swift API.
+The official SeatLayer iOS SDK for adding an interactive seating chart and
+seat picker to ticketing apps. It hosts the SeatLayer buyer experience in
+`WKWebView` and exposes seat selection, temporary holds, best available,
+general admission, floors, and live events through a typed Swift API.
 
-[Developer docs](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
-[Live demo](https://app.seatlayer.io/demo/play) ·
-[Website](https://seatlayer.io/developers/) ·
-[Flutter SDK](https://github.com/seatlayer/seatlayer-flutter) ·
-[Native Android](https://github.com/seatlayer/seatlayer-android) ·
-[React Native](https://github.com/seatlayer/seatlayer-react-native) ·
-[AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
+[iOS seat-map documentation](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
+[Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
+[SeatLayer reserved-seating platform](https://seatlayer.io/) ·
+[SeatLayer Flutter seat map SDK](https://github.com/seatlayer/seatlayer-flutter) ·
+[SeatLayer Android seat map SDK](https://github.com/seatlayer/seatlayer-android) ·
+[SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
+[SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
@@ -29,7 +29,7 @@ page URL.
 - Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
 - Protocol revision: 1
 
-## Evaluate with Swift Package Manager
+## Install
 
 In Xcode, choose **File → Add Package Dependencies** and enter:
 
@@ -88,8 +88,9 @@ books** the hold after payment or order validation.
 - Calculate the charge from server-inspected hold items, not app input.
 - Reuse your stable order id as `bookingRef` for safe booking retries.
 
-Read [how the integration works](https://docs.seatlayer.io/start/how-it-works/)
-before connecting checkout.
+Continue with
+[seat holds and secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
+before connecting payment and booking.
 
 ## Layout requirement
 
@@ -202,15 +203,66 @@ exactly why the handshake got as far as a fully drawn map and no further. The
 decoder now matches the web's `isFiniteInt` (any finite, integral number), with
 a regression test.
 
-## Related resources
+## Frequently asked questions
 
-- [Mobile SDK guide](https://docs.seatlayer.io/buyer-sdk/mobile/)
-- [Buyer SDK installation](https://docs.seatlayer.io/buyer-sdk/install/)
-- [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
-- [Complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)
-- [JavaScript and React SDKs](https://github.com/seatlayer/seatlayer-sdk)
-- [SeatLayer Flutter SDK](https://github.com/seatlayer/seatlayer-flutter)
-- [Agent-readable documentation](https://docs.seatlayer.io/llms.txt)
+### How do I add a seat map to an iOS app?
+
+Add the Swift package, create a `SeatLayerView` with your event key, and set a
+delegate. The quick start above renders a complete interactive seating chart
+with live availability; every buyer action — selection, holds, best available —
+is an `async throws` Swift call.
+
+### Is this a native Swift seat map or a WebView?
+
+Rendering runs in `WKWebView` on SeatLayer's immutable, version-pinned buyer
+runtime, and application code never touches the web layer: commands, payloads,
+errors, and events are all typed Swift. The API matches the web `SeatingChart`
+one-to-one, so iOS and web read as one product.
+
+### Does it work with SwiftUI?
+
+Yes — wrap `SeatLayerView` in `UIViewRepresentable` and give it a definite
+frame. Do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
+pinch gestures.
+
+### How do temporary seat holds work?
+
+When a buyer selects seats, the SDK creates a temporary hold that reserves the
+inventory against concurrent buyers for a limited window. The hold expires
+automatically if checkout does not complete — `holdExpired` tells the app to
+return the buyer to the map — and `extendHold` and `resumeHold` cover longer
+checkouts and app restarts. This prevents double-selling without locking seats
+forever.
+
+### Can I use my own payment provider?
+
+Yes. SeatLayer never processes payment inside the seat map. The app hands the
+`holdId` to your backend, and your backend charges through any payment
+provider you already use — Stripe, Adyen, Razorpay, or your own — before
+booking the hold through the
+[server-side checkout flow](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/).
+
+### Can I evaluate the SDK without a SeatLayer account?
+
+Yes. The repository's example app and test suite exercise the view, bridge,
+and renderer against the bundled offline fixture. Create a free SeatLayer test
+event when you are ready to validate live inventory, holds, expiry, and
+checkout.
+
+## Continue your iOS integration
+
+- [Follow the mobile seat-map integration guide](https://docs.seatlayer.io/buyer-sdk/mobile/)
+  for setup, lifecycle, commands, events, and runtime requirements.
+- [Connect seat holds to secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
+  without exposing booking credentials in the app.
+- [Run the complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)
+  to connect the buyer hold id to payment and idempotent booking.
+- [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
+  when choosing between native iOS, Flutter, React Native, and Android.
+- [Explore the 3D seating chart for web buyers](https://seatlayer.io/3d-seat-map/)
+  as a separate browser capability when comparing the wider buyer experience.
+- [Point AI coding agents at the SeatLayer docs index](https://docs.seatlayer.io/llms.txt)
+  (`llms.txt`) for an agent-readable map of the documentation.
 
 ## SeatLayer SDK ecosystem
 
@@ -219,6 +271,7 @@ a regression test.
 | JavaScript | [`@seatlayer/js`](https://www.npmjs.com/package/@seatlayer/js) |
 | React | [`@seatlayer/react`](https://www.npmjs.com/package/@seatlayer/react) |
 | React Native | [`@seatlayer/react-native`](https://www.npmjs.com/package/@seatlayer/react-native) |
+| iOS | [`seatlayer-ios`](https://github.com/seatlayer/seatlayer-ios) (this package) |
 | Flutter | [`seatlayer`](https://pub.dev/packages/seatlayer) |
 | Android | [`seatlayer-android`](https://github.com/seatlayer/seatlayer-android) |
 | Server SDKs | [Node.js, Python, PHP, Ruby, .NET, Java, and Go](https://docs.seatlayer.io/server-sdk/install/) |
