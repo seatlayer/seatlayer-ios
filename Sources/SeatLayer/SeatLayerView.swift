@@ -41,16 +41,33 @@ public final class SeatLayerView: UIView {
     private var handshakeTimeoutTask: Task<Void, Never>?
     private var hasFinished = false
     private var allowedPageURL: URL?
+    private let bridgeProfile: SeatLayerBridgeProfile
+    private weak var pickerController: SeatLayerPickerController?
 
     // MARK: - Init
 
     public override init(frame: CGRect) {
+        bridgeProfile = .raw
+        pickerController = nil
         super.init(frame: frame)
         setUp()
     }
 
     public required init?(coder: NSCoder) {
+        bridgeProfile = .raw
+        pickerController = nil
         super.init(coder: coder)
+        setUp()
+    }
+
+    init(
+        frame: CGRect,
+        bridgeProfile: SeatLayerBridgeProfile,
+        pickerController: SeatLayerPickerController
+    ) {
+        self.bridgeProfile = bridgeProfile
+        self.pickerController = pickerController
+        super.init(frame: frame)
         setUp()
     }
 
@@ -139,6 +156,7 @@ public final class SeatLayerView: UIView {
         self.readyInfo = nil
         self.protocolRevision = nil
         self.bundleInfo = nil
+        pickerController?.beginLoading()
 
         // Rebuild the client so a reload does not inherit stale correlations or
         // event sequence watermarks from the previous chart.
@@ -195,7 +213,11 @@ public final class SeatLayerView: UIView {
             // A failure AFTER ready (a late sys.error) is a delegate callback,
             // not a load result.
             if case .failure(let error) = result {
-                delegate?.seatLayerView(self, didFailWith: error)
+                if bridgeProfile.isPicker {
+                    pickerController?.fail(error)
+                } else {
+                    delegate?.seatLayerView(self, didFailWith: error)
+                }
             }
             return
         }
@@ -213,6 +235,7 @@ public final class SeatLayerView: UIView {
             for continuation in waiting { continuation.resume(returning: info) }
             delegate?.seatLayerViewDidBecomeReady(self, info: info)
         case .failure(let error):
+            pickerController?.fail(error)
             for continuation in waiting { continuation.resume(throwing: error) }
             delegate?.seatLayerView(self, didFailWith: error)
         }
@@ -239,7 +262,9 @@ public final class SeatLayerView: UIView {
         case .event(let name, let payload, _):
             handleEvent(name: name, payload: payload)
         case .unhandled(let envelope):
-            delegate?.seatLayerView(self, didReceiveUnknownEvent: envelope.type, payload: envelope.payload)
+            if !bridgeProfile.isPicker {
+                delegate?.seatLayerView(self, didReceiveUnknownEvent: envelope.type, payload: envelope.payload)
+            }
         }
     }
 
@@ -250,19 +275,16 @@ public final class SeatLayerView: UIView {
         // Negotiate natively BEFORE replying. The web side checks too, but
         // failing here means the app never even asks for a chart it could not
         // drive, and the caller gets a typed error instead of a blank view.
-        switch negotiate(native: .native, web: info.protocolRange) {
-        case .incompatible(let reason):
-            finishHandshake(.failure(.incompatible(
-                native: .native,
-                web: info.protocolRange,
-                reason: reason
-            )))
-        case .agreed:
+        do {
+            try bridgeProfile.validate(info)
             guard let configuration else { return }
+            if bridgeProfile.isPicker, let client {
+                pickerController?.connect(transport: client, bundleInfo: info)
+            }
             if configuration.usesPrivateAccess,
                !info.supports(capability: "native-access-provider") {
                 finishHandshake(.failure(.incompatible(
-                    native: .native,
+                    native: bridgeProfile.protocolRange,
                     web: info.protocolRange,
                     reason: "the bundle does not support private buyer access"
                 )))
@@ -272,32 +294,61 @@ public final class SeatLayerView: UIView {
                (!info.supports(capability: "selection-controls")
                 || !info.supports(capability: "selection-validity")) {
                 finishHandshake(.failure(.incompatible(
-                    native: .native,
+                    native: bridgeProfile.protocolRange,
                     web: info.protocolRange,
                     reason: "the bundle does not support the configured selection policy"
                 )))
                 return
             }
             Task { [client] in
-                await client?.sendInit(payload: configuration.initPayload())
+                await client?.sendInit(
+                    payload: bridgeProfile.initPayload(configuration: configuration, bundle: info)
+                )
             }
+        } catch let error as SeatLayerError {
+            finishHandshake(.failure(error))
+        } catch {
+            finishHandshake(.failure(.transport("bridge profile validation failed")))
         }
     }
 
     private func handleEvent(name: String, payload: JSONValue?) {
         switch name {
         case "sys.ready":
-            finishHandshake(.success(ReadyInfo(payload)))
+            let info = ReadyInfo(payload)
+            if bridgeProfile.isPicker, info.protocolRevision != 2 {
+                finishHandshake(.failure(.incompatible(
+                    native: bridgeProfile.protocolRange,
+                    web: ProtocolRange(
+                        min: info.protocolRevision,
+                        max: info.protocolRevision
+                    ),
+                    reason: "the picker runtime did not confirm protocol revision 2"
+                )))
+                return
+            }
+            pickerController?.markReady(info, payload: payload)
+            finishHandshake(.success(info))
 
         case "sys.incompatible":
-            let web = ProtocolRange.from(payload?["web"]) ?? .native
+            let web = ProtocolRange.from(payload?["web"]) ?? bridgeProfile.protocolRange
             let reason = payload?["message"]?.stringValue
                 ?? payload?["code"]?.stringValue
                 ?? "the seat map bundle rejected this app's protocol range"
-            finishHandshake(.failure(.incompatible(native: .native, web: web, reason: reason)))
+            finishHandshake(.failure(.incompatible(
+                native: bridgeProfile.protocolRange,
+                web: web,
+                reason: reason
+            )))
 
         case "sys.error":
             finishHandshake(.failure(.bridge(BridgeErrorPayload(payload))))
+
+        case "picker.snapshot" where bridgeProfile.isPicker:
+            pickerController?.accept(snapshot: payload?["snapshot"] ?? payload)
+
+        case "seatView.changed" where bridgeProfile.isPicker:
+            pickerController?.accept(seatView: payload?["seatView"])
 
         case "selection.changed":
             let seats = decodeList(payload?["seats"], as: SelectedSeat.self)
@@ -364,7 +415,12 @@ public final class SeatLayerView: UIView {
             delegate?.seatLayerView(self, didReceiveHint: payload?["message"]?.stringValue)
 
         case "error":
-            delegate?.seatLayerView(self, didFailWith: .bridge(BridgeErrorPayload(payload)))
+            let error = SeatLayerError.bridge(BridgeErrorPayload(payload))
+            if bridgeProfile.isPicker {
+                pickerController?.record(error)
+            } else {
+                delegate?.seatLayerView(self, didFailWith: error)
+            }
 
         case "seat.hover":
             let details = payload?["details"].flatMap { $0.isNull ? nil : try? $0.decode(SeatHoverDetails.self) }
@@ -377,7 +433,9 @@ public final class SeatLayerView: UIView {
 
         default:
             // An event name this build predates. Never a crash.
-            delegate?.seatLayerView(self, didReceiveUnknownEvent: name, payload: payload)
+            if !bridgeProfile.isPicker {
+                delegate?.seatLayerView(self, didReceiveUnknownEvent: name, payload: payload)
+            }
         }
     }
 
