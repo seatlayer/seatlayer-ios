@@ -32,6 +32,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     @Published public private(set) var actionInFlight = false
     @Published public private(set) var checkoutHandoff: SeatLayerPickerCheckoutHandoff?
     @Published public private(set) var lastActionError: SeatLayerError?
+    @Published public private(set) var selectionFlight: SeatLayerPickerSelectionFlightMoment?
     @Published public var cartSheetExpanded: Bool
 
     public let controller: SeatLayerPickerController
@@ -67,10 +68,10 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public var nextBackStep: SeatLayerPickerBackStep {
         if activePrompt != nil { return .prompt }
         if cartSheetExpanded { return .cart }
+        if controller.snapshot?.map.buyerView != "map" { return .venue }
         if pendingSeat != nil { return .confirmation }
-        if controller.snapshot?.map.focusedSectionId != nil { return .section }
-        if controller.snapshot?.map.buyerView != "map"
-            || (controller.snapshot?.map.rung ?? "zones") != "zones" { return .venue }
+        if controller.snapshot?.map.focusedSectionId != nil
+            || (controller.snapshot?.map.rung ?? "zones") != "zones" { return .section }
         return .close
     }
 
@@ -115,10 +116,47 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     /// Accept the currently displayed seat. Selection is already present in
     /// the runtime, so confirmation is a local acknowledgement, not a second
     /// inventory mutation.
-    public func confirmPending() {
+    public func confirmPending(animateToCart: Bool = true) {
         guard let pendingSeat, let identity = identity(of: pendingSeat) else { return }
+        if animateToCart { publishSelectionFlight(for: pendingSeat) }
         answered.insert(identity)
         self.pendingSeat = nextPending(in: controller.snapshot)
+    }
+
+    /// Apply a pending ticket tier before locally acknowledging the seat.
+    /// A failed runtime mutation deliberately leaves the card open.
+    @discardableResult
+    public func confirmPending(tierId: String?) async -> Bool {
+        guard !actionInFlight,
+              let pending = pendingSeat,
+              let pendingIdentity = identity(of: pending) else { return false }
+        let selectedTierId = SeatLayerPickerTiering.resolvedTierId(
+            for: pending,
+            preferred: tierId
+        )
+        actionInFlight = true
+        defer { actionInFlight = false }
+        do {
+            if selectedTierId != pending.tierId {
+                _ = try await controller.setSeatTier(
+                    seatId: pending.id,
+                    tierId: selectedTierId
+                )
+            }
+            publishSelectionFlight(for: pending)
+            answered.insert(pendingIdentity)
+            pendingSeat = nextPending(in: controller.snapshot)
+            return true
+        } catch let error as SeatLayerError {
+            lastActionError = error
+            controller.record(error)
+            return false
+        } catch {
+            let wrapped = SeatLayerError.transport(error.localizedDescription)
+            lastActionError = wrapped
+            controller.record(wrapped)
+            return false
+        }
     }
 
     public func confirmTable(_ table: SelectedSeat) {
@@ -252,15 +290,21 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         case .confirmation:
             _ = await cancelPending()
         case .section:
-            do { _ = try await controller.overview() }
+            do { try await controller.zoomOut() }
             catch let error as SeatLayerError { controller.record(error) }
             catch { controller.record(.transport(error.localizedDescription)) }
         case .venue:
             do {
-                if controller.snapshot?.map.buyerView != "map", controller.supportsVenue3D {
-                    _ = try await controller.setBuyerView("map")
-                } else {
-                    _ = try await controller.overview()
+                if let snapshot = controller.snapshot,
+                   let request = SeatLayerPickerImmersive.request(
+                       for: .back,
+                       snapshot: snapshot
+                   ) {
+                    _ = try await controller.setBuyerView(
+                        request.view,
+                        flyToSeatId: request.flyToSeatId,
+                        resetView: request.resetView
+                    )
                 }
             } catch let error as SeatLayerError { controller.record(error) }
             catch { controller.record(.transport(error.localizedDescription)) }
@@ -281,6 +325,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             pendingSeat = nil
             pendingTable = nil
             checkoutHandoff = nil
+            selectionFlight = nil
             return
         }
         if runtimeSessionId == snapshot.sessionId {
@@ -289,6 +334,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             runtimeSessionId = snapshot.sessionId
             answered.removeAll()
             checkoutHandoff = nil
+            selectionFlight = nil
         }
         latestRevision = snapshot.revision
         let present = Set(snapshot.selection.compactMap(identity))
@@ -323,6 +369,14 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     private func identity(of seat: SelectedSeat) -> String? {
         SeatLayerPickerProjections.seatIdentity(seat)
+    }
+
+    private func publishSelectionFlight(for seat: SelectedSeat) {
+        selectionFlight = .init(
+            seatId: seat.id,
+            label: seat.label,
+            categoryKey: seat.categoryKey
+        )
     }
 }
 #endif

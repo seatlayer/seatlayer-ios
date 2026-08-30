@@ -24,6 +24,49 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.canCheckout)
     }
 
+    func testTierMutationPrecedesLocalConfirmationAndUpdatesCartTruth() async throws {
+        let tiers: [JSONValue] = [
+            ["id": "adult", "name": "Adult", "price": 100, "currency": "EUR"],
+            ["id": "child", "name": "Child", "price": 60, "currency": "EUR"],
+        ]
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.setSeatTier": ["snapshot": snapshot(
+                    revision: 2,
+                    labels: ["G-1"],
+                    seatPrice: 60,
+                    tierId: "child",
+                    tiers: tiers
+                )],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.setSeatTier"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["G-1"],
+            seatPrice: 100,
+            tierId: "adult",
+            tiers: tiers
+        ))
+
+        XCTAssertEqual(presentation.pendingSeat?.tierId, "adult")
+        let confirmed = await presentation.confirmPending(tierId: "child")
+        XCTAssertTrue(confirmed)
+        XCTAssertNil(presentation.pendingSeat)
+        XCTAssertEqual(presentation.confirmedCartLines.first?.tierId, "child")
+        XCTAssertEqual(presentation.confirmedCartLines.first?.unitPrice, 60)
+        XCTAssertEqual(presentation.selectionFlight?.seatId, "seat-1")
+        XCTAssertEqual(presentation.selectionFlight?.label, "G-1")
+
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.setSeatTier"])
+        XCTAssertEqual(calls.first?.payload, ["seatId": "seat-1", "tierId": "child"])
+    }
+
     func testPresentationCheckoutIsSingleFlightThroughTheHostCallback() async throws {
         let transport = PresentationTransportSpy(
             responses: ["picker.continue": checkoutResponse()],
@@ -87,42 +130,115 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertEqual(calls.last?.payload, ["holdId": "opaque-test-hold"])
     }
 
-    func testBackConsumesPromptCartConfirmationSectionVenueThenHost() async {
-        let transport = PresentationTransportSpy(responses: [
-            "picker.deselectObjects": ["snapshot": snapshot(revision: 2, labels: [], focused: true, buyerView: "venue3d")],
-            "picker.overview": ["snapshot": snapshot(revision: 3, labels: [], focused: false, buyerView: "venue3d")],
-            "picker.setBuyerView": ["snapshot": snapshot(revision: 4, labels: [], focused: false, buyerView: "map")],
-            "picker.abort": ["snapshot": snapshot(revision: 5, labels: [], focused: false, buyerView: "map")],
-        ])
+    func testBackConsumesPromptCartConfirmation3DTargetOverviewThenHost() async {
+        let targetedMap: [String: JSONValue] = [
+            "view3dTargetSeatId": "seat-1",
+            "view3dPreviousSeatId": .null,
+            "view3dNextSeatId": .null,
+            "view3dFocusedSectionId": "section-a",
+        ]
+        let overviewMap: [String: JSONValue] = [
+            "view3dPreviousSeatId": .null,
+            "view3dNextSeatId": .null,
+            "view3dFocusedSectionId": .null,
+        ]
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.deselectObjects": ["snapshot": snapshot(
+                    revision: 5,
+                    labels: [],
+                    buyerView: "map"
+                )],
+                "picker.abort": ["snapshot": snapshot(revision: 6, labels: [])],
+            ],
+            responseSequences: [
+                "picker.setBuyerView": [
+                    ["snapshot": snapshot(
+                        revision: 3,
+                        labels: ["A-1"],
+                        buyerView: "venue3d",
+                        mapAdditions: overviewMap
+                    )],
+                    ["snapshot": snapshot(revision: 4, labels: ["A-1"])],
+                ],
+            ]
+        )
         let controller = readyController(
             transport: transport,
-            commands: ["picker.deselectObjects", "picker.overview", "picker.setBuyerView", "picker.abort"],
+            commands: ["picker.deselectObjects", "picker.setBuyerView", "picker.abort"],
             capabilities: ["venue-3d-v1"]
         )
         let presentation = SeatLayerPickerPresentationModel(
             controller: controller,
             options: .init(panelInitiallyCollapsed: false)
         )
-        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"], focused: true, buyerView: "venue3d"))
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["A-1"],
+            buyerView: "venue3d",
+            mapAdditions: targetedMap
+        ))
         controller.accept(generalAdmissionCandidate: GAArea(id: "ga-1", label: "Standing"))
 
         var steps: [SeatLayerPickerBackStep] = []
         steps.append(await presentation.back())
         steps.append(await presentation.back())
         steps.append(await presentation.back())
+        XCTAssertEqual(presentation.pendingSeat?.label, "A-1")
         steps.append(await presentation.back())
+        XCTAssertEqual(presentation.pendingSeat?.label, "A-1")
         steps.append(await presentation.back())
+        XCTAssertNil(presentation.pendingSeat)
         var hostCloseCount = 0
         steps.append(await presentation.back { hostCloseCount += 1 })
 
-        XCTAssertEqual(steps, [.prompt, .cart, .confirmation, .section, .venue, .close])
+        XCTAssertEqual(steps, [.prompt, .cart, .venue, .venue, .confirmation, .close])
         XCTAssertEqual(hostCloseCount, 1)
         let calls = await transport.recordedCalls()
         XCTAssertEqual(calls.map(\.name), [
-            "picker.deselectObjects", "picker.overview", "picker.setBuyerView", "picker.abort",
+            "picker.setBuyerView", "picker.setBuyerView", "picker.deselectObjects", "picker.abort",
         ])
-        XCTAssertEqual(calls[0].payload, ["objects": ["A-1"]])
-        XCTAssertEqual(calls[2].payload, ["view": "map"])
+        XCTAssertEqual(calls[0].payload, ["view": "venue3d", "resetView": true])
+        XCTAssertEqual(calls[1].payload, ["view": "map"])
+        XCTAssertEqual(calls[2].payload, ["objects": ["A-1"]])
+    }
+
+    func testBackWalksOne2DMapRungAtATime() async {
+        let transport = PresentationTransportSpy(
+            responses: ["picker.abort": ["snapshot": snapshot(revision: 4, labels: [])]],
+            responseSequences: [
+                "picker.zoomOut": [
+                    ["snapshot": snapshot(revision: 2, labels: [], rung: "sections")],
+                    ["snapshot": snapshot(revision: 3, labels: [], rung: "zones")],
+                ],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.zoomOut", "picker.abort"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false, panelInitiallyCollapsed: true)
+        )
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: [],
+            focused: true,
+            rung: "seats"
+        ))
+
+        var hostCloseCount = 0
+        let steps = [
+            await presentation.back(),
+            await presentation.back(),
+            await presentation.back { hostCloseCount += 1 },
+        ]
+
+        XCTAssertEqual(steps, [.section, .section, .close])
+        XCTAssertEqual(hostCloseCount, 1)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.zoomOut", "picker.zoomOut", "picker.abort"])
     }
 
     private func readyController(
@@ -157,31 +273,47 @@ final class PickerPresentationTests: XCTestCase {
         revision: Int,
         labels: [String],
         focused: Bool = false,
-        buyerView: String = "map"
+        buyerView: String = "map",
+        rung: String = "zones",
+        mapAdditions: [String: JSONValue] = [:],
+        seatPrice: Int = 25,
+        tierId: String? = nil,
+        tiers: [JSONValue]? = nil
     ) -> JSONValue {
         let seats: [JSONValue] = labels.enumerated().map { index, label in
-            [
+            var seat: [String: JSONValue] = [
                 "id": .string("seat-\(index + 1)"),
                 "label": .string(label),
                 "objectId": .string("row-a"),
                 "objectType": .string("seat"),
                 "currency": .string("EUR"),
-                "price": .int(25),
+                "price": .int(seatPrice),
             ]
+            if let tierId { seat["tierId"] = .string(tierId) }
+            if let tiers { seat["tiers"] = .array(tiers) }
+            return .object(seat)
         }
         let items: [JSONValue] = labels.enumerated().map { index, label in
-            [
+            var item: [String: JSONValue] = [
                 "lineKey": .string("line-\(index + 1)"),
                 "label": .string(label),
                 "objectId": .string("row-a"),
                 "objectType": .string("seat"),
                 "categoryKey": .string("standard"),
-                "unitPrice": .int(25),
+                "unitPrice": .int(seatPrice),
                 "currency": .string("EUR"),
                 "quantity": .int(1),
                 "seatId": .string("seat-\(index + 1)"),
             ]
+            if let tierId { item["tierId"] = .string(tierId) }
+            return .object(item)
         }
+        var map: [String: JSONValue] = [
+            "rung": .string(rung),
+            "buyerView": .string(buyerView),
+        ]
+        if focused { map["focusedSectionId"] = .string("section-a") }
+        map.merge(mapAdditions) { _, value in value }
         return [
             "schema": .string(seatLayerPickerSnapshotSchema),
             "sessionId": "session-test",
@@ -193,11 +325,7 @@ final class PickerPresentationTests: XCTestCase {
                 "currency": "EUR",
             ],
             "features": ["venue3d": true],
-            "map": .object(compacting: [
-                "rung": .string("zones"),
-                "buyerView": .string(buyerView),
-                "focusedSectionId": focused ? .string("section-a") : nil,
-            ]),
+            "map": .object(map),
             "selection": [
                 "seats": .array(seats),
                 "validity": [
@@ -212,7 +340,7 @@ final class PickerPresentationTests: XCTestCase {
             "cart": [
                 "currency": "EUR",
                 "quantity": .int(labels.count),
-                "total": .int(labels.count * 25),
+                "total": .int(labels.count * seatPrice),
                 "items": .array(items),
             ],
             "hold": ["active": false],
@@ -244,16 +372,30 @@ private actor PresentationTransportSpy: SeatLayerPickerCommandTransport {
 
     private var calls: [Call] = []
     private let responses: [String: JSONValue]
+    private let responseSequences: [String: [JSONValue]]
+    private var responseOffsets: [String: Int] = [:]
     private let delayNanoseconds: UInt64
 
-    init(responses: [String: JSONValue] = [:], delayNanoseconds: UInt64 = 0) {
+    init(
+        responses: [String: JSONValue] = [:],
+        responseSequences: [String: [JSONValue]] = [:],
+        delayNanoseconds: UInt64 = 0
+    ) {
         self.responses = responses
+        self.responseSequences = responseSequences
         self.delayNanoseconds = delayNanoseconds
     }
 
     func command(_ name: String, payload: JSONValue?) async throws -> JSONValue {
         calls.append(.init(name: name, payload: payload))
         if delayNanoseconds > 0 { try await Task.sleep(nanoseconds: delayNanoseconds) }
+        if let sequence = responseSequences[name] {
+            let offset = responseOffsets[name, default: 0]
+            if offset < sequence.count {
+                responseOffsets[name] = offset + 1
+                return sequence[offset]
+            }
+        }
         return responses[name] ?? [:]
     }
 

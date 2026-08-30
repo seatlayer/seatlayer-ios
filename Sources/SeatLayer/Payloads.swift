@@ -350,6 +350,28 @@ public struct CategoryTier: Codable, Sendable, Equatable {
     public var id: String
     public var name: String
     public var price: Double
+    /// Currency for this tier when it differs from the event/cart fallback.
+    public var currency: String?
+    /// Additive buyer rule such as `companion`.
+    public var restriction: String?
+    /// Runtime-authored guidance shown beside the tier choice.
+    public var buyerMessage: String?
+
+    public init(
+        id: String,
+        name: String,
+        price: Double,
+        currency: String? = nil,
+        restriction: String? = nil,
+        buyerMessage: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.price = price
+        self.currency = currency
+        self.restriction = restriction
+        self.buyerMessage = buyerMessage
+    }
 }
 
 /// Commercial selling/view attributes resolved for a seat.

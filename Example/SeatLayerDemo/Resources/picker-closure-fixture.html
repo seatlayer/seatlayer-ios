@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>SeatLayer native picker closure fixture</title>
+<style>
+  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #08121f; }
+  button { font: inherit; }
+  #surface { position: absolute; inset: 0; overflow: hidden; background: #0b1728; color: #f8fafc; }
+  .venue { position: absolute; inset: 0; overflow: hidden; }
+  .halo { position: absolute; width: 520px; height: 520px; left: 50%; top: 44%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, rgba(83, 133, 255, .22), transparent 67%); }
+  .stage { position: absolute; top: 126px; left: 50%; width: 170px; height: 42px; transform: translateX(-50%); border-radius: 50% 50% 14px 14px; background: linear-gradient(#7986a2, #3f4a62); box-shadow: 0 16px 44px rgba(0, 0, 0, .45); display: grid; place-items: center; font-size: 10px; font-weight: 800; letter-spacing: .18em; color: #dbe6ff; }
+  .rows { position: absolute; left: 50%; top: 202px; width: 340px; transform: translateX(-50%); display: grid; gap: 17px; }
+  .row { display: flex; justify-content: center; gap: 9px; }
+  .seat { width: 18px; height: 18px; border-radius: 8px 8px 5px 5px; background: #6e7bff; border: 1px solid rgba(255, 255, 255, .55); box-shadow: 0 2px 8px rgba(0, 0, 0, .38); }
+  .seat.gold { background: #f2b84b; }
+  .seat.selected { outline: 3px solid #fff; outline-offset: 2px; }
+  #audit { position: absolute; z-index: 3; top: 174px; left: 50%; transform: translateX(-50%); width: min(310px, calc(100% - 40px)); padding: 7px 12px; border: 1px solid rgba(255,255,255,.19); border-radius: 999px; background: rgba(7, 15, 27, .82); color: #cbd5e1; text-align: center; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); }
+  .three-d { background: radial-gradient(circle at 50% 23%, #38527e 0, #101b32 42%, #050b15 100%); perspective: 700px; }
+  .three-d .stage { top: 144px; transform: translateX(-50%) rotateX(58deg); width: 240px; height: 74px; background: linear-gradient(180deg, #ccd5e8, #53637e); }
+  .three-d .deck { position: absolute; left: 50%; top: 235px; width: 360px; height: 380px; transform: translateX(-50%) rotateX(58deg); transform-origin: top center; border-radius: 42% 42% 9% 9%; border: 2px solid rgba(168, 191, 242, .26); background: repeating-radial-gradient(ellipse at 50% -4%, transparent 0 25px, rgba(132, 155, 210, .23) 27px 29px, transparent 31px 47px); box-shadow: inset 0 0 70px rgba(101, 123, 192, .19); }
+  .three-d .target { position: absolute; left: 50%; top: 342px; transform: translateX(-50%); width: 46px; height: 46px; border-radius: 50%; border: 3px solid #fff; background: #f2b84b; box-shadow: 0 0 0 7px rgba(242, 184, 75, .2), 0 18px 50px rgba(0,0,0,.7); }
+  .panorama { background: radial-gradient(circle at 50% 44%, #7b8fa9 0 5%, #374760 18%, #111a29 42%, #05080f 76%); }
+  .panorama:before { content: ""; position: absolute; inset: 14% -18%; border-radius: 50%; border: 24px solid rgba(185, 199, 220, .14); box-shadow: 0 0 0 56px rgba(90, 115, 152, .1), inset 0 0 80px rgba(0,0,0,.6); }
+  .panorama .stage { top: 37%; width: 210px; height: 70px; border-radius: 10px; background: linear-gradient(#bec9da, #53647d); }
+  #close-panorama { position: absolute; z-index: 5; top: max(16px, env(safe-area-inset-top)); right: 14px; min-width: 48px; min-height: 48px; border: 1px solid rgba(255,255,255,.3); border-radius: 24px; background: rgba(4, 9, 17, .76); color: #fff; font-size: 22px; font-weight: 500; }
+  .fixture-mark { position: absolute; z-index: 2; left: 14px; bottom: 124px; color: rgba(226,232,240,.55); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main id="surface" aria-label="Deterministic SeatLayer renderer fixture"></main>
+<script>
+(function () {
+  'use strict';
+
+  var REQUIRED_COMMANDS = [
+    'picker.getSnapshot', 'picker.selectObjects', 'picker.deselectObjects',
+    'picker.clearSelection', 'picker.selectCategories', 'picker.deselectCategories',
+    'picker.setSeatTier', 'picker.removeCartLine', 'picker.setTableQuantity',
+    'picker.setSelectableObjects', 'picker.setMaxSelection', 'picker.setCategoryFilter',
+    'picker.setAccessibilityFilter', 'picker.setLimitedViewFilter',
+    'picker.focusSection', 'picker.overview', 'picker.setRung', 'picker.setFloor',
+    'picker.setColorblindSafe', 'picker.setThemeMode', 'picker.setViewMode',
+    'picker.setInteractionEnabled', 'picker.zoomIn', 'picker.zoomOut',
+    'picker.zoomToFit', 'picker.holdGA', 'picker.bestAvailable',
+    'picker.resumeHold', 'picker.extendHold', 'picker.continue',
+    'picker.rejectHandoff', 'picker.abort', 'picker.lifecycle', 'picker.destroy',
+    'picker.setBuyerView', 'picker.setVenue3DNavigationMode', 'picker.openSeatView',
+    'picker.setViewportInsets', 'picker.refreshAvailability', 'picker.holdSelection'
+  ];
+  var CAPABILITIES = [
+    'picker-session-v2', 'picker-snapshot-v1', 'picker-actions-v1',
+    'native-picker-chrome-v1', 'native-chrome-contract-v1',
+    'checkout-handoff-v1', 'checkout-handoff-reject-v1', 'hold-ownership-v1',
+    'cart-line-remove-v1', 'table-quantity-v1', 'venue-3d-v1',
+    'venue-3d-controls-v1', 'seat-view-v1', 'native-seat-view-chrome-v1',
+    'viewport-insets-v1', 'floor-stack-v1', 'chart-load-trace-v1',
+    'availability-refresh-v1', 'access-needs-v1', 'hold-selection-v1',
+    'colorblind-safe'
+  ];
+  var EVENTS = ['picker.snapshot', 'seatView.changed', 'telemetry.chartLoad', 'hold.expired'];
+  var surface = document.getElementById('surface');
+  var seq = 0;
+  var revision = 1;
+  var buyerView = 'map';
+  var targetId = null;
+  var navigationMode = 'orbit';
+  var tierId = 'adult';
+  var selected = true;
+  var panorama = null;
+  var activeFloorId = 'stalls';
+  var accessibilityFilter = [];
+  var hideLimitedView = false;
+  var colorblindSafe = false;
+  var rung = 'seats';
+  var hold = { active: false, expiresAt: null, ownership: null };
+  var lastMutation = 'Protocol 2 fixture ready';
+
+  var tiers = [
+    { id: 'adult', name: 'Adult', price: 100, currency: 'EUR' },
+    { id: 'child', name: 'Child', price: 60, currency: 'EUR', buyerMessage: 'For guests aged 15 and under.' }
+  ];
+
+  function tier() {
+    return tiers.filter(function (item) { return item.id === tierId; })[0];
+  }
+
+  function seat(id) {
+    var number = id === 'seat-a11' ? '11' : (id === 'seat-a13' ? '13' : '12');
+    return {
+      id: id,
+      label: 'A-' + number,
+      displayLabel: 'Stalls · Row A · Seat ' + number,
+      categoryKey: 'gold',
+      price: id === 'seat-a12' ? tier().price : 100,
+      currency: 'EUR',
+      tiers: id === 'seat-a12' ? tiers : [{ id: 'adult', name: 'Adult', price: 100, currency: 'EUR' }],
+      tierId: id === 'seat-a12' ? tierId : 'adult',
+      objectId: id,
+      objectType: 'seat',
+      sectionLabel: 'Stalls',
+      rowLabel: 'A',
+      seatNumber: number,
+      displayType: 'Seat',
+      accessibility: number === '12' ? ['wheelchair', 'companion'] : [],
+      commercial: { restrictedView: false, obstructedView: false, premium: true }
+    };
+  }
+
+  function targetSeat() { return targetId ? seat(targetId) : null; }
+  function previousId() {
+    if (targetId === 'seat-a12') return 'seat-a11';
+    if (targetId === 'seat-a13') return 'seat-a12';
+    return null;
+  }
+  function nextId() {
+    if (targetId === 'seat-a11') return 'seat-a12';
+    if (targetId === 'seat-a12') return 'seat-a13';
+    return null;
+  }
+
+  function lineItems() {
+    if (!selected) return [];
+    return [{
+      lineKey: 'seat:seat-a12', label: 'A-12',
+      displayLabel: 'Stalls · Row A · Seat 12', displayType: 'Seat',
+      objectId: 'seat-a12', objectType: 'seat', seatId: 'seat-a12',
+      categoryKey: 'gold', tierId: tierId, unitPrice: tier().price,
+      currency: 'EUR', quantity: 1, sectionLabel: 'Stalls',
+      rowLabel: 'A', seatNumber: '12'
+    }];
+  }
+
+  function snapshot() {
+    var selection = selected ? [seat('seat-a12')] : [];
+    var lines = lineItems();
+    return {
+      schema: 'seatlayer.picker.snapshot/1',
+      sessionId: 'ios-closure-session',
+      revision: revision,
+      event: {
+        key: 'ev_ios_closure', name: 'Native picker closure fixture', mode: 'test',
+        currency: 'EUR', venue: 'SeatLayer Test Theatre', locale: 'en', salesClosed: false
+      },
+      branding: {
+        brandName: 'SeatLayer', attributionRequired: true,
+        tokens: {
+          accent: '#6e7bff', accentInk: '#ffffff', background: '#08121f',
+          surface: '#111f33', text: '#f8fafc', muted: '#9daabd',
+          line: 'rgba(255,255,255,.14)', radius: 16
+        }
+      },
+      catalog: {
+        categories: [{
+          key: 'gold', label: 'Gold', color: '#f2b84b', priceMin: 60,
+          priceMax: 100, available: 42, notForSale: false, tiers: tiers
+        }],
+        zones: [{ id: 'auditorium', label: 'Auditorium', color: '#6e7bff' }],
+        sections: [{
+          id: 'stalls', label: 'Stalls', displayLabel: 'Stalls',
+          zoneId: 'auditorium', zoneLabel: 'Auditorium', entrance: 'Door A',
+          dominantCategoryKey: 'gold', seatsLeft: 42, priceMin: 60, priceMax: 100
+        }],
+        gaAreas: [], bestAvailableZones: [{ id: 'auditorium', label: 'Auditorium' }]
+      },
+      map: {
+        rung: rung, viewMode: 'flat', buyerView: buyerView,
+        view3dNavigationMode: navigationMode,
+        view3dTargetSeatId: targetId,
+        view3dTargetSeat: targetSeat(),
+        view3dPreviousSeatId: previousId(),
+        view3dNextSeatId: nextId(),
+        view3dFocusedSectionId: targetId ? 'stalls' : null,
+        activeFloorId: activeFloorId, focusedSectionId: 'stalls',
+        focusedSection: { id: 'stalls', label: 'Stalls', zoneLabel: 'Auditorium' },
+        colorblindSafe: colorblindSafe, hideLimitedView: hideLimitedView,
+        canZoomIn: true, canZoomOut: true, categoryFilter: [],
+        accessibilityFilter: accessibilityFilter,
+        accessNeeds: [
+          { key: 'wheelchair', count: 12 },
+          { key: 'companion', count: 8 },
+          { key: 'step_free', count: 25 }
+        ],
+        floors: [
+          { id: 'balcony', name: 'Balcony', level: 2 },
+          { id: 'stalls', name: 'Stalls', level: 1 }
+        ],
+        floorMode: 'stacked', floorLabelStyle: 'name'
+      },
+      selection: {
+        seats: selection,
+        validity: {
+          isValid: selected, count: selection.length, required: 1,
+          remaining: selected ? 0 : 1, seats: selection, violations: []
+        },
+        maxSelection: 8
+      },
+      cart: {
+        quantity: selected ? 1 : 0, items: lines,
+        total: selected ? tier().price : 0, currency: 'EUR'
+      },
+      hold: hold,
+      access: { configured: false, status: 'public' },
+      features: {
+        venue3d: true, seatView: true, floors: true,
+        accessibilityFilter: true, limitedViewFilter: true,
+        bestAvailable: true, categories: true
+      }
+    };
+  }
+
+  function post(frame) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.seatlayer) {
+      window.webkit.messageHandlers.seatlayer.postMessage(frame);
+    }
+  }
+  function event(type, payload) {
+    seq += 1;
+    post({ sl: 1, k: 'evt', n: seq, t: type, p: payload });
+  }
+  function response(frame, payload) {
+    post({ sl: 1, k: 'res', id: frame.id, t: frame.t, p: payload || {} });
+  }
+  function mutation(frame) {
+    revision += 1;
+    render();
+    var current = snapshot();
+    event('picker.snapshot', { snapshot: current });
+    response(frame, { revision: revision, snapshot: current });
+  }
+  function clearPanorama() {
+    if (!panorama) return;
+    panorama = null;
+    render();
+    event('seatView.changed', { seatView: null });
+  }
+
+  function renderMap() {
+    var rows = '';
+    for (var row = 0; row < 6; row += 1) {
+      rows += '<div class="row">';
+      for (var index = 0; index < 9 + row; index += 1) {
+        var isGold = row < 3;
+        var isSelected = row === 1 && index === 5 && selected;
+        rows += '<span class="seat' + (isGold ? ' gold' : '') + (isSelected ? ' selected' : '') + '"></span>';
+      }
+      rows += '</div>';
+    }
+    surface.innerHTML = '<section class="venue"><div class="halo"></div><div class="stage">STAGE</div>' +
+      '<div class="rows">' + rows + '</div></section>' +
+      '<div id="audit" role="status">' + lastMutation + '</div>' +
+      '<div class="fixture-mark">Deterministic protocol fixture</div>';
+  }
+
+  function render3D() {
+    var target = targetId ? seat(targetId).label : 'Venue overview';
+    surface.innerHTML = '<section class="venue three-d"><div class="stage">STAGE</div><div class="deck"></div>' +
+      (targetId ? '<div class="target" aria-hidden="true"></div>' : '') + '</section>' +
+      '<div id="audit" role="status">3D · ' + target + ' · ' + navigationMode + '</div>' +
+      '<div class="fixture-mark">Additive 3D state retained</div>';
+  }
+
+  function renderPanorama() {
+    surface.innerHTML = '<section class="venue panorama"><div class="stage">STAGE</div></section>' +
+      '<button id="close-panorama" aria-label="Close seat panorama">×</button>' +
+      '<div id="audit" role="status">Panorama pixels are runtime-owned</div>' +
+      '<div class="fixture-mark">Native wording · hosted close</div>';
+    document.getElementById('close-panorama').addEventListener('click', clearPanorama);
+  }
+
+  function render() {
+    if (panorama) renderPanorama();
+    else if (buyerView === 'venue3d') render3D();
+    else renderMap();
+  }
+
+  function handleCommand(frame) {
+    var payload = frame.p || {};
+    switch (frame.t) {
+    case 'picker.getSnapshot':
+      response(frame, { revision: revision, snapshot: snapshot() });
+      return;
+    case 'picker.setSeatTier':
+      if (payload.seatId === 'seat-a12' && (payload.tierId === 'adult' || payload.tierId === 'child')) {
+        tierId = payload.tierId;
+        lastMutation = 'Runtime accepted ' + tier().name + ' · €' + tier().price + ' before confirmation';
+      }
+      mutation(frame);
+      return;
+    case 'picker.setBuyerView':
+      clearPanorama();
+      buyerView = payload.view === 'venue3d' ? 'venue3d' : 'map';
+      if (buyerView === 'map' || payload.resetView) targetId = null;
+      if (payload.flyToSeatId) targetId = payload.flyToSeatId;
+      lastMutation = buyerView === 'venue3d' ? 'Native 3D inspection preserved the pending seat' : lastMutation;
+      mutation(frame);
+      return;
+    case 'picker.setVenue3DNavigationMode':
+      navigationMode = payload.mode === 'pan' ? 'pan' : 'orbit';
+      mutation(frame);
+      return;
+    case 'picker.openSeatView':
+      panorama = {
+        seatId: payload.seatId, title: 'View from ' + seat(payload.seatId).label,
+        caption: 'SeatLayer Test Theatre · Stalls · Row A',
+        badge: 'Computer-generated preview', real: false, generated: true,
+        dragHint: 'Drag to look around'
+      };
+      render();
+      event('seatView.changed', { seatView: panorama });
+      response(frame, { revision: revision, snapshot: snapshot() });
+      return;
+    case 'picker.setAccessibilityFilter':
+      accessibilityFilter = Array.isArray(payload.types) ? payload.types.slice() : [];
+      lastMutation = accessibilityFilter.length ? 'Access filter applied · ' + accessibilityFilter.join(', ') : 'Access filters cleared';
+      mutation(frame);
+      return;
+    case 'picker.setLimitedViewFilter':
+      hideLimitedView = !!payload.on;
+      mutation(frame);
+      return;
+    case 'picker.setColorblindSafe':
+      colorblindSafe = !!payload.on;
+      mutation(frame);
+      return;
+    case 'picker.setFloor':
+      activeFloorId = payload.floorId || 'all';
+      mutation(frame);
+      return;
+    case 'picker.setRung':
+      rung = payload.rung || 'seats';
+      mutation(frame);
+      return;
+    case 'picker.deselectObjects':
+    case 'picker.removeCartLine':
+    case 'picker.clearSelection':
+      selected = false;
+      mutation(frame);
+      return;
+    case 'picker.selectObjects':
+    case 'picker.selectCategories':
+    case 'picker.bestAvailable':
+      selected = true;
+      mutation(frame);
+      return;
+    case 'picker.holdSelection':
+    case 'picker.extendHold':
+    case 'picker.resumeHold':
+      hold = { active: true, expiresAt: Date.now() + 900000, ownership: 'picker' };
+      mutation(frame);
+      return;
+    case 'picker.continue':
+      hold = { active: true, expiresAt: Date.now() + 900000, ownership: 'host' };
+      revision += 1;
+      var checkoutSnapshot = snapshot();
+      event('picker.snapshot', { snapshot: checkoutSnapshot });
+      response(frame, {
+        revision: revision,
+        snapshot: checkoutSnapshot,
+        handoff: {
+          holdId: 'hold_ios_closure_001', expiresAt: hold.expiresAt,
+          currency: 'EUR', lineItems: lineItems(),
+          total: selected ? tier().price : 0
+        }
+      });
+      return;
+    case 'picker.rejectHandoff':
+      hold = { active: false, expiresAt: null, ownership: null };
+      mutation(frame);
+      return;
+    case 'picker.abort':
+      if (hold.ownership !== 'host') {
+        selected = false;
+        hold = { active: false, expiresAt: null, ownership: null };
+      }
+      mutation(frame);
+      return;
+    case 'picker.lifecycle':
+    case 'picker.refreshAvailability':
+      response(frame, {
+        revision: revision, snapshot: snapshot(),
+        outcome: { refreshed: true, lost: [], holdLapsed: false, revision: revision }
+      });
+      return;
+    case 'picker.setViewportInsets':
+    case 'picker.setThemeMode':
+    case 'picker.setInteractionEnabled':
+    case 'picker.zoomIn':
+    case 'picker.zoomOut':
+    case 'picker.zoomToFit':
+      response(frame, {});
+      return;
+    case 'picker.destroy':
+      response(frame, {});
+      return;
+    default:
+      mutation(frame);
+    }
+  }
+
+  window.__slBridge = {
+    recv: function (frame) {
+      if (!frame || frame.sl !== 1) return;
+      if (frame.k === 'init') {
+        render();
+        var current = snapshot();
+        event('picker.snapshot', { snapshot: current });
+        event('telemetry.chartLoad', { trace: {
+          event: 'ev_ios_closure', scope: 'test', surface: 'picker', outcome: 'success',
+          ms: 42, api: 0, scene: 18, paint: 8, seats: 67, floors: 2,
+          view: 'flat', load: 'fixture', transport: 'ios', chartCache: 'fixture',
+          platform: 'ios', bundle: 'ios-closure-fixture', protocol: 2,
+          chromeOwner: 'native', bootMs: 42
+        }});
+        event('sys.ready', {
+          protocol: 2, mode: 'test', transport: 'ios',
+          chart: { event: 'ev_ios_closure' }, snapshot: current
+        });
+      } else if (frame.k === 'cmd') {
+        handleCommand(frame);
+      }
+    }
+  };
+
+  render();
+  setTimeout(function () {
+    post({
+      sl: 1, k: 'hello', t: 'hello', p: {
+        bundle: 'ios-closure-fixture', protocol: { min: 2, max: 2 },
+        capabilities: CAPABILITIES, commands: REQUIRED_COMMANDS, events: EVENTS
+      }
+    });
+  }, 0);
+}());
+</script>
+</body>
+</html>

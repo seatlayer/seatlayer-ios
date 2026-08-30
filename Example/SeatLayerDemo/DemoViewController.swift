@@ -29,7 +29,42 @@ final class DemoViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
         overrideUserInterfaceStyle = .dark
-        installPicker()
+        if ProcessInfo.processInfo.environment["SEATLAYER_PREWARM"] == "1" {
+            let indicator = installPrewarmIndicator()
+            Task { @MainActor in
+                do {
+                    try await SeatLayerPickerPrewarming.prewarm()
+                    NSLog("[SeatLayerDemo] E2E prewarm ready=true")
+                } catch {
+                    NSLog("[SeatLayerDemo] E2E prewarm ready=false")
+                }
+                indicator.removeFromSuperview()
+                installPicker()
+            }
+        } else {
+            installPicker()
+        }
+    }
+
+    private func installPrewarmIndicator() -> UIStackView {
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.color = .white
+        spinner.startAnimating()
+        let label = UILabel()
+        label.text = "Preparing seat map…"
+        label.textColor = .white
+        label.font = .preferredFont(forTextStyle: .body)
+        let stack = UIStackView(arrangedSubviews: [spinner, label])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+        return stack
     }
 
     private func installPicker() {
@@ -39,14 +74,24 @@ final class DemoViewController: UIViewController {
             locale: "en",
             currency: "EUR"
         )
+        if ProcessInfo.processInfo.environment["SEATLAYER_CLOSURE_FIXTURE"] == "1" {
+            guard let fixtureURL = Bundle.main.url(
+                forResource: "picker-closure-fixture",
+                withExtension: "html"
+            ) else { fatalError("Missing picker closure fixture resource.") }
+            configuration.pageURL = fixtureURL
+            NSLog("[SeatLayerDemo] E2E closure fixture=true")
+        }
         configuration.hostInfo = [
             "app": "SeatLayerDemo/1.0",
             "journey": "native-picker-e2e",
         ]
 
         let options = SeatLayerPickerOptions(
-            layout: .phone,
-            confirmSelection: true,
+            layout: ProcessInfo.processInfo.environment["SEATLAYER_DEMO_WIDE"] == "1"
+                ? .wide
+                : .phone,
+            confirmSelection: ProcessInfo.processInfo.environment["SEATLAYER_DEMO_SKIP_CONFIRM"] != "1",
             holdTtlMs: 15 * 60 * 1_000,
             panelInitiallyCollapsed: true,
             refreshOnResume: true,
@@ -60,6 +105,23 @@ final class DemoViewController: UIViewController {
                     info.protocolRevision,
                     info.mode.rawValue,
                     info.transport.rawValue
+                )
+            },
+            onChartLoad: { load in
+                let trace = load.trace
+                NSLog(
+                    "[SeatLayerDemo] E2E chart-load outcome=%@ load=%@ tapMs=%@ bootMs=%@ hostMs=%@ apiMs=%@ sceneMs=%@ paintMs=%@ cache=%@ platform=%@ bundle=%@",
+                    trace.outcome ?? "legacy-success",
+                    trace.load ?? "-",
+                    load.tapToReadyMs.map(String.init) ?? "-",
+                    trace.bootMs.map(String.init) ?? "-",
+                    load.hostMs.map(String.init) ?? "-",
+                    trace.api.map(String.init) ?? "-",
+                    trace.scene.map(String.init) ?? "-",
+                    trace.paint.map(String.init) ?? "-",
+                    trace.chartCache ?? "-",
+                    trace.platform ?? "-",
+                    trace.bundle ?? "-"
                 )
             },
             onSelectionChanged: { [weak self] seats in

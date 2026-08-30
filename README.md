@@ -96,9 +96,25 @@ prompt → cart → confirmation → section → venue → host ladder. Call
 `updateAppearance(theme:themeMode:strings:styles:)` to change appearance
 without remounting the renderer or losing selection/camera state.
 
+Applicable Adult/Child/Companion tiers render natively and are applied before
+confirmation, with the authoritative tier and price retained through cart and
+checkout. Capability-gated native 3D chrome supports authored targets,
+same-row previous/next boundaries, panorama inspection, and
+target → overview → map navigation without confirming a pending seat.
+
+For routes where latency matters, prewarm the page-only renderer host before
+navigation. It contains no event or credentials and is consumed once:
+
+```swift
+Task { try await SeatLayerPicker.prewarm() }
+```
+
 See [Native picker integration](Docs/native-picker.md),
 [security and hold ownership](Docs/native-picker-security.md), and the
-[public API review](Docs/native-picker-api-review.md).
+[public API review](Docs/native-picker-api-review.md). The final
+[cross-SDK closure audit](Docs/native-picker-closure-parity-2026-08-30.md)
+separates hosted proof, deterministic protocol proof, and remaining external
+runtime/product gates.
 
 ## Compose your own native picker
 
@@ -279,6 +295,11 @@ CDN document, and the production HTTPS API; inventory remains test-only. Set
 `SEATLAYER_EVENT_KEY` and `SEATLAYER_API_BASE` for another authorized event.
 Set `SEATLAYER_VALIDATE_THEME_FLIP=1` to prove that an in-place dark/light
 change preserves the active selection and renderer session.
+Set `SEATLAYER_PREWARM=1` to transfer a preloaded page into the real picker.
+The validation-only `SEATLAYER_CLOSURE_FIXTURE=1` supplies authored
+Adult/Child, 3D target/neighbour, panorama, floor, and access states that the
+current hosted event lacks. `SEATLAYER_DEMO_WIDE=1` renders the wide
+composition; `SEATLAYER_DEMO_SKIP_CONFIRM=1` exposes its confirmed-cart rail.
 
 The current redacted journey evidence and exact runtime checksums are recorded
 in [native-picker validation](Docs/native-picker-validation-2026-08-30.md).

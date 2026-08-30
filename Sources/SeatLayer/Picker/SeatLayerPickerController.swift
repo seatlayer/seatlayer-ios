@@ -31,6 +31,17 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public private(set) var holdLapse: SeatLayerPickerHoldLapse?
     @Published public private(set) var generalAdmissionCandidate: GAArea?
 
+    /// Non-replaying stream of advertised runtime chart-load attempts.
+    public var chartLoads: AnyPublisher<SeatLayerChartLoad, Never> {
+        chartLoadSubject.eraseToAnyPublisher()
+    }
+
+    /// Non-replaying signal for an explicitly expired hold. Deliberate hold
+    /// release does not publish here.
+    public var holdExpirations: AnyPublisher<Void, Never> {
+        holdExpirationSubject.eraseToAnyPublisher()
+    }
+
     public private(set) var bundleInfo: BundleInfo?
 
     public var isReady: Bool {
@@ -73,6 +84,15 @@ public final class SeatLayerPickerController: ObservableObject {
     private var actionTail: Task<Void, Never>?
     private var checkoutFlight: (id: UUID, task: Task<SeatLayerPickerCheckoutHandoff, Error>)?
     private var availabilityRefreshFlight: Task<SeatLayerPickerLifecycleResult?, Never>?
+    private let chartLoadSubject = PassthroughSubject<SeatLayerChartLoad, Never>()
+    private var chartLoadStartedAtMs: Double?
+    private var chartLoadTapToReadyMs: Int?
+    private var chartLoadReady: ReadyInfo?
+    private var pendingSuccessfulChartLoads: [SeatLayerChartLoadTrace] = []
+    private let holdExpirationSubject = PassthroughSubject<Void, Never>()
+    private var hapticPolicy = SeatLayerPickerHaptics.initialState
+    private var hapticsEnabled = false
+    private var hapticAdapter: (any SeatLayerPickerHapticAdapter)?
 
     public init() {
         revisionWaitNanoseconds = 2_000_000_000
@@ -99,6 +119,17 @@ public final class SeatLayerPickerController: ObservableObject {
 
     public func supports(event: String) -> Bool {
         bundleInfo?.events.contains(event) == true
+    }
+
+    /// Configure optional native feedback without placing a haptic choice in
+    /// the renderer configuration. State continues tracking while disabled so
+    /// enabling feedback never replays earlier buyer actions.
+    public func configureHaptics(
+        enabled: Bool,
+        adapter: (any SeatLayerPickerHapticAdapter)?
+    ) {
+        hapticsEnabled = enabled
+        hapticAdapter = adapter
     }
 
     // MARK: - Snapshot and selection
@@ -254,6 +285,50 @@ public final class SeatLayerPickerController: ObservableObject {
     @discardableResult
     public func setColorblindSafe(_ enabled: Bool) async throws -> SeatLayerPickerSnapshot? {
         try await mutation("picker.setColorblindSafe", ["on": .bool(enabled)])
+    }
+
+    /// Applies only changed, independently supported filter families. The
+    /// session and capability legs are rechecked before every command.
+    @discardableResult
+    public func applyAccessibilityFilters(
+        _ draft: SeatLayerPickerAccessibilityDraft,
+        from initial: SeatLayerPickerAccessibilityDraft
+    ) async throws -> Bool {
+        guard let starting = snapshot else { return false }
+        let sessionId = starting.sessionId
+        let startingAvailability = SeatLayerPickerAccessibility.availability(
+            snapshot: starting,
+            bundle: bundleInfo
+        )
+        let plan = SeatLayerPickerAccessibility.mutations(
+            from: initial,
+            to: draft,
+            availability: startingAvailability
+        )
+        for operation in plan {
+            guard let live = snapshot, live.sessionId == sessionId else { return false }
+            let available = SeatLayerPickerAccessibility.availability(
+                snapshot: live,
+                bundle: bundleInfo
+            )
+            switch operation {
+            case .accessibility(let types) where available.accessibility:
+                _ = try await setAccessibilityFilter(types)
+            case .limitedView(let enabled) where available.limitedView:
+                _ = try await setLimitedViewFilter(enabled)
+            case .colorblind(let enabled) where available.colorblind:
+                _ = try await setColorblindSafe(enabled)
+            default:
+                return false
+            }
+            guard snapshot?.sessionId == sessionId else { return false }
+        }
+        if SeatLayerPickerAccessibility.shouldFocusSeats(after: plan),
+           supports(command: "picker.setRung"),
+           snapshot?.map.rung != "seats" {
+            _ = try await setRung("seats")
+        }
+        return snapshot?.sessionId == sessionId
     }
 
     @discardableResult
@@ -508,7 +583,7 @@ public final class SeatLayerPickerController: ObservableObject {
 
     // MARK: - Runtime integration
 
-    func beginLoading() {
+    func beginLoading(startedAtMilliseconds: Double? = nil) {
         actionTail?.cancel()
         actionTail = nil
         checkoutFlight?.task.cancel()
@@ -522,6 +597,11 @@ public final class SeatLayerPickerController: ObservableObject {
         availabilityOutcome = nil
         holdLapse = nil
         generalAdmissionCandidate = nil
+        hapticPolicy = SeatLayerPickerHaptics.initialState
+        chartLoadStartedAtMs = startedAtMilliseconds ?? Self.monotonicMilliseconds()
+        chartLoadTapToReadyMs = nil
+        chartLoadReady = nil
+        pendingSuccessfulChartLoads.removeAll(keepingCapacity: false)
         bundleInfo = nil
         transport = nil
         phase = .loading
@@ -535,11 +615,27 @@ public final class SeatLayerPickerController: ObservableObject {
         self.bundleInfo = bundleInfo
     }
 
-    func markReady(_ info: ReadyInfo, payload: JSONValue?) {
+    func markReady(
+        _ info: ReadyInfo,
+        payload: JSONValue?,
+        readyAtMilliseconds: Double? = nil
+    ) {
         if let candidate = decodeSeatLayerPickerSnapshot(payload?["snapshot"] ?? payload) {
             accept(snapshot: candidate)
         }
         phase = .ready(info)
+        if chartLoadReady == nil, let started = chartLoadStartedAtMs {
+            let finished = readyAtMilliseconds ?? Self.monotonicMilliseconds()
+            if finished.isFinite, finished >= started {
+                chartLoadTapToReadyMs = Int((finished - started).rounded())
+            }
+            chartLoadReady = info
+        }
+        if !pendingSuccessfulChartLoads.isEmpty {
+            let traces = pendingSuccessfulChartLoads
+            pendingSuccessfulChartLoads.removeAll(keepingCapacity: false)
+            for trace in traces { publish(chartLoad: trace) }
+        }
     }
 
     func accept(snapshot value: JSONValue?) {
@@ -551,11 +647,42 @@ public final class SeatLayerPickerController: ObservableObject {
         guard snapshots.apply(candidate) else { return }
         snapshot = candidate
         if candidate.hold.active { holdLapse = nil }
+        applyHaptics(for: SeatLayerPickerHapticSnapshot(candidate))
     }
 
     func accept(seatView value: JSONValue?) {
         guard supportsNativeSeatViewChrome else { return }
         seatView = decodeSeatLayerSeatView(value)
+    }
+
+    func accept(chartLoad payload: JSONValue?) {
+        guard supports(capability: "chart-load-trace-v1"),
+              supports(event: "telemetry.chartLoad"),
+              let trace = decodeSeatLayerChartLoadEvent(payload) else { return }
+        // The hosted runtime reports a completed render immediately before
+        // sys.ready. Hold only successful traces for that final native timing
+        // edge; failures must remain observable even when ready never arrives.
+        if trace.succeeded, chartLoadReady == nil {
+            if pendingSuccessfulChartLoads.count == 4 {
+                pendingSuccessfulChartLoads.removeFirst()
+            }
+            pendingSuccessfulChartLoads.append(trace)
+            return
+        }
+        publish(chartLoad: trace)
+    }
+
+    private func publish(chartLoad trace: SeatLayerChartLoadTrace) {
+        chartLoadSubject.send(SeatLayerChartLoad(
+            trace: trace,
+            tapToReadyMs: chartLoadTapToReadyMs,
+            ready: chartLoadReady
+        ))
+    }
+
+    func acceptHoldExpired() {
+        guard supports(event: "hold.expired") else { return }
+        reportHoldExpired()
     }
 
     func accept(generalAdmissionCandidate area: GAArea) {
@@ -576,6 +703,10 @@ public final class SeatLayerPickerController: ObservableObject {
         lastError = error
     }
 
+    nonisolated private static func monotonicMilliseconds() -> Double {
+        ProcessInfo.processInfo.systemUptime * 1_000
+    }
+
     func markDestroyed() {
         actionTail?.cancel()
         actionTail = nil
@@ -588,6 +719,7 @@ public final class SeatLayerPickerController: ObservableObject {
         availabilityOutcome = nil
         holdLapse = nil
         generalAdmissionCandidate = nil
+        hapticPolicy = SeatLayerPickerHaptics.initialState
         phase = .destroyed
     }
 
@@ -659,6 +791,28 @@ public final class SeatLayerPickerController: ObservableObject {
         )
         if holdLapse == nil || candidate.lapsedLabels.count > holdLapse!.lapsedLabels.count {
             holdLapse = candidate
+        }
+        reportHoldExpired()
+    }
+
+    private func applyHaptics(for snapshot: SeatLayerPickerHapticSnapshot) {
+        let result = SeatLayerPickerHaptics.reduce(hapticPolicy, snapshot: snapshot)
+        hapticPolicy = result.state
+        play(result.cues)
+    }
+
+    private func reportHoldExpired() {
+        let result = SeatLayerPickerHaptics.signalHoldExpired(hapticPolicy)
+        hapticPolicy = result.state
+        guard result.cues.contains(.holdExpired) else { return }
+        play(result.cues)
+        holdExpirationSubject.send(())
+    }
+
+    private func play(_ cues: [SeatLayerPickerHapticCue]) {
+        guard hapticsEnabled, let hapticAdapter else { return }
+        for cue in cues {
+            hapticAdapter.play(SeatLayerPickerHaptics.strength(for: cue))
         }
     }
 

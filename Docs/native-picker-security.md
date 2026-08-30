@@ -26,6 +26,19 @@ configuration.buyerAccessTokenProvider = { context in
 }
 ```
 
+## Prewarm boundary
+
+Prewarm loads only the immutable page URL into a nonpersistent renderer host.
+It never accepts an event, public key, buyer bearer, access-token provider,
+selection policy, controller, or hold. The later picker may consume a matching
+host once; only then does it arm bridge delivery and send the real init payload
+in memory.
+
+Page mismatch does not transfer the host. TTL expiry, explicit cancellation,
+memory pressure, app termination, navigation failure, or content-process
+termination releases it. A prewarm pool must never become credential or hold
+recovery across journeys or process death.
+
 ## Selection and hold lifecycle
 
 1. Runtime snapshots are authoritative for selection, availability, price,

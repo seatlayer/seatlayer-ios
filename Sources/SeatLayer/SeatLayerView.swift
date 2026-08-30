@@ -34,6 +34,7 @@ public final class SeatLayerView: UIView {
     public var isReady: Bool { readyInfo != nil }
 
     private var webView: WKWebView!
+    private var webHost: SeatLayerWebHost!
     private var client: BridgeClient!
     private var configuration: SeatLayerConfiguration?
     private var channel: WebViewChannel?
@@ -43,6 +44,7 @@ public final class SeatLayerView: UIView {
     private var allowedPageURL: URL?
     private let bridgeProfile: SeatLayerBridgeProfile
     private weak var pickerController: SeatLayerPickerController?
+    private var canConsumePrewarmedPage = false
 
     // MARK: - Init
 
@@ -63,53 +65,24 @@ public final class SeatLayerView: UIView {
     init(
         frame: CGRect,
         bridgeProfile: SeatLayerBridgeProfile,
-        pickerController: SeatLayerPickerController
+        pickerController: SeatLayerPickerController,
+        prewarmedHost: SeatLayerWebHost? = nil
     ) {
         self.bridgeProfile = bridgeProfile
         self.pickerController = pickerController
         super.init(frame: frame)
-        setUp()
+        canConsumePrewarmedPage = prewarmedHost != nil
+        setUp(prewarmedHost: prewarmedHost)
     }
 
-    private func setUp() {
-        let controller = WKUserContentController()
-        let webConfiguration = WKWebViewConfiguration()
-        webConfiguration.userContentController = controller
-        // Buyer access and hold/session material must not survive this picker
-        // process in cookies, local storage, or the shared website data store.
-        webConfiguration.websiteDataStore = .nonPersistent()
-        webConfiguration.allowsInlineMediaPlayback = true
-        webConfiguration.suppressesIncrementalRendering = false
-
-        // Suppress the UIWebView-era affordances that fight a canvas: the
-        // double-tap-to-zoom gesture, the long-press callout, and text
-        // selection all steal touches the map needs for its own zoom/pan.
-        let hardening = """
-        (function () {
-          var meta = document.createElement('meta');
-          meta.name = 'viewport';
-          meta.content = 'width=device-width, initial-scale=1, maximum-scale=1, ' +
-                         'minimum-scale=1, user-scalable=no, viewport-fit=cover';
-          document.head.appendChild(meta);
-          var style = document.createElement('style');
-          style.textContent =
-            'html,body{margin:0;padding:0;height:100%;overflow:hidden;' +
-            '-webkit-user-select:none;user-select:none;' +
-            '-webkit-touch-callout:none;' +
-            '-webkit-tap-highlight-color:transparent;' +
-            'overscroll-behavior:none;touch-action:none;}';
-          document.head.appendChild(style);
-        })();
-        """
-        controller.addUserScript(
-            WKUserScript(source: hardening, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        )
-
-        webView = WKWebView(frame: bounds, configuration: webConfiguration)
+    private func setUp(prewarmedHost: SeatLayerWebHost? = nil) {
+        let host = prewarmedHost ?? SeatLayerWebHost()
+        webHost = host
+        webView = host.webView
+        webView.frame = bounds
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.isOpaque = false
         webView.backgroundColor = .clear
-        webView.navigationDelegate = self
 
         // The map is not a scrolling document. Everything below hands the
         // gesture space to the canvas.
@@ -135,8 +108,7 @@ public final class SeatLayerView: UIView {
         let channel = WebViewChannel(webView: webView)
         self.channel = channel
         self.client = BridgeClient(channel: channel, timeout: BridgeClient.defaultTimeout)
-
-        controller.add(MessageProxy(view: self), name: Self.messageHandlerName)
+        host.attach(to: self)
     }
 
     deinit {
@@ -175,14 +147,16 @@ public final class SeatLayerView: UIView {
         }
 
         startHandshakeTimeout(configuration.handshakeTimeout)
-        if pageURL.isFileURL {
-            webView.loadFileURL(pageURL, allowingReadAccessTo: pageURL.deletingLastPathComponent())
-        } else {
-            webView.load(URLRequest(url: pageURL))
-        }
-
         return try await withCheckedThrowingContinuation { continuation in
             readyContinuations.append(continuation)
+            let prewarmedState = webHost.navigationState == .loading
+                || webHost.navigationState == .finished
+            let consume = canConsumePrewarmedPage
+                && webHost.requestedPageURL == pageURL
+                && prewarmedState
+            canConsumePrewarmedPage = false
+            webHost.armMessageDelivery()
+            if !consume { webHost.load(pageURL) }
         }
     }
 
@@ -246,7 +220,7 @@ public final class SeatLayerView: UIView {
 
     // MARK: - Inbound
 
-    fileprivate func receive(_ body: Any, from frame: WKFrameInfo) {
+    func receive(_ body: Any, from frame: WKFrameInfo) {
         guard frame.isMainFrame, accepts(origin: frame.securityOrigin) else { return }
         guard let envelope = Envelope.decode(foundation: body) else { return }
         Task { [client] in await client?.ingest(envelope) }
@@ -368,6 +342,9 @@ public final class SeatLayerView: UIView {
         case "seatView.changed" where bridgeProfile.isPicker:
             pickerController?.accept(seatView: payload?["seatView"])
 
+        case "telemetry.chartLoad" where bridgeProfile.isPicker:
+            pickerController?.accept(chartLoad: payload)
+
         case "selection.changed":
             let seats = decodeList(payload?["seats"], as: SelectedSeat.self)
             delegate?.seatLayerView(self, selectionDidChange: seats)
@@ -422,6 +399,9 @@ public final class SeatLayerView: UIView {
             }
 
         case "hold.expired":
+            if bridgeProfile.isPicker {
+                pickerController?.acceptHoldExpired()
+            }
             delegate?.seatLayerViewHoldDidExpire(self)
 
         case "ga.click":
@@ -697,8 +677,7 @@ public final class SeatLayerView: UIView {
         handshakeTimeoutTask = nil
         configuration = nil
         allowedPageURL = nil
-        webView.stopLoading()
-        webView.loadHTMLString("", baseURL: nil)
+        webHost.stopAndClear()
         readyInfo = nil
         protocolRevision = nil
         bundleInfo = nil
@@ -712,45 +691,13 @@ public final class SeatLayerView: UIView {
             throw SeatLayerError.decoding("\(T.self): \(error)")
         }
     }
-}
 
-// MARK: - Navigation
-
-extension SeatLayerView: WKNavigationDelegate {
-    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        decisionHandler(navigationAction.request.url == allowedPageURL ? .allow : .cancel)
-    }
-    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        finishHandshake(.failure(.transport("page load failed: \(error.localizedDescription)")))
+    func webHostDidFail(_ message: String) {
+        finishHandshake(.failure(.transport(message)))
     }
 
-    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        finishHandshake(.failure(.transport("page navigation failed: \(error.localizedDescription)")))
-    }
-
-    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+    func webHostContentProcessDidTerminate() {
         finishHandshake(.failure(.transport("the web content process terminated")))
-    }
-}
-
-// MARK: - Message plumbing
-
-/// Breaks the retain cycle `WKUserContentController` → handler → view would
-/// otherwise create.
-private final class MessageProxy: NSObject, WKScriptMessageHandler {
-    weak var view: SeatLayerView?
-
-    init(view: SeatLayerView) {
-        self.view = view
-    }
-
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        // The web side posts the envelope OBJECT, not a string: WKScriptMessage
-        // bridges JS values to NSDictionary natively, so there is nothing to
-        // parse here.
-        MainActor.assumeIsolated {
-            view?.receive(message.body, from: message.frameInfo)
-        }
     }
 }
 

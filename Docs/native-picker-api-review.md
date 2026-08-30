@@ -16,6 +16,16 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
 - Confirmation is a local acknowledgement of an already-selected seat.
   Cancellation removes the exact inventory label. The pending item is excluded
   from confirmed cart totals.
+- A ticket-tier choice is an authoritative runtime mutation before local
+  acknowledgement. Immediate native quotes are presentation only; cart and
+  checkout truth comes back from the snapshot/handoff.
+- 3D and panorama are inspection surfaces. Entering either never confirms a
+  pending seat. Target, row neighbours, focused 3D section, and null boundaries
+  are runtime-authored additive state; selection order is only a bounded
+  compatibility fallback for an older runtime.
+- Immersive pixels, gestures, and panorama close belong to the renderer.
+  Native owns capability-gated chrome. Ordinary 2D navigation yields while the
+  immersive owner is active, but cart and required commercial truth remain.
 - GA and variable-table decisions are exclusive prompts. Checkout is disabled
   while either a prompt or confirmation is unanswered.
 - Checkout is single-flight and yields one typed transfer. A throwing host
@@ -33,6 +43,13 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
   runtime session. Locale lookup is exact BCP-47 → language → English.
 - Foreground availability reconciliation blocks stale action assumptions and
   never restores credentials from persistent storage.
+- Prewarm is a one-time transfer of a page-only renderer host. It may retain a
+  URL and expiry metadata, never event configuration, credentials, selection,
+  or hold state. Mismatch, expiry, cancellation, memory pressure, and process
+  termination release it.
+- Chart-load telemetry is optional, capability/event gated, additive, and
+  privacy neutral. Platform SDKs merge their own tap-to-ready boundary without
+  logging or forwarding the trace automatically.
 
 ## SwiftUI/UIKit mechanics
 
@@ -51,6 +68,15 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
 - `SeatLayerPickerMapView` wraps `WKWebView`; Android should use its secure
   WebView bridge with the same origin, session, destruction, and nonpersistent
   credential invariants.
+- `SeatLayerPickerPrewarming` pools the exact UIKit `WKWebView` and transfers it
+  into the later picker. Android should use a lifecycle-safe WebView holder or
+  equivalent transfer mechanism; it should not copy UIKit ownership or pretend
+  that an HTTP cache warmup is the same feature.
+- `UIKeyCommand`, `accessibilityPerformEscape`, status-bar style, Reduce
+  Transparency materials, SwiftUI transitions, and UIKit haptic generators
+  are iOS mechanics. Android should map the shared outcomes to predictive Back,
+  TalkBack escape/close semantics, system-bar contrast, reduced animation,
+  opaque high-contrast surfaces, and platform haptics.
 - `@MainActor`, `ObservableObject`, `@Published`, `scenePhase`, UIKit
   containment, and VoiceOver identifiers are implementation details. Android
   should map them to main-thread state flow, lifecycle callbacks, view/Compose

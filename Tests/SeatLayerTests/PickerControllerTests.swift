@@ -209,6 +209,61 @@ final class PickerControllerTests: XCTestCase {
         ])
     }
 
+    func testAccessibilityDraftSendsIndependentChangesThenFocusesSeats() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(
+            transport: transport,
+            commands: [
+                "picker.setAccessibilityFilter",
+                "picker.setLimitedViewFilter",
+                "picker.setColorblindSafe",
+                "picker.setRung",
+            ],
+            capabilities: [
+                "native-chrome-contract-v1", "access-needs-v1", "colorblind-safe",
+            ]
+        )
+        controller.accept(snapshot: [
+            "schema": .string(seatLayerPickerSnapshotSchema),
+            "sessionId": "session-1",
+            "revision": 1,
+            "event": ["key": "ev_picker", "currency": "EUR"],
+            "features": [
+                "accessibilityFilter": true,
+                "limitedViewFilter": true,
+            ],
+            "map": [
+                "rung": "zones",
+                "accessibilityFilter": .array(["step-free"]),
+                "accessNeeds": .array([
+                    ["key": "step-free", "count": 12],
+                    ["key": "companion", "count": 4],
+                ]),
+                "hideLimitedView": false,
+                "colorblindSafe": false,
+            ],
+        ])
+        let initial = SeatLayerPickerAccessibility.draft(from: controller.snapshot)
+        let draft = SeatLayerPickerAccessibilityDraft(
+            types: ["companion"],
+            hideLimitedView: true,
+            colorblindSafe: true
+        )
+
+        let applied = try await controller.applyAccessibilityFilters(draft, from: initial)
+        XCTAssertTrue(applied)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls, [
+            .init(
+                name: "picker.setAccessibilityFilter",
+                payload: ["types": .array(["companion"])]
+            ),
+            .init(name: "picker.setLimitedViewFilter", payload: ["on": true]),
+            .init(name: "picker.setColorblindSafe", payload: ["on": true]),
+            .init(name: "picker.setRung", payload: ["rung": "seats"]),
+        ])
+    }
+
     private func readyController(
         transport: PickerTransportSpy,
         commands: [String],

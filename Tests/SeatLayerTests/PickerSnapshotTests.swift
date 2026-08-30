@@ -80,6 +80,61 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.currency, "EUR")
     }
 
+    func testDecodesExplicit3DTargetNeighboursAndFocusedSection() throws {
+        var raw = try XCTUnwrap(pickerSnapshot().objectValue)
+        var map = try XCTUnwrap(raw["map"]?.objectValue)
+        map["buyerView"] = "venue3d"
+        map["view3dTargetSeatId"] = "seat-unselected"
+        map["view3dTargetSeat"] = [
+            "id": "seat-unselected",
+            "label": "T22-2",
+            "sectionLabel": "Guest tables",
+            "rowLabel": "T22",
+            "seatNumber": "2",
+        ]
+        map["view3dPreviousSeatId"] = .null
+        map["view3dNextSeatId"] = "seat-next"
+        map["view3dFocusedSectionId"] = "guest-tables"
+        raw["map"] = .object(map)
+
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
+        XCTAssertTrue(snapshot.map.reportsView3DPosition)
+        XCTAssertEqual(snapshot.map.view3DTargetSeatId, "seat-unselected")
+        XCTAssertEqual(snapshot.map.view3DTargetSeat?.label, "T22-2")
+        XCTAssertNil(snapshot.map.view3DPreviousSeatId)
+        XCTAssertEqual(snapshot.map.view3DNextSeatId, "seat-next")
+        XCTAssertEqual(snapshot.map.view3DFocusedSectionId, "guest-tables")
+    }
+
+    func testOldRuntime3DTargetDoesNotInventReportedRowBoundaries() throws {
+        var raw = try XCTUnwrap(pickerSnapshot().objectValue)
+        var map = try XCTUnwrap(raw["map"]?.objectValue)
+        map["buyerView"] = "venue3d"
+        map["view3dTargetSeatId"] = "seat-1"
+        raw["map"] = .object(map)
+
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
+        XCTAssertFalse(snapshot.map.reportsView3DPosition)
+        XCTAssertNil(snapshot.map.view3DPreviousSeatId)
+        XCTAssertNil(snapshot.map.view3DNextSeatId)
+        XCTAssertNil(snapshot.map.view3DFocusedSectionId)
+    }
+
+    func testTierMetadataSurvivesForNativeGuidanceAndCurrency() throws {
+        let tier = try JSONValue.object([
+            "id": "companion",
+            "name": "Companion",
+            "price": 0,
+            "currency": "EUR",
+            "restriction": "companion",
+            "buyerMessage": "Requires the adjacent wheelchair place.",
+        ]).decode(CategoryTier.self)
+
+        XCTAssertEqual(tier.currency, "EUR")
+        XCTAssertEqual(tier.restriction, "companion")
+        XCTAssertEqual(tier.buyerMessage, "Requires the adjacent wheelchair place.")
+    }
+
     @MainActor
     func testStoreDropsStaleAndForeignSessionSnapshots() throws {
         let store = SeatLayerPickerSnapshotStore()

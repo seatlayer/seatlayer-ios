@@ -234,6 +234,19 @@ public struct SeatLayerPickerMapState: Sendable, Equatable {
     public let buyerView: String
     public let view3DNavigationMode: String
     public let view3DTargetSeatId: String?
+    /// Buyer-display identity under the 3D camera, selected or not.
+    public let view3DTargetSeat: SelectedSeat?
+    /// Same-row neighbours in authored inventory order.
+    public let view3DPreviousSeatId: String?
+    public let view3DNextSeatId: String?
+    /// Section framed by the 3D scene, independent of 2D map focus.
+    public let view3DFocusedSectionId: String?
+    /// Whether the runtime emitted the additive 3D position contract.
+    ///
+    /// A reported null neighbour is a real row boundary. `false` means an
+    /// older runtime omitted the contract and permits the bounded selection
+    /// fallback used during rollout.
+    public let reportsView3DPosition: Bool
     public let activeFloorId: String?
     public let focusedSectionId: String?
     public let focusedSection: SeatLayerPickerSectionSummary?

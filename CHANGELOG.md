@@ -7,6 +7,12 @@
 - Adds public native confirmation, GA/table, cart, checkout, accessibility,
   floor, section, 3D, seat-view, hold-lapse, loading/error/empty, attribution,
   and test-mode components.
+- Adds native multi-price ticket-tier decisions whose exact tier and quoted
+  price are applied to the runtime before confirmation and preserved through
+  hold, cart, and the host-owned checkout handoff.
+- Adds capability-gated targeted 3D navigation, focused-section previous/next
+  state, panorama ownership, and deterministic immersive back navigation
+  without confirming an inspected pending seat.
 - Adds one-part builders and styles for the canonical 25-part matrix, plus
   scoped custom composition with a public controller and presentation model.
 - Adds deterministic back handling, exact pending-seat projection, per-line
@@ -18,6 +24,9 @@
 - Pins production to `seatlayer-js@0.71.5/mobile.html`, validates the complete
   protocol-2 handshake surface, and restricts WebKit messages to the configured
   main-frame HTTPS origin (including default-port normalization).
+- Adds transferable WebKit prewarming, structured chart-load timing, native
+  selection flight and haptics, and Reduce Motion/Reduce Transparency-aware
+  presentation behavior.
 - Adds portable protocol/schema/concept/behavior/helper fixtures, contract
   tests, a hosted UIKit demo, and redacted end-to-end validation evidence.
 

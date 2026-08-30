@@ -3,19 +3,25 @@ import SwiftUI
 
 public struct SeatLayerPickerCallbacks {
     public var onReady: (@MainActor (ReadyInfo) -> Void)?
+    public var onChartLoad: (@MainActor (SeatLayerChartLoad) -> Void)?
     public var onSelectionChanged: (@MainActor ([SelectedSeat]) -> Void)?
     public var onHoldChanged: (@MainActor (SeatLayerPickerHold) -> Void)?
+    public var onHoldExpired: (@MainActor () -> Void)?
     public var onError: (@MainActor (SeatLayerError) -> Void)?
 
     public init(
         onReady: (@MainActor (ReadyInfo) -> Void)? = nil,
+        onChartLoad: (@MainActor (SeatLayerChartLoad) -> Void)? = nil,
         onSelectionChanged: (@MainActor ([SelectedSeat]) -> Void)? = nil,
         onHoldChanged: (@MainActor (SeatLayerPickerHold) -> Void)? = nil,
+        onHoldExpired: (@MainActor () -> Void)? = nil,
         onError: (@MainActor (SeatLayerError) -> Void)? = nil
     ) {
         self.onReady = onReady
+        self.onChartLoad = onChartLoad
         self.onSelectionChanged = onSelectionChanged
         self.onHoldChanged = onHoldChanged
+        self.onHoldExpired = onHoldExpired
         self.onError = onError
     }
 }
@@ -37,6 +43,7 @@ public struct SeatLayerPicker: View {
     private let strings: SeatLayerPickerStrings
     private let styles: SeatLayerPickerStyles
     private let builders: SeatLayerPickerBuilders
+    private let hapticAdapter: (any SeatLayerPickerHapticAdapter)?
     private let callbacks: SeatLayerPickerCallbacks
     private let onCheckout: SeatLayerPickerCheckoutHandler
     private let onClose: SeatLayerPickerCloseHandler?
@@ -51,6 +58,7 @@ public struct SeatLayerPicker: View {
         strings: SeatLayerPickerStrings = .init(),
         styles: SeatLayerPickerStyles = .init(),
         builders: SeatLayerPickerBuilders = .init(),
+        hapticAdapter: (any SeatLayerPickerHapticAdapter)? = nil,
         callbacks: SeatLayerPickerCallbacks = .init(),
         onCheckout: @escaping SeatLayerPickerCheckoutHandler,
         onClose: SeatLayerPickerCloseHandler? = nil
@@ -68,6 +76,7 @@ public struct SeatLayerPicker: View {
         self.strings = mergedStrings
         self.styles = styles
         self.builders = builders
+        self.hapticAdapter = hapticAdapter
         self.callbacks = callbacks
         self.onCheckout = onCheckout
         self.onClose = onClose
@@ -82,7 +91,8 @@ public struct SeatLayerPicker: View {
             themeMode: themeMode,
             strings: strings,
             styles: styles,
-            builders: builders
+            builders: builders,
+            hapticAdapter: hapticAdapter
         ) { _ in
             SeatLayerPickerReadyLayout(
                 configuration: configuration,
@@ -99,6 +109,8 @@ private struct SeatLayerPickerReadyLayout: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let configuration: SeatLayerConfiguration
@@ -142,8 +154,12 @@ private struct SeatLayerPickerReadyLayout: View {
                     .accessibilityHidden(decisionVisible)
 
                 if presentation.pendingSeat != nil,
+                   !immersiveInspectionVisible,
                    style.options.chrome.confirmCard {
-                    palette.background.opacity(0.48)
+                    palette.background.opacity(SeatLayerPickerTransparency.scrimOpacity(
+                        requested: 0.48,
+                        reduceTransparency: reduceTransparency
+                    ))
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .accessibilityHidden(true)
@@ -159,30 +175,50 @@ private struct SeatLayerPickerReadyLayout: View {
                 }
 
                 if let prompt = presentation.activePrompt {
-                    palette.background.opacity(0.48)
+                    palette.background.opacity(SeatLayerPickerTransparency.scrimOpacity(
+                        requested: 0.48,
+                        reduceTransparency: reduceTransparency
+                    ))
                         .ignoresSafeArea()
                         .contentShape(Rectangle())
                         .accessibilityHidden(true)
-                    switch prompt {
-                    case .generalAdmission(let area):
-                        SeatLayerPickerPartHost(.generalAdmissionPrompt) {
-                            SeatLayerPickerGeneralAdmissionPrompt(area: area)
-                        }
-                    case .table(let table):
-                        SeatLayerPickerPartHost(.tablePrompt) {
-                            SeatLayerPickerTablePrompt(table: table)
+                    Group {
+                        switch prompt {
+                        case .generalAdmission(let area):
+                            SeatLayerPickerPartHost(.generalAdmissionPrompt) {
+                                SeatLayerPickerGeneralAdmissionPrompt(area: area)
+                            }
+                        case .table(let table):
+                            SeatLayerPickerPartHost(.tablePrompt) {
+                                SeatLayerPickerTablePrompt(table: table)
+                            }
                         }
                     }
+                    .transition(.scale(scale: 0.965).combined(with: .opacity))
                 }
 
-                SeatLayerPickerPartHost(.venue3D) { SeatLayerVenue3D() }
+                if chromeVisibility.venue3D {
+                    SeatLayerPickerPartHost(.venue3D) {
+                        SeatLayerVenue3D(
+                            topInset: topChromeHeight + 8,
+                            bottomInset: bottomChromeHeight + 10
+                        )
+                    }
                     .allowsHitTesting(!decisionVisible)
                     .accessibilityHidden(decisionVisible)
                     .opacity(decisionVisible ? 0 : 1)
-                SeatLayerPickerPartHost(.seatViewChrome) { SeatLayerSeatViewChrome() }
-                    .allowsHitTesting(!decisionVisible)
+                }
+                if chromeVisibility.panorama {
+                    SeatLayerPickerPartHost(.seatViewChrome) {
+                        SeatLayerSeatViewChrome(
+                            topInset: 10,
+                            bottomInset: bottomChromeHeight + 10
+                        )
+                    }
+                    .allowsHitTesting(false)
                     .accessibilityHidden(decisionVisible)
                     .opacity(decisionVisible ? 0 : 1)
+                }
 
                 VStack {
                     Spacer()
@@ -193,6 +229,17 @@ private struct SeatLayerPickerReadyLayout: View {
                 .opacity(decisionVisible ? 0 : 1)
 
                 requiredTruthChrome
+
+                if let flight = presentation.selectionFlight,
+                   let flightColor = selectionFlightColor(flight, palette: palette) {
+                    SeatLayerPickerSelectionFlightOverlay(
+                        moment: flight,
+                        color: flightColor,
+                        layout: usesWideLayout ? .wide : .phone,
+                        reduceMotion: reduceMotion
+                    )
+                    .id(flight.id)
+                }
 
                 if usesWideLayout {
                     wideRail(palette: palette)
@@ -205,17 +252,35 @@ private struct SeatLayerPickerReadyLayout: View {
         }
         .background(palette.background)
         .animation(
-            UIAccessibility.isReduceMotionEnabled ? nil : .easeOut(duration: 0.18),
+            seatLayerPickerAnimation(.enter, reduceMotion: reduceMotion),
             value: presentation.pendingSeat?.id
+        )
+        .animation(
+            seatLayerPickerAnimation(.enter, reduceMotion: reduceMotion),
+            value: presentation.activePrompt
+        )
+        .animation(
+            seatLayerPickerAnimation(.dock, reduceMotion: reduceMotion),
+            value: controller.snapshot?.map.focusedSectionId
+        )
+        .animation(
+            seatLayerPickerAnimation(.immersive, reduceMotion: reduceMotion),
+            value: chromeVisibility
         )
         .onChange(of: controller.phase) { phase in
             if case .ready(let info) = phase { callbacks.onReady?(info) }
+        }
+        .onReceive(controller.chartLoads) { load in
+            callbacks.onChartLoad?(load)
         }
         .onChange(of: controller.snapshot?.selection) { selection in
             if let selection { callbacks.onSelectionChanged?(selection) }
         }
         .onChange(of: controller.snapshot?.hold) { hold in
             if let hold { callbacks.onHoldChanged?(hold) }
+        }
+        .onReceive(controller.holdExpirations) { _ in
+            callbacks.onHoldExpired?()
         }
         .onChange(of: controller.lastError) { error in
             if let error { callbacks.onError?(error) }
@@ -249,34 +314,39 @@ private struct SeatLayerPickerReadyLayout: View {
     @ViewBuilder
     private func chrome(palette: SeatLayerPickerPalette) -> some View {
         VStack(spacing: 0) {
-            if style.options.chrome.priceLegend {
+            if style.options.chrome.priceLegend, chromeVisibility.priceLegend {
                 SeatLayerPickerPartHost(.legend) { SeatLayerPickerPriceLegend() }
+                    .padding(.trailing, showsBuyerViewControl ? 144 : 0)
             }
-            if style.options.chrome.floorStrip {
+            if style.options.chrome.floorStrip, chromeVisibility.floors {
                 SeatLayerPickerPartHost(.floorStrip) { SeatLayerPickerFloorStrip() }
             }
             Spacer(minLength: 0)
-            if style.options.chrome.dock {
+            if style.options.chrome.dock, chromeVisibility.dock {
                 SeatLayerPickerPartHost(.dockBar) { SeatLayerPickerDockBar() }
             }
-            if style.options.chrome.cartSheet && !usesWideLayout {
+            if style.options.chrome.cartSheet,
+               chromeVisibility.cart,
+               !usesWideLayout {
                 SeatLayerPickerPartHost(.cartSheet) {
                     SeatLayerPickerCartSheet(onCheckout: onCheckout)
                 }
             }
         }
 
-        if style.options.chrome.mapControls {
-            VStack {
-                Spacer()
-                SeatLayerPickerPartHost(.mapControls) { SeatLayerPickerMapControls() }
-                    .padding(.trailing, 10)
-                    .padding(.bottom, bottomChromeHeight + 10)
+        if style.options.chrome.mapControls, chromeVisibility.mapControls {
+            SeatLayerPickerPartHost(.mapControls) {
+                SeatLayerPickerMapControls(
+                    topInset: style.options.chrome.priceLegend
+                        && chromeVisibility.priceLegend ? 3 : topChromeHeight + 8,
+                    bottomInset: bottomChromeHeight + 10
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
 
-        if style.options.chrome.accessibility {
+        if style.options.chrome.accessibility,
+           chromeVisibility.accessibility,
+           accessibilityAvailability.any {
             VStack {
                 Spacer()
                 HStack {
@@ -294,27 +364,29 @@ private struct SeatLayerPickerReadyLayout: View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
             VStack(spacing: 0) {
-                if style.options.chrome.floorSelector {
-                    SeatLayerPickerPartHost(.floorSelector) { SeatLayerPickerFloorSelector() }
-                        .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                if !chromeVisibility.immersive {
+                    if style.options.chrome.floorSelector {
+                        SeatLayerPickerPartHost(.floorSelector) { SeatLayerPickerFloorSelector() }
+                            .padding(.horizontal, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    SeatLayerPickerPartHost(.sectionNavigator) {
+                        SeatLayerPickerSectionNavigator()
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(maxHeight: 190)
+                    Rectangle().fill(palette.divider).frame(height: 1)
                 }
-                SeatLayerPickerPartHost(.sectionNavigator) {
-                    SeatLayerPickerSectionNavigator()
-                }
-                .padding(.horizontal, 12)
-                .frame(maxHeight: 190)
-                Rectangle().fill(palette.divider).frame(height: 1)
-                if presentation.confirmedCartLines.isEmpty {
-                    SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
-                        .padding(12)
-                } else {
+                if !presentation.confirmedCartLines.isEmpty {
                     SeatLayerPickerPartHost(.cartList) { SeatLayerPickerCartList() }
                     SeatLayerPickerPartHost(.actionError) { SeatLayerPickerActionError() }
                     SeatLayerPickerPartHost(.checkoutBar) {
                         SeatLayerPickerCheckoutBar(onCheckout: onCheckout)
                     }
                     .padding(12)
+                } else if !chromeVisibility.immersive {
+                    SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
+                        .padding(12)
                 }
                 Spacer(minLength: 0)
                 SeatLayerPickerAttribution()
@@ -367,8 +439,9 @@ private struct SeatLayerPickerReadyLayout: View {
     }
 
     private var topChromeHeight: Double {
-        var value = style.options.chrome.priceLegend ? 50.0 : 0
-        if style.options.chrome.floorStrip,
+        var value = style.options.chrome.priceLegend && chromeVisibility.priceLegend ? 50.0 : 0
+        if chromeVisibility.floors,
+           style.options.chrome.floorStrip,
            (controller.snapshot?.map.floors.count ?? 0) > 1 { value += 46 }
         return value
     }
@@ -378,7 +451,8 @@ private struct SeatLayerPickerReadyLayout: View {
             && !usesWideLayout
             ? (presentation.cartSheetExpanded ? 260.0 : SeatLayerPickerSizeTokens.peekHeight)
             : 0
-        if style.options.chrome.dock,
+        if chromeVisibility.dock,
+           style.options.chrome.dock,
            controller.snapshot?.map.rung == "seats",
            controller.snapshot?.map.focusedSectionId != nil {
             value += SeatLayerPickerSizeTokens.dockBarHeight
@@ -389,9 +463,12 @@ private struct SeatLayerPickerReadyLayout: View {
     private var viewportInsets: SeatLayerPickerViewportInsets {
         SeatLayerPickerViewportInsets(
             top: topChromeHeight,
-            right: (usesWideLayout ? wideRailWidth : 0) + (style.options.chrome.mapControls ? 56 : 0),
+            right: (usesWideLayout ? wideRailWidth : 0)
+                + (style.options.chrome.mapControls && chromeVisibility.mapControls ? 56 : 0),
             bottom: bottomChromeHeight,
-            left: style.options.chrome.accessibility ? 56 : 0
+            left: style.options.chrome.accessibility
+                && chromeVisibility.accessibility
+                && accessibilityAvailability.any ? 56 : 0
         )
     }
 
@@ -399,11 +476,48 @@ private struct SeatLayerPickerReadyLayout: View {
         // Never include the snapshot revision here. `setViewportInsets` may
         // itself publish a newer snapshot, so revision-keying this task forms
         // a native→runtime→snapshot feedback loop.
-        "\(controller.snapshot?.sessionId ?? "-"):\(Int(topChromeHeight)):\(Int(bottomChromeHeight))"
+        let insets = viewportInsets
+        return "\(controller.snapshot?.sessionId ?? "-"):\(Int(insets.top)):\(Int(insets.right)):\(Int(insets.bottom)):\(Int(insets.left))"
+    }
+
+    private var chromeVisibility: SeatLayerPickerChromeVisibility {
+        SeatLayerPickerImmersive.chromeVisibility(
+            SeatLayerPickerImmersive.availability(
+                snapshot: controller.snapshot,
+                bundle: controller.bundleInfo,
+                seatView: controller.seatView
+            )
+        )
+    }
+
+    private var accessibilityAvailability: SeatLayerPickerAccessibilityAvailability {
+        SeatLayerPickerAccessibility.availability(
+            snapshot: controller.snapshot,
+            bundle: controller.bundleInfo
+        )
+    }
+
+    private var showsBuyerViewControl: Bool {
+        guard style.options.chrome.mapControls,
+              style.options.chrome.map3D,
+              style.options.enable3D,
+              chromeVisibility.mapControls,
+              let snapshot = controller.snapshot else { return false }
+        return snapshot.map.buyerView == "map"
+            && snapshot.capabilities.contains("venue3d")
+            && controller.supportsVenue3D
     }
 
     private var decisionVisible: Bool {
-        presentation.pendingSeat != nil || presentation.activePrompt != nil
+        (presentation.pendingSeat != nil && !immersiveInspectionVisible)
+            || presentation.activePrompt != nil
+    }
+
+    private var immersiveInspectionVisible: Bool {
+        guard let pending = presentation.pendingSeat else { return false }
+        if controller.snapshot?.map.buyerView == "venue3d" { return true }
+        return controller.seatView?.hasContent == true
+            && controller.seatView?.seatId == pending.id
     }
 
     private var inventoryIsEmpty: Bool {
@@ -426,6 +540,17 @@ private struct SeatLayerPickerReadyLayout: View {
     }
 
     private var wideRailWidth: Double { 320 }
+
+    private func selectionFlightColor(
+        _ flight: SeatLayerPickerSelectionFlightMoment,
+        palette: SeatLayerPickerPalette
+    ) -> Color? {
+        guard !reduceMotion else { return nil }
+        let hex = controller.snapshot?.categories.first {
+            $0.key == flight.categoryKey
+        }?.color
+        return hex.flatMap(UIColor.init(slHex:)).map(Color.init(uiColor:)) ?? palette.accent
+    }
 
     private func requestClose() {
         Task { @MainActor in

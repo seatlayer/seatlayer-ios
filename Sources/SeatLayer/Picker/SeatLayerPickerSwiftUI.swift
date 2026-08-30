@@ -19,9 +19,16 @@ public struct SeatLayerPickerScope<Content: View>: View {
         strings: SeatLayerPickerStrings = .init(),
         styles: SeatLayerPickerStyles = .init(),
         builders: SeatLayerPickerBuilders = .init(),
+        hapticAdapter: (any SeatLayerPickerHapticAdapter)? = nil,
         @ViewBuilder content: @escaping (SeatLayerPickerController) -> Content
     ) {
         let resolved = presentation?.controller ?? controller ?? SeatLayerPickerController()
+        resolved.configureHaptics(
+            enabled: options.haptics,
+            adapter: options.haptics
+                ? (hapticAdapter ?? SeatLayerPickerUIKitHapticAdapter())
+                : nil
+        )
         _controller = StateObject(wrappedValue: resolved)
         _presentation = StateObject(
             wrappedValue: presentation ?? SeatLayerPickerPresentationModel(

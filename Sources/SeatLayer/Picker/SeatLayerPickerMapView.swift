@@ -1,5 +1,8 @@
 #if canImport(UIKit)
 import UIKit
+#if canImport(Combine)
+import Combine
+#endif
 #if canImport(SwiftUI)
 import SwiftUI
 #endif
@@ -24,6 +27,8 @@ public final class SeatLayerPickerMapView: UIView {
         self.configuration = configuration
         let resolvedController = controller ?? SeatLayerPickerController()
         self.controller = resolvedController
+        let pageURL = configuration.pageURL ?? SeatLayer.mobilePageURL
+        let prewarmedHost = SeatLayerPickerPrewarmPool.shared.consume(pageURL: pageURL)
         self.chartView = SeatLayerView(
             frame: .zero,
             bridgeProfile: .picker(
@@ -31,7 +36,8 @@ public final class SeatLayerPickerMapView: UIView {
                 enableSeatView: options.enableSeatView,
                 config: options.bridgeConfig
             ),
-            pickerController: resolvedController
+            pickerController: resolvedController,
+            prewarmedHost: prewarmedHost
         )
         super.init(frame: .zero)
         setUp()
@@ -127,10 +133,12 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
     private let pickerCallbacks: SeatLayerPickerCallbacks
     private let checkoutHandler: SeatLayerPickerCheckoutHandler
     private let pickerBuilders: SeatLayerPickerBuilders
+    private let pickerHapticAdapter: (any SeatLayerPickerHapticAdapter)?
     private var pickerTheme: SeatLayerPickerTheme
     private var pickerThemeMode: SeatLayerPickerThemeMode
     private var pickerStrings: SeatLayerPickerStrings
     private var pickerStyles: SeatLayerPickerStyles
+    private var appearanceCancellables: Set<AnyCancellable> = []
 
     public init(
         configuration: SeatLayerConfiguration,
@@ -141,6 +149,7 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
         strings: SeatLayerPickerStrings = .init(),
         styles: SeatLayerPickerStyles = .init(),
         builders: SeatLayerPickerBuilders = .init(),
+        hapticAdapter: (any SeatLayerPickerHapticAdapter)? = nil,
         callbacks: SeatLayerPickerCallbacks = .init(),
         onCheckout: @escaping SeatLayerPickerCheckoutHandler,
         onClose: SeatLayerPickerCloseHandler? = nil
@@ -155,6 +164,7 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
         pickerCallbacks = callbacks
         checkoutHandler = onCheckout
         pickerBuilders = builders
+        pickerHapticAdapter = hapticAdapter
         pickerTheme = theme
         pickerThemeMode = themeMode
         pickerStrings = strings
@@ -169,15 +179,56 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
             strings: strings,
             styles: styles,
             builders: builders,
+            hapticAdapter: hapticAdapter,
             callbacks: callbacks,
             onCheckout: onCheckout,
             onClose: onClose
         ))
+        bindSystemAppearance()
     }
 
     @available(*, unavailable)
     public required dynamic init?(coder aDecoder: NSCoder) {
         fatalError("SeatLayerPickerViewController must be created in code.")
+    }
+
+    public override var preferredStatusBarStyle: UIStatusBarStyle {
+        let lightForeground = SeatLayerPickerSystemAppearance.prefersLightForeground(
+            themeMode: pickerThemeMode,
+            systemIsDark: traitCollection.userInterfaceStyle == .dark,
+            immersive: pickerController.snapshot?.map.isVenue3D == true
+                || pickerController.seatView?.hasContent == true
+        )
+        return lightForeground ? .lightContent : .darkContent
+    }
+
+    public override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+
+    /// Hardware Escape and Command-[ consume the same deterministic layer as
+    /// the native header and host navigation integration.
+    public override var keyCommands: [UIKeyCommand]? {
+        // The panorama pixels and their close transition are renderer-owned.
+        // Leaving these commands unclaimed lets WKWebView deliver Escape to
+        // that surface instead of canceling the still-pending native seat.
+        guard pickerController.seatView?.hasContent != true else { return nil }
+        return [
+            UIKeyCommand(
+                input: UIKeyCommand.inputEscape,
+                modifierFlags: [],
+                action: #selector(performPickerBack)
+            ),
+            UIKeyCommand(
+                input: "[",
+                modifierFlags: .command,
+                action: #selector(performPickerBack)
+            ),
+        ]
+    }
+
+    public override func accessibilityPerformEscape() -> Bool {
+        guard pickerController.seatView?.hasContent != true else { return false }
+        performPickerBack()
+        return true
     }
 
     /// The same prompt → cart → confirmation → section → venue → close ladder
@@ -214,10 +265,27 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
             strings: pickerStrings,
             styles: pickerStyles,
             builders: pickerBuilders,
+            hapticAdapter: pickerHapticAdapter,
             callbacks: pickerCallbacks,
             onCheckout: checkoutHandler,
             onClose: closeHandler
         )
+        setNeedsStatusBarAppearanceUpdate()
+        navigationController?.setNeedsStatusBarAppearanceUpdate()
+    }
+
+    @objc private func performPickerBack() {
+        Task { @MainActor in _ = await handleBack() }
+    }
+
+    private func bindSystemAppearance() {
+        pickerController.$snapshot
+            .combineLatest(pickerController.$seatView)
+            .sink { [weak self] _, _ in
+                self?.setNeedsStatusBarAppearanceUpdate()
+                self?.navigationController?.setNeedsStatusBarAppearanceUpdate()
+            }
+            .store(in: &appearanceCancellables)
     }
 }
 #endif

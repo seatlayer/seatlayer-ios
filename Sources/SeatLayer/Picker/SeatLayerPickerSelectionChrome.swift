@@ -8,6 +8,120 @@ public enum SeatLayerPickerConfirmationAction: Sendable, Equatable {
     case venue3D
 }
 
+/// Compact mutually-exclusive ticket choices used by reserved-seat and
+/// general-admission decisions. Choosing a row updates native price state;
+/// the owning prompt decides when to send the runtime mutation.
+public struct SeatLayerPickerTicketTierChoices: View {
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
+    private let tiers: [CategoryTier]
+    private let fallbackCurrency: String
+    private let enabled: Bool
+    @Binding private var selection: String?
+
+    public init(
+        tiers: [CategoryTier],
+        fallbackCurrency: String,
+        selection: Binding<String?>,
+        enabled: Bool = true
+    ) {
+        self.tiers = tiers
+        self.fallbackCurrency = fallbackCurrency
+        self.enabled = enabled
+        _selection = selection
+    }
+
+    public var body: some View {
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: nil
+        )
+        VStack(spacing: 7) {
+            ForEach(tiers, id: \.id) { tier in
+                let selected = selection == tier.id
+                let guidance = SeatLayerPickerTiering.guidance(
+                    for: tier,
+                    companionFallback: style.strings.text(.tierCompanionGuidance)
+                )
+                let quote = SeatLayerPickerTiering.quote(
+                    for: tier,
+                    fallbackCurrency: fallbackCurrency
+                )
+                Button {
+                    selection = tier.id
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(selected ? palette.accent : palette.mutedText)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tier.name)
+                                .font(.system(size: 14, weight: .heavy))
+                                .foregroundColor(palette.text)
+                            if let guidance {
+                                Text(guidance)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(palette.mutedText)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        if let quote {
+                            Text(seatLayerMoney(
+                                quote.amount,
+                                currency: quote.currency ?? fallbackCurrency
+                            ))
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundColor(palette.text)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .background(selected ? palette.accent.opacity(0.10) : Color.clear)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button)
+                            .stroke(
+                                selected ? palette.accent : palette.divider,
+                                lineWidth: selected ? 1.5 : 1
+                            )
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+                }
+                .buttonStyle(.plain)
+                .disabled(!enabled)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityLabel(for: tier, guidance: guidance))
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("seatlayer-tier-\(tier.id)")
+            }
+        }
+        .onAppear(perform: normalizeSelection)
+        .onChange(of: tierSignature) { _ in normalizeSelection() }
+    }
+
+    private var tierSignature: String { tiers.map(\.id).joined(separator: "\u{1f}") }
+
+    private func normalizeSelection() {
+        guard !tiers.isEmpty,
+              !tiers.contains(where: { $0.id == selection }) else { return }
+        selection = tiers[0].id
+    }
+
+    private func accessibilityLabel(for tier: CategoryTier, guidance: String?) -> String {
+        let quote = SeatLayerPickerTiering.quote(
+            for: tier,
+            fallbackCurrency: fallbackCurrency
+        )
+        return [
+            tier.name,
+            quote.map { seatLayerMoney($0.amount, currency: $0.currency ?? fallbackCurrency) },
+            guidance,
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
 /// Native confirmation card for the latest unanswered reserved seat.
 public struct SeatLayerPickerSeatConfirmation: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
@@ -70,8 +184,11 @@ private struct SeatLayerPickerConfirmationCard: View {
                     .foregroundColor(palette.text)
                     .lineLimit(1)
                 Spacer()
-                if let amount = selectedPrice {
-                    Text(seatLayerMoney(amount, currency: seat.currency ?? snapshot?.currency ?? "USD"))
+                if let quote = selectedQuote {
+                    Text(seatLayerMoney(
+                        quote.amount,
+                        currency: quote.currency ?? snapshot?.currency ?? "USD"
+                    ))
                         .font(.system(size: 18, weight: .heavy))
                         .foregroundColor(palette.text)
                 }
@@ -87,18 +204,20 @@ private struct SeatLayerPickerConfirmationCard: View {
                     Text(style.strings.text(.ticketType))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(palette.mutedText)
-                    Picker(style.strings.text(.selectTicketTier), selection: $tierId) {
-                        ForEach(tiers, id: \.id) { tier in
-                            Text("\(tier.name) · \(seatLayerMoney(tier.price, currency: seat.currency ?? snapshot?.currency ?? "USD"))")
-                                .tag(Optional(tier.id))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(palette.accent)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .background(palette.background)
-                    .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+                    SeatLayerPickerTicketTierChoices(
+                        tiers: tiers,
+                        fallbackCurrency: seat.currency ?? snapshot?.currency ?? "USD",
+                        selection: $tierId,
+                        enabled: !localBusy && !presentation.actionInFlight
+                    )
+                } else if let tier = seat.tiers?.first,
+                          let guidance = SeatLayerPickerTiering.guidance(
+                              for: tier,
+                              companionFallback: style.strings.text(.tierCompanionGuidance)
+                          ) {
+                    Text(guidance)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(palette.mutedText)
                 }
 
                 if seat.commercial?.restrictedView == true || seat.commercial?.obstructedView == true {
@@ -177,10 +296,12 @@ private struct SeatLayerPickerConfirmationCard: View {
         .accessibilityIdentifier("seatlayer-confirmation")
     }
 
-    private var selectedPrice: Double? {
-        if let tierId,
-           let tier = seat.tiers?.first(where: { $0.id == tierId }) { return tier.price }
-        return seat.price
+    private var selectedQuote: SeatLayerPickerTierQuote? {
+        SeatLayerPickerTiering.quote(
+            for: seat,
+            preferred: tierId,
+            fallbackCurrency: controller.snapshot?.currency
+        )
     }
 
     private func identityRow(palette: SeatLayerPickerPalette) -> some View {
@@ -238,7 +359,6 @@ private struct SeatLayerPickerConfirmationCard: View {
                         palette: palette
                     ) {
                         _ = try await controller.openSeatView(seat.id)
-                        presentation.confirmPending()
                         onAction?(.seatView, seat)
                     }
                 }
@@ -249,7 +369,6 @@ private struct SeatLayerPickerConfirmationCard: View {
                         palette: palette
                     ) {
                         _ = try await controller.setBuyerView("venue3d", flyToSeatId: seat.id)
-                        presentation.confirmPending()
                         onAction?(.venue3D, seat)
                     }
                 }
@@ -308,17 +427,17 @@ private struct SeatLayerPickerConfirmationCard: View {
     private func confirm() async {
         localBusy = true
         defer { localBusy = false }
-        do {
-            if let tierId, tierId != seat.tierId {
-                _ = try await controller.setSeatTier(seatId: seat.id, tierId: tierId)
-            }
-            presentation.confirmPending()
-            onAction?(.confirm, seat)
-        } catch let error as SeatLayerError {
-            controller.record(error)
-        } catch {
-            controller.record(.transport(error.localizedDescription))
-        }
+        guard await presentation.confirmPending(tierId: tierId) else { return }
+        var confirmed = seat
+        let quote = SeatLayerPickerTiering.quote(
+            for: seat,
+            preferred: tierId,
+            fallbackCurrency: controller.snapshot?.currency
+        )
+        confirmed.tierId = quote?.tierId
+        confirmed.price = quote?.amount ?? confirmed.price
+        confirmed.currency = quote?.currency ?? confirmed.currency
+        onAction?(.confirm, confirmed)
     }
 }
 
@@ -329,6 +448,7 @@ public struct SeatLayerPickerCartSheet: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let onCheckout: SeatLayerPickerCheckoutHandler
 
     public init(onCheckout: @escaping SeatLayerPickerCheckoutHandler) {
@@ -380,7 +500,7 @@ public struct SeatLayerPickerCartSheet: View {
         )
         .shadow(color: .black.opacity(0.22), radius: 12, y: -2)
         .animation(
-            UIAccessibility.isReduceMotionEnabled ? nil : .easeOut(duration: 0.30),
+            seatLayerPickerAnimation(.sheet, reduceMotion: reduceMotion),
             value: presentation.cartSheetExpanded
         )
     }

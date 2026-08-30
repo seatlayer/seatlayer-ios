@@ -149,7 +149,12 @@ public struct SeatLayerPickerPriceLegend: View {
             colorScheme: colorScheme,
             snapshot: snapshot
         )
-        HStack(spacing: 8) {
+        let immersive = SeatLayerPickerImmersive.availability(
+            snapshot: snapshot,
+            bundle: controller.bundleInfo,
+            seatView: controller.seatView
+        )
+        if !immersive.panoramaChrome {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     ForEach(snapshot?.categories.filter { !$0.notForSale } ?? [], id: \.key) { category in
@@ -182,16 +187,11 @@ public struct SeatLayerPickerPriceLegend: View {
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
-                .padding(.leading, 10)
-                .padding(.trailing, 14)
+                .padding(.horizontal, 10)
             }
-            if style.options.chrome.map3D, controller.supportsVenue3D {
-                SeatLayerPickerBuyerViewControl()
-                    .padding(.trailing, 10)
-            }
+            .padding(.vertical, 7)
+            .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.96)
         }
-        .padding(.vertical, 7)
-        .background(palette.background.opacity(0.96))
     }
 
     private func priceLabel(_ category: SeatLayerPickerCategory, currency: String) -> String {
@@ -211,24 +211,32 @@ public struct SeatLayerPickerBuyerViewControl: View {
     public init() {}
 
     public var body: some View {
-        let venue3D = controller.snapshot?.map.isVenue3D == true
+        let snapshot = controller.snapshot
+        let venue3D = snapshot?.map.isVenue3D == true
         let palette = resolveSeatLayerPickerPalette(
             style: style,
             colorScheme: colorScheme,
-            snapshot: controller.snapshot
+            snapshot: snapshot
         )
-        HStack(spacing: 0) {
-            segment(style.strings.text(.mapView), selected: !venue3D) {
-                runPickerAction(controller) { _ = try await controller.setBuyerView("map") }
+        if let snapshot,
+           ["map", "venue3d"].contains(snapshot.map.buyerView),
+           style.options.enable3D,
+           style.options.chrome.map3D,
+           snapshot.capabilities.contains("venue3d"),
+           controller.supportsVenue3D {
+            HStack(spacing: 0) {
+                segment(style.strings.text(.mapView), selected: !venue3D) {
+                    runPickerAction(controller) { _ = try await controller.setBuyerView("map") }
+                }
+                segment(style.strings.text(.venue3D), selected: venue3D) {
+                    runPickerAction(controller) { _ = try await controller.setBuyerView("venue3d") }
+                }
             }
-            segment(style.strings.text(.venue3D), selected: venue3D) {
-                runPickerAction(controller) { _ = try await controller.setBuyerView("venue3d") }
-            }
+            .foregroundColor(palette.text)
+            .background(palette.surface)
+            .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
+            .clipShape(Capsule())
         }
-        .foregroundColor(palette.text)
-        .background(palette.surface)
-        .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
-        .clipShape(Capsule())
     }
 
     private func segment(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -271,7 +279,7 @@ public struct SeatLayerPickerTestModeIndicator: View {
                 .foregroundColor(palette.warning)
                 .padding(.horizontal, 12)
                 .frame(height: 34)
-                .background(palette.background.opacity(0.92))
+                .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.92)
                 .overlay { Capsule().stroke(palette.warning, lineWidth: 1.5) }
                 .clipShape(Capsule())
                 .accessibilityLabel(style.strings.text(.testModeDescription))
@@ -290,31 +298,70 @@ public struct SeatLayerPickerMapControls: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    private let topInset: Double
+    private let bottomInset: Double
+    private let edgeInset: Double
 
-    public init() {}
+    public init(
+        topInset: Double = 10,
+        bottomInset: Double = 10,
+        edgeInset: Double = 10
+    ) {
+        self.topInset = max(0, topInset)
+        self.bottomInset = max(0, bottomInset)
+        self.edgeInset = max(0, edgeInset)
+    }
 
     public var body: some View {
-        VStack(spacing: 8) {
-            if style.options.chrome.overview,
-               controller.snapshot?.map.rung == "seats",
-               controller.snapshot?.map.focusedSectionId != nil {
-                control("square.grid.2x2", label: style.strings.text(.overview)) {
-                    _ = try await controller.overview()
+        let snapshot = controller.snapshot
+        let availability = SeatLayerPickerImmersive.availability(
+            snapshot: snapshot,
+            bundle: controller.bundleInfo,
+            seatView: controller.seatView
+        )
+        if snapshot?.map.buyerView == "map", !availability.panoramaChrome {
+            ZStack {
+                VStack {
+                    HStack {
+                        Spacer()
+                        SeatLayerPickerBuyerViewControl()
+                    }
+                    .padding(.top, topInset)
+                    .padding(.trailing, edgeInset)
+                    Spacer()
+                }
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 8) {
+                            if style.options.chrome.overview,
+                               snapshot?.map.rung == "seats",
+                               snapshot?.map.focusedSectionId != nil {
+                                control("square.grid.2x2", label: style.strings.text(.overview)) {
+                                    _ = try await controller.overview()
+                                }
+                            }
+                            if style.options.chrome.zoom {
+                                control("plus", label: style.strings.text(.zoomIn), enabled: snapshot?.map.canZoomIn != false) {
+                                    try await controller.zoomIn()
+                                }
+                                control("minus", label: style.strings.text(.zoomOut), enabled: snapshot?.map.canZoomOut != false) {
+                                    try await controller.zoomOut()
+                                }
+                            }
+                            if style.options.chrome.fit {
+                                control("viewfinder", label: style.strings.text(.fitVenue)) {
+                                    try await controller.zoomToFit()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.trailing, edgeInset)
+                    .padding(.bottom, bottomInset)
                 }
             }
-            if style.options.chrome.zoom {
-                control("plus", label: style.strings.text(.zoomIn), enabled: controller.snapshot?.map.canZoomIn != false) {
-                    try await controller.zoomIn()
-                }
-                control("minus", label: style.strings.text(.zoomOut), enabled: controller.snapshot?.map.canZoomOut != false) {
-                    try await controller.zoomOut()
-                }
-            }
-            if style.options.chrome.fit {
-                control("viewfinder", label: style.strings.text(.fitVenue)) {
-                    try await controller.zoomToFit()
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -339,7 +386,7 @@ public struct SeatLayerPickerMapControls: View {
                     width: SeatLayerPickerSizeTokens.minimumHitTarget,
                     height: SeatLayerPickerSizeTokens.minimumHitTarget
                 )
-                .background(palette.surface.opacity(0.94))
+                .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.94)
                 .overlay {
                     Circle().stroke(palette.divider, lineWidth: 1)
                 }
@@ -360,32 +407,54 @@ public struct SeatLayerPickerAccessibilityButton: View {
     public init() {}
 
     public var body: some View {
+        let availability = SeatLayerPickerAccessibility.availability(
+            snapshot: controller.snapshot,
+            bundle: controller.bundleInfo
+        )
         let palette = resolveSeatLayerPickerPalette(
             style: style,
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
-        Button { showingFilters = true } label: {
-            Image(systemName: "figure.roll")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(palette.text)
-                .frame(
-                    width: SeatLayerPickerSizeTokens.minimumHitTarget,
-                    height: SeatLayerPickerSizeTokens.minimumHitTarget
-                )
-                .background(palette.surface.opacity(0.94))
-                .overlay { Circle().stroke(palette.divider, lineWidth: 1) }
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!controller.isReady)
-        .accessibilityLabel(style.strings.text(.accessibility))
-        .sheet(isPresented: $showingFilters) {
-            SeatLayerPickerPartHost(.accessibilityFilters) {
-                SeatLayerPickerAccessibilityFilters()
+        if availability.any,
+           controller.snapshot?.map.buyerView == "map" {
+            let activeCount = SeatLayerPickerAccessibility.activeCount(
+                controller.snapshot,
+                availability: availability
+            )
+            Button { showingFilters = true } label: {
+                Image(systemName: "figure.roll")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(activeCount > 0 ? palette.accent : palette.text)
+                    .frame(
+                        width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                        height: SeatLayerPickerSizeTokens.minimumHitTarget
+                    )
+                    .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.94)
+                    .overlay { Circle().stroke(palette.divider, lineWidth: 1) }
+                    .clipShape(Circle())
+                    .overlay(alignment: .topTrailing) {
+                        if activeCount > 0 {
+                            Text(String(activeCount))
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(palette.onAccent)
+                                .frame(minWidth: 16, minHeight: 16)
+                                .background(palette.accent)
+                                .clipShape(Circle())
+                        }
+                    }
             }
-            .environmentObject(controller)
-            .environment(\.seatLayerPickerStyle, style)
+            .buttonStyle(.plain)
+            .disabled(!controller.isReady)
+            .accessibilityLabel(style.strings.text(.accessibility))
+            .accessibilityValue(activeCount == 0 ? "" : String(activeCount))
+            .sheet(isPresented: $showingFilters) {
+                SeatLayerPickerPartHost(.accessibilityFilters) {
+                    SeatLayerPickerAccessibilityFilters()
+                }
+                .environmentObject(controller)
+                .environment(\.seatLayerPickerStyle, style)
+            }
         }
     }
 }
@@ -395,47 +464,140 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @State private var initial = SeatLayerPickerAccessibilityDraft()
+    @State private var draft = SeatLayerPickerAccessibilityDraft()
+    @State private var sessionId: String?
+    @State private var busy = false
 
     public init() {}
 
     public var body: some View {
+        let availability = SeatLayerPickerAccessibility.availability(
+            snapshot: controller.snapshot,
+            bundle: controller.bundleInfo
+        )
         let palette = resolveSeatLayerPickerPalette(
             style: style,
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
-        NavigationView {
-            Form {
-                Toggle(
-                    style.strings.text(.hideLimitedView),
-                    isOn: Binding(
-                        get: { controller.snapshot?.map.hideLimitedView == true },
-                        set: { value in
-                            runPickerAction(controller) {
-                                _ = try await controller.setLimitedViewFilter(value)
+        if availability.any,
+           controller.snapshot?.map.buyerView == "map" {
+            NavigationView {
+                Form {
+                    let needs = SeatLayerPickerAccessibility.needs(
+                        snapshot: controller.snapshot,
+                        availability: availability
+                    )
+                    if !needs.isEmpty {
+                        Section {
+                            ForEach(needs, id: \.key) { need in
+                                needRow(need, palette: palette)
                             }
                         }
-                    )
-                )
-                Toggle(
-                    style.strings.text(.colorblindSafe),
-                    isOn: Binding(
-                        get: { controller.snapshot?.map.colorblindSafe == true },
-                        set: { value in
-                            runPickerAction(controller) {
-                                _ = try await controller.setColorblindSafe(value)
+                    }
+                    if availability.limitedView {
+                        Toggle(
+                            style.strings.text(.hideLimitedView),
+                            isOn: $draft.hideLimitedView
+                        )
+                        .disabled(busy)
+                    }
+                    if availability.colorblind {
+                        Toggle(
+                            style.strings.text(.colorblindSafe),
+                            isOn: $draft.colorblindSafe
+                        )
+                        .disabled(busy)
+                    }
+                    Section {
+                        Button {
+                            apply()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                if busy { ProgressView().tint(palette.onAccent) }
+                                Text(style.strings.text(.applyFilters))
+                                    .font(.system(size: 15, weight: .heavy))
+                                Spacer()
                             }
+                            .frame(minHeight: 44)
                         }
-                    )
-                )
-            }
-            .navigationTitle(style.strings.text(.accessibilityTitle))
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(style.strings.text(.dismiss)) { dismiss() }
+                        .listRowBackground(palette.accent)
+                        .foregroundColor(palette.onAccent)
+                        .disabled(busy)
+                    }
                 }
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(style.strings.text(.cancel)) { dismiss() }
+                            .disabled(busy)
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Text(style.strings.text(.accessibilityTitle))
+                            .font(.system(size: 16, weight: .bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+                .accentColor(palette.accent)
             }
-            .accentColor(palette.accent)
+            .onAppear(perform: resetDraft)
+            .onChange(of: controller.snapshot?.sessionId) { _ in
+                resetDraft()
+            }
+        }
+    }
+
+    private func needRow(
+        _ need: SeatLayerPickerAccessNeed,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        let selected = draft.types.contains(need.key)
+        let enabled = !busy && need.count > 0
+        return Button {
+            draft.toggle(need.key)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(selected ? palette.accent : palette.mutedText)
+                Text(style.strings.accessNeed(
+                    need.key,
+                    count: need.count > 0 ? need.count : nil
+                ))
+                Spacer()
+            }
+            .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(enabled ? palette.text : palette.mutedText)
+        .disabled(!enabled)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("seatlayer-access-need-\(need.key)")
+    }
+
+    private func resetDraft() {
+        let value = SeatLayerPickerAccessibility.draft(from: controller.snapshot)
+        initial = value
+        draft = value
+        sessionId = controller.snapshot?.sessionId
+    }
+
+    private func apply() {
+        guard !busy, sessionId == controller.snapshot?.sessionId else { return }
+        busy = true
+        Task { @MainActor in
+            defer { busy = false }
+            do {
+                if try await controller.applyAccessibilityFilters(draft, from: initial) {
+                    dismiss()
+                }
+            } catch let error as SeatLayerError {
+                controller.record(error)
+            } catch {
+                controller.record(.transport(error.localizedDescription))
+            }
         }
     }
 }
@@ -449,7 +611,8 @@ public struct SeatLayerPickerFloorStrip: View {
 
     public var body: some View {
         let floors = controller.snapshot?.map.floors ?? []
-        if floors.count > 1 {
+        if floors.count > 1,
+           controller.snapshot?.map.buyerView == "map" {
             let palette = resolveSeatLayerPickerPalette(
                 style: style,
                 colorScheme: colorScheme,
@@ -475,7 +638,7 @@ public struct SeatLayerPickerFloorStrip: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
             }
-            .background(palette.background.opacity(0.94))
+            .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.94)
         }
     }
 
@@ -511,7 +674,8 @@ public struct SeatLayerPickerDockBar: View {
 
     public var body: some View {
         if let section = focusedSection,
-           controller.snapshot?.map.rung == "seats" {
+           controller.snapshot?.map.rung == "seats",
+           controller.snapshot?.map.buyerView == "map" {
             let palette = resolveSeatLayerPickerPalette(
                 style: style,
                 colorScheme: colorScheme,
@@ -638,7 +802,7 @@ public struct SeatLayerPickerLoadingView: View {
                 .foregroundColor(palette.mutedText)
         }
         .padding(24)
-        .background(palette.surface.opacity(0.96))
+        .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.96)
         .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.base))
         .accessibilityElement(children: .combine)
     }

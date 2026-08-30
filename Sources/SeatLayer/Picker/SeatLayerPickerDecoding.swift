@@ -218,12 +218,26 @@ private func decodeCartLine(_ value: JSONValue) -> SeatLayerPickerCartLine? {
 
 private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
     let item = value?.objectValue
+    let reportsView3DPosition = item.map { object in
+        [
+            "view3dPreviousSeatId",
+            "view3dNextSeatId",
+            "view3dFocusedSectionId",
+        ].contains(where: object.keys.contains)
+    } ?? false
     return SeatLayerPickerMapState(
         rung: item?["rung"]?.stringValue ?? "zones",
         viewMode: item?["viewMode"]?.stringValue ?? item?["projection"]?.stringValue ?? "flat",
         buyerView: item?["buyerView"]?.stringValue ?? "map",
         view3DNavigationMode: item?["view3dNavigationMode"]?.stringValue ?? "orbit",
         view3DTargetSeatId: item?["view3dTargetSeatId"]?.stringValue,
+        view3DTargetSeat: item?["view3dTargetSeat"].flatMap {
+            try? $0.decode(SelectedSeat.self)
+        },
+        view3DPreviousSeatId: item?["view3dPreviousSeatId"]?.stringValue,
+        view3DNextSeatId: item?["view3dNextSeatId"]?.stringValue,
+        view3DFocusedSectionId: item?["view3dFocusedSectionId"]?.stringValue,
+        reportsView3DPosition: reportsView3DPosition,
         activeFloorId: item?["activeFloorId"]?.stringValue ?? item?["floorId"]?.stringValue,
         focusedSectionId: item?["focusedSectionId"]?.stringValue,
         focusedSection: item?["focusedSection"].flatMap(decodeSection),

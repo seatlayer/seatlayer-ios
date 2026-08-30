@@ -108,6 +108,28 @@ compose native UIKit controls around it. UI events call semantic controller
 methods such as `focusSection`, `overview`, `setFloor`, `setCategoryFilter`,
 `deselectObjects`, and `checkout`; they never send bridge envelopes directly.
 
+## Ticket tiers and immersive inspection
+
+When a selected seat contains authored tiers, both native confirmation forms
+show the choices and update the displayed amount immediately. Select calls
+`picker.setSeatTier` first and acknowledges the already-selected seat only
+after the runtime returns an authoritative snapshot. A failure leaves the
+decision open. The chosen `tierId`, unit price, and currency then come from the
+runtime cart and typed checkout handoff.
+
+`View from here` and `3D` are inspection actions, not confirmation actions.
+They preserve the pending decision. Venue 3D uses runtime-authored target,
+previous/next, and focused-section fields when available; the bounded fallback
+for an older runtime never claims authored row boundaries. At a target, native
+chrome exposes Back to venue, previous, panorama, next, and recenter. At the
+overview, it exposes Seat map, rotate/move, and supported camera controls.
+
+The renderer owns 3D/panorama pixels and gestures. Native owns only the
+capability-gated wording and controls. Ordinary floors, dock, access, and map
+controls stand down while an immersive surface owns navigation; the cart and
+required test/attribution truth remain. While panorama is open, hardware
+Escape and Command-[ are left to the renderer's close surface.
+
 ## Whole-part builders
 
 Builders replace or wrap one complete ownership point in the ready tree:
@@ -222,6 +244,48 @@ scroll view. The map owns pan and pinch. Native chrome reports its visible
 insets to capable runtimes so seats are not framed below controls. Controls
 have independent accessibility elements, at least 44-point iOS hit targets,
 localized labels, Dynamic Type, and native focus/VoiceOver behavior.
+
+Runtime-authored access groups and counts are shown only when the complete
+`access-needs-v1` capability and command legs exist. Accessibility, limited
+view, and colorblind-safe mutations remain independent; applying one family
+never clears another. Reduce Motion removes generated motion and selection
+flight, Reduce Transparency makes material surfaces opaque, and immersive
+status-bar foreground remains legible.
+
+## Transferable prewarm and load traces
+
+Prewarm the immutable page before navigation, then create the picker normally:
+
+```swift
+Task { try await SeatLayerPicker.prewarm() }
+
+// Later: consumes the matching host once.
+let picker = SeatLayerPickerViewController(
+    configuration: configuration,
+    callbacks: SeatLayerPickerCallbacks(
+        onChartLoad: { load in
+            metrics.record(tapToReadyMs: load.tapToReadyMs, trace: load.trace)
+        }
+    ),
+    onCheckout: checkout
+)
+```
+
+UIKit-only hosts can call `SeatLayerPickerPrewarming.prewarm()` and inspect
+`SeatLayerPickerPrewarming.status`. The default TTL is 30 seconds; call
+`cancelPrewarm()` when an anticipated journey is abandoned.
+
+Prewarm loads only the pinned page in a nonpersistent `WKWebView`. It stores no
+event configuration, bearer, token provider, controller, selection, or hold.
+Only a matching page URL can consume it, consumption happens once, and expiry,
+cancellation, memory pressure, or termination releases it. Event configuration
+and any credentials are supplied in memory only after the host belongs to the
+real picker.
+
+`onChartLoad` fires only when the runtime advertises both
+`chart-load-trace-v1` and `telemetry.chartLoad`. The typed trace keeps unknown
+additive fields in `raw`, merges native tap-to-ready timing, and is not logged
+or transmitted by the SDK.
 
 Continue with [security and hold ownership](native-picker-security.md) before
 connecting checkout.

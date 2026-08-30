@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 
 /// Hash of the canonical cross-platform picker token input used to generate
 /// this file. Flutter and React Native publish the same hash.
@@ -59,7 +62,155 @@ public enum SeatLayerPickerMotionTokens {
     public static let toastMilliseconds = 200
     public static let immersiveMilliseconds = 300
     public static let undoWindowMilliseconds = 4_000
+
+    public static func duration(
+        _ effect: SeatLayerPickerMotionEffect
+    ) -> Int {
+        switch effect {
+        case .enter: return enterMilliseconds
+        case .exit: return exitMilliseconds
+        case .dock: return dockMilliseconds
+        case .sheet: return sheetMilliseconds
+        case .fly: return flyMilliseconds
+        case .pop: return popMilliseconds
+        case .stagger: return staggerMilliseconds
+        case .crossfade: return crossfadeMilliseconds
+        case .toast: return toastMilliseconds
+        case .immersive: return immersiveMilliseconds
+        }
+    }
+
+    public static var allDurations: [SeatLayerPickerMotionEffect: Int] {
+        Dictionary(uniqueKeysWithValues: SeatLayerPickerMotionEffect.allCases.map {
+            ($0, duration($0))
+        })
+    }
 }
+
+public enum SeatLayerPickerMotionEffect: String, Sendable, Equatable, CaseIterable {
+    case enter
+    case exit
+    case dock
+    case sheet
+    case fly
+    case pop
+    case stagger
+    case crossfade
+    case toast
+    case immersive
+}
+
+public enum SeatLayerPickerMotionCurve: String, Sendable, Equatable, CaseIterable {
+    case easeEnter
+    case easeExit
+    case spring
+}
+
+public struct SeatLayerPickerCubicBezier: Sendable, Equatable {
+    public let x1: Double
+    public let y1: Double
+    public let x2: Double
+    public let y2: Double
+
+    public init(x1: Double, y1: Double, x2: Double, y2: Double) {
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+    }
+}
+
+public struct SeatLayerPickerResolvedMotion: Sendable, Equatable {
+    public let effect: SeatLayerPickerMotionEffect
+    public let durationMilliseconds: Int
+    public let curve: SeatLayerPickerCubicBezier
+    /// Effects with no meaningful reduced form are omitted rather than played
+    /// instantly when Reduce Motion is enabled.
+    public let skipped: Bool
+
+    public init(
+        effect: SeatLayerPickerMotionEffect,
+        durationMilliseconds: Int,
+        curve: SeatLayerPickerCubicBezier,
+        skipped: Bool
+    ) {
+        self.effect = effect
+        self.durationMilliseconds = durationMilliseconds
+        self.curve = curve
+        self.skipped = skipped
+    }
+}
+
+public enum SeatLayerPickerMotion {
+    public static func curve(
+        _ curve: SeatLayerPickerMotionCurve
+    ) -> SeatLayerPickerCubicBezier {
+        switch curve {
+        case .easeEnter:
+            return .init(x1: 0.215, y1: 0.61, x2: 0.355, y2: 1)
+        case .easeExit:
+            return .init(x1: 0.55, y1: 0.055, x2: 0.675, y2: 0.19)
+        case .spring:
+            return .init(x1: 0.34, y1: 1.56, x2: 0.64, y2: 1)
+        }
+    }
+
+    public static func resolve(
+        _ effect: SeatLayerPickerMotionEffect,
+        reduceMotion: Bool,
+        curve curveName: SeatLayerPickerMotionCurve = .easeEnter
+    ) -> SeatLayerPickerResolvedMotion {
+        let skipped = reduceMotion && [.fly, .stagger].contains(effect)
+        return .init(
+            effect: effect,
+            durationMilliseconds: reduceMotion
+                ? 0
+                : SeatLayerPickerMotionTokens.duration(effect),
+            curve: curve(curveName),
+            skipped: skipped
+        )
+    }
+}
+
+public enum SeatLayerPickerHapticTokens {
+    public static let selectionAdded = SeatLayerPickerHapticStrength.selection
+    public static let sectionFocused = SeatLayerPickerHapticStrength.light
+    public static let holdCreated = SeatLayerPickerHapticStrength.medium
+    public static let holdExpired = SeatLayerPickerHapticStrength.heavy
+
+    public static func strength(
+        for cue: SeatLayerPickerHapticCue
+    ) -> SeatLayerPickerHapticStrength {
+        switch cue {
+        case .selectionAdded: return selectionAdded
+        case .sectionFocused: return sectionFocused
+        case .holdCreated: return holdCreated
+        case .holdExpired: return holdExpired
+        }
+    }
+}
+
+#if canImport(SwiftUI)
+func seatLayerPickerAnimation(
+    _ effect: SeatLayerPickerMotionEffect,
+    reduceMotion: Bool,
+    curve: SeatLayerPickerMotionCurve = .easeEnter
+) -> Animation? {
+    let resolved = SeatLayerPickerMotion.resolve(
+        effect,
+        reduceMotion: reduceMotion,
+        curve: curve
+    )
+    guard !resolved.skipped, resolved.durationMilliseconds > 0 else { return nil }
+    return .timingCurve(
+        resolved.curve.x1,
+        resolved.curve.y1,
+        resolved.curve.x2,
+        resolved.curve.y2,
+        duration: Double(resolved.durationMilliseconds) / 1_000
+    )
+}
+#endif
 
 public enum SeatLayerPickerElevationTokens {
     public static let header = 0.0
@@ -70,6 +221,19 @@ public enum SeatLayerPickerElevationTokens {
 }
 
 public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
+    case accessCart
+    case accessCompanion
+    case accessDesignatedAisle
+    case accessHearing
+    case accessLiftArmrest
+    case accessLowVision
+    case accessNeedWithCount
+    case accessPlusSize
+    case accessSemiAmbulatory
+    case accessSensoryFriendly
+    case accessSignLanguage
+    case accessStepFree
+    case accessWheelchair
     case accessiblePlace
     case accessibility
     case accessibilityTitle
@@ -104,10 +268,16 @@ public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
     case loading
     case mapView
     case moreTickets
+    case moveVenue
+    case nextSeat
     case nextSection
+    case orbitMode
     case overview
+    case panMode
     case poweredBy
+    case previousSeat
     case previousSection
+    case recentre
     case removeSeat
     case removeTable
     case recoverSeats
@@ -126,9 +296,11 @@ public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
     case placesAvailable
     case confirmTable
     case ticketCount
+    case tierCompanionGuidance
     case ticketType
     case venue3D
     case viewFromHere
+    case viewFromYourSeat
     case viewInformation
     case wheelchairAccessibleSeating
     case wheelchairSpaceNoFixedChair
@@ -187,6 +359,31 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         text(.continueWithTotal, replacing: ["money": money])
     }
 
+    public func accessNeed(_ key: String, count: Int? = nil) -> String {
+        let known: [String: SeatLayerPickerStringKey] = [
+            "wheelchair": .accessWheelchair,
+            "companion": .accessCompanion,
+            "semi-ambulatory": .accessSemiAmbulatory,
+            "designated-aisle": .accessDesignatedAisle,
+            "step-free": .accessStepFree,
+            "hearing": .accessHearing,
+            "cart": .accessCart,
+            "sign-language": .accessSignLanguage,
+            "low-vision": .accessLowVision,
+            "sensory-friendly": .accessSensoryFriendly,
+            "plus-size": .accessPlusSize,
+            "lift-armrest": .accessLiftArmrest,
+        ]
+        let label = overrides["accessNeeds.\(key)"]
+            ?? known[key].map { text($0) }
+            ?? key
+        guard let count, count > 0 else { return label }
+        return text(
+            .accessNeedWithCount,
+            replacing: ["need": label, "count": String(count)]
+        )
+    }
+
     private var localized: [String: String] {
         let requested = (localeIdentifier ?? Locale.preferredLanguages.first ?? "en")
             .replacingOccurrences(of: "_", with: "-")
@@ -206,6 +403,19 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
     }
 
     private static let english: [SeatLayerPickerStringKey: String] = [
+        .accessCart: "Mobility cart",
+        .accessCompanion: "Companion",
+        .accessDesignatedAisle: "Aisle seat",
+        .accessHearing: "Hearing support",
+        .accessLiftArmrest: "Lift armrest",
+        .accessLowVision: "Low vision",
+        .accessNeedWithCount: "{need} · {count}",
+        .accessPlusSize: "Plus-size seat",
+        .accessSemiAmbulatory: "Semi-ambulatory",
+        .accessSensoryFriendly: "Sensory-friendly",
+        .accessSignLanguage: "Sign language view",
+        .accessStepFree: "Step-free",
+        .accessWheelchair: "Wheelchair",
         .accessiblePlace: "Accessible place",
         .accessibility: "Accessibility and view filters",
         .accessibilityTitle: "Accessibility and view",
@@ -240,10 +450,16 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         .loading: "Loading seat map…",
         .mapView: "Seat map",
         .moreTickets: "More tickets",
+        .moveVenue: "Drag to move venue",
+        .nextSeat: "Next seat",
         .nextSection: "Next section",
+        .orbitMode: "Rotate venue",
         .overview: "Venue",
+        .panMode: "Move venue",
         .poweredBy: "Powered by SeatLayer",
+        .previousSeat: "Previous seat",
         .previousSection: "Previous section",
+        .recentre: "Recentre on this seat",
         .removeSeat: "Remove ticket",
         .removeTable: "Remove table",
         .recoverSeats: "Recover seats",
@@ -262,9 +478,11 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         .placesAvailable: "{count} places currently available",
         .confirmTable: "Confirm table",
         .ticketCount: "{count} tickets",
+        .tierCompanionGuidance: "Requires the adjacent wheelchair place.",
         .ticketType: "Ticket type",
         .venue3D: "3D",
         .viewFromHere: "View from here",
+        .viewFromYourSeat: "view from your seat",
         .viewInformation: "View information",
         .wheelchairAccessibleSeating: "Wheelchair-accessible seating.",
         .wheelchairSpaceNoFixedChair: "Wheelchair space without a fixed chair.",
