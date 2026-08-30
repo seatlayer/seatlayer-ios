@@ -21,13 +21,29 @@ public struct ProtocolRange: Sendable, Equatable, Codable {
     /// Normalise a `protocol` field that may be a bare number OR a `{min,max}`.
     public static func from(_ value: JSONValue?) -> ProtocolRange? {
         guard let value else { return nil }
-        if case .int(let revision) = value { return ProtocolRange(min: revision, max: revision) }
+        if let revision = exactInteger(value) {
+            return ProtocolRange(min: revision, max: revision)
+        }
         guard case .object(let fields) = value,
-              case .int(let min)? = fields["min"],
-              case .int(let max)? = fields["max"],
+              let min = exactInteger(fields["min"]),
+              let max = exactInteger(fields["max"]),
               min <= max
         else { return nil }
         return ProtocolRange(min: min, max: max)
+    }
+
+    /// JavaScript has one number type. WebKit therefore commonly hands a
+    /// whole JSON number to Swift as an NSNumber with ObjC type `d`, which
+    /// `JSONValue` preserves as `.double`. Protocol revisions still have to be
+    /// exact integers; accepting 2.5 by truncating it would negotiate a
+    /// contract neither side advertised.
+    private static func exactInteger(_ value: JSONValue?) -> Int? {
+        guard let number = value?.doubleValue,
+              number.isFinite,
+              number.rounded() == number,
+              number >= Double(Int.min),
+              number <= Double(Int.max) else { return nil }
+        return Int(number)
     }
 
     var json: JSONValue { ["min": .int(min), "max": .int(max)] }

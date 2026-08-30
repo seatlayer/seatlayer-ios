@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seatlayer.io/schema/seatlayer-picker-snapshot-v1.schema.json",
+  "title": "SeatLayer picker snapshot v1",
+  "type": "object",
+  "required": ["schema", "sessionId", "revision", "event"],
+  "properties": {
+    "schema": { "const": "seatlayer.picker.snapshot/1" },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "chrome": {
+      "type": "object",
+      "properties": { "owner": { "type": "string" } },
+      "additionalProperties": true
+    },
+    "event": {
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string" },
+        "mode": { "type": "string" },
+        "currency": { "type": "string" },
+        "venue": { "type": ["string", "null"] },
+        "startsAt": { "type": ["number", "null"] },
+        "timezone": { "type": ["string", "null"] },
+        "locale": { "type": ["string", "null"] },
+        "posterUrl": { "type": ["string", "null"] },
+        "salesClosed": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "branding": { "type": "object", "additionalProperties": true },
+    "features": { "type": "object", "additionalProperties": true },
+    "catalog": {
+      "type": "object",
+      "properties": {
+        "categories": { "type": "array", "items": { "type": "object" } },
+        "zones": { "type": "array", "items": { "type": "object" } },
+        "sections": { "type": "array", "items": { "type": "object" } },
+        "gaAreas": { "type": "array", "items": { "type": "object" } },
+        "bestAvailableZones": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": true
+    },
+    "map": {
+      "type": "object",
+      "properties": {
+        "rung": { "type": "string" },
+        "viewMode": { "type": "string" },
+        "buyerView": { "type": "string" },
+        "focusedSectionId": { "type": ["string", "null"] },
+        "categoryFilter": { "type": "array", "items": { "type": "string" } },
+        "accessibilityFilter": { "type": "array", "items": { "type": "string" } },
+        "floors": { "type": "array", "items": { "type": "object" } },
+        "viewportInsets": { "$ref": "#/$defs/insets" }
+      },
+      "additionalProperties": true
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "seats": { "type": "array", "items": { "type": "object" } },
+        "validity": { "type": ["object", "null"] },
+        "maxSelection": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "cart": {
+      "type": "object",
+      "properties": {
+        "items": { "type": "array", "items": { "$ref": "#/$defs/cartLine" } },
+        "quantity": { "type": "integer", "minimum": 0 },
+        "total": { "type": "number" },
+        "currency": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "hold": {
+      "type": "object",
+      "properties": {
+        "active": { "type": "boolean" },
+        "expiresAt": { "type": ["number", "null"] },
+        "ownership": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "access": { "type": "object", "additionalProperties": true },
+    "capabilities": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "insets": {
+      "type": "object",
+      "properties": {
+        "top": { "type": "number", "minimum": 0 },
+        "right": { "type": "number", "minimum": 0 },
+        "bottom": { "type": "number", "minimum": 0 },
+        "left": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "cartLine": {
+      "type": "object",
+      "required": ["label", "unitPrice", "quantity"],
+      "properties": {
+        "lineKey": { "type": "string" },
+        "label": { "type": "string", "minLength": 1 },
+        "objectId": { "type": "string" },
+        "objectType": { "type": "string" },
+        "categoryKey": { "type": "string" },
+        "tierId": { "type": ["string", "null"] },
+        "unitPrice": { "type": "number" },
+        "currency": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "seatId": { "type": ["string", "null"] },
+        "sectionLabel": { "type": ["string", "null"] },
+        "rowLabel": { "type": ["string", "null"] },
+        "seatNumber": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

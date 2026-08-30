@@ -13,8 +13,9 @@ public struct SeatLayerConfiguration: Sendable {
     public var publicKey: String?
     /// Max seats selectable at once (web default 10).
     public var maxSelection: Int?
-    /// BCP 47 language for the widget UI — `de`, `es-MX`, … Built-in: en, es,
-    /// de, fr. Defaults to the device language.
+    /// BCP-47 language for the widget UI — `de`, `es-MX`, … The native picker
+    /// ships the same 37-locale catalog as Flutter and React Native and falls
+    /// back through language then English. Defaults to the device language.
     public var locale: String?
     /// Per-key string overrides layered over the active locale.
     public var messages: [String: String]?
@@ -146,13 +147,15 @@ public struct SeatLayerConfiguration: Sendable {
 
 public enum SeatLayer {
     /// This SDK's version.
-    public static let sdkVersion = "0.2.0"
+    public static let sdkVersion = "0.3.0"
     /// Immutable hosted runtime loaded by production views.
-    public static let hostedWebVersion = "0.66.0"
+    public static let hostedWebVersion = "0.71.5"
     /// Runtime retained only for explicit offline demo/test fixtures.
     public static let legacyFixtureWebVersion = "0.59.0"
     @available(*, deprecated, renamed: "hostedWebVersion")
     public static let bundledWebVersion = hostedWebVersion
     public static let mobileOrigin = "https://cdn.seatlayer.io"
-    public static let mobilePageURL = URL(string: "https://cdn.seatlayer.io/seatlayer-js@0.66.0/mobile.html")!
+    public static let mobilePageURL = URL(
+        string: "https://cdn.seatlayer.io/seatlayer-js@\(hostedWebVersion)/mobile.html"
+    )!
 }

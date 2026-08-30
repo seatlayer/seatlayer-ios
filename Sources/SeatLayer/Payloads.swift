@@ -374,6 +374,23 @@ public struct SelectedSeat: Codable, Sendable, Equatable {
     /// The chosen tier's id; absent when the category has no tiers.
     public var tierId: String?
     public var commercial: SeatCommercialAttributes?
+    /// Parent chart-object identity when the runtime exposes one.
+    public var objectId: String?
+    public var objectType: ObjectType?
+    /// `variable` for a table whose guest count is chosen after tapping.
+    public var bookingMode: String?
+    public var quantity: Int?
+    public var minOccupancy: Int?
+    public var maxOccupancy: Int?
+    public var capacity: Int?
+    public var currency: String?
+    public var sectionLabel: String?
+    public var rowLabel: String?
+    public var seatNumber: String?
+    public var displayType: String?
+    public var rowType: String?
+    public var accessibility: [String]?
+    public var wheelchairSpaceType: String?
 
     /// What to show the buyer. Booking still uses `label`.
     public var buyerFacingLabel: String { displayLabel ?? label }

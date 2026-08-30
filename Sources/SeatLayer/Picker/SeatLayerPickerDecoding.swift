@@ -87,6 +87,29 @@ func decodeSeatLayerSeatView(_ value: JSONValue?) -> SeatLayerSeatView? {
     )
 }
 
+func decodeSeatLayerPickerAvailabilityOutcome(
+    _ value: JSONValue?
+) -> SeatLayerPickerAvailabilityOutcome? {
+    guard let source = value?.objectValue else { return nil }
+    let item = source["result"]?.objectValue ?? source
+    guard item["lost"] != nil || item["holdLapsed"] != nil else { return nil }
+
+    let holdLapsed = item["holdLapsed"]?.boolValue == true
+    let lapsed = uniqueStrings(item["lapsedLabels"] ?? item["lapsed"])
+    let recoverable = uniqueStrings(
+        item["recoverableLabels"] ?? item["recoverable"]
+    ).filter(Set(lapsed).contains)
+    return SeatLayerPickerAvailabilityOutcome(
+        refreshed: item["refreshed"]?.boolValue != false,
+        lostLabels: uniqueStrings(item["lost"]),
+        holdLapsed: holdLapsed,
+        lapsedLabels: holdLapsed ? lapsed : [],
+        recoverableLabels: holdLapsed ? recoverable : [],
+        revision: exactInteger(item["revision"]),
+        heldForMs: exactInteger(item["heldForMs"])
+    )
+}
+
 private func decodePickerEvent(_ value: JSONValue?) -> SeatLayerPickerEventDetails? {
     guard let item = value?.objectValue,
           let key = nonEmpty(item["key"]?.stringValue) else { return nil }

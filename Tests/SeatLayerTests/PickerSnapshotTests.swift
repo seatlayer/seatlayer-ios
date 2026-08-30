@@ -127,6 +127,30 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertTrue(view.generated)
     }
 
+    func testAvailabilityOutcomeKeepsOnlyRecoverableLapsedLabels() throws {
+        let outcome = try XCTUnwrap(decodeSeatLayerPickerAvailabilityOutcome([
+            "outcome": "ignored additive field",
+            "lost": .array(["A-1", "A-1", "B-2"]),
+            "holdLapsed": true,
+            "lapsed": .array(["C-3", "D-4"]),
+            "recoverable": .array(["D-4", "not-in-the-expired-hold"]),
+            "revision": .double(9),
+            "heldForMs": 900_000,
+        ]))
+
+        XCTAssertTrue(outcome.refreshed)
+        XCTAssertEqual(outcome.lostLabels, ["A-1", "B-2"])
+        XCTAssertEqual(outcome.lapsedLabels, ["C-3", "D-4"])
+        XCTAssertEqual(outcome.recoverableLabels, ["D-4"])
+        XCTAssertEqual(outcome.recovery, .partial)
+        XCTAssertEqual(outcome.revision, 9)
+    }
+
+    func testAvailabilityOutcomeRequiresEvidenceThatAvailabilityWasRead() {
+        XCTAssertNil(decodeSeatLayerPickerAvailabilityOutcome(["state": "background"]))
+        XCTAssertNil(decodeSeatLayerPickerAvailabilityOutcome(nil))
+    }
+
     private func pickerSnapshot(
         sessionId: String = "session-1",
         revision: Int = 1,

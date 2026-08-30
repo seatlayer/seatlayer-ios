@@ -104,6 +104,93 @@ public struct SeatLayerPickerHold: Sendable, Equatable {
     public let owner: String?
 }
 
+/// How much of an expired hold can be selected again.
+public enum SeatLayerPickerRecovery: String, Sendable, Equatable, CaseIterable {
+    case all
+    case partial
+    case none
+}
+
+/// Authoritative result of a live availability reconciliation.
+public struct SeatLayerPickerAvailabilityOutcome: Sendable, Equatable {
+    public let refreshed: Bool
+    public let lostLabels: [String]
+    public let holdLapsed: Bool
+    public let lapsedLabels: [String]
+    public let recoverableLabels: [String]
+    public let revision: Int?
+    public let heldForMs: Int?
+
+    public init(
+        refreshed: Bool,
+        lostLabels: [String] = [],
+        holdLapsed: Bool = false,
+        lapsedLabels: [String] = [],
+        recoverableLabels: [String] = [],
+        revision: Int? = nil,
+        heldForMs: Int? = nil
+    ) {
+        self.refreshed = refreshed
+        self.lostLabels = lostLabels
+        self.holdLapsed = holdLapsed
+        self.lapsedLabels = holdLapsed ? lapsedLabels : []
+        self.recoverableLabels = holdLapsed
+            ? recoverableLabels.filter(Set(lapsedLabels).contains)
+            : []
+        self.revision = revision
+        self.heldForMs = heldForMs
+    }
+
+    public static let unsupported = SeatLayerPickerAvailabilityOutcome(refreshed: false)
+
+    public var isQuiet: Bool { lostLabels.isEmpty && !holdLapsed }
+
+    public var recovery: SeatLayerPickerRecovery {
+        guard !recoverableLabels.isEmpty else { return .none }
+        return recoverableLabels.count >= lapsedLabels.count ? .all : .partial
+    }
+}
+
+/// One expired hold retained until native chrome tells the buyer what happened.
+public struct SeatLayerPickerHoldLapse: Sendable, Equatable {
+    public let lapsedLabels: [String]
+    public let recoverableLabels: [String]
+    public let heldForMs: Int?
+
+    public init(
+        lapsedLabels: [String],
+        recoverableLabels: [String],
+        heldForMs: Int? = nil
+    ) {
+        self.lapsedLabels = lapsedLabels
+        self.recoverableLabels = recoverableLabels.filter(Set(lapsedLabels).contains)
+        self.heldForMs = heldForMs
+    }
+
+    public var recovery: SeatLayerPickerRecovery {
+        guard !recoverableLabels.isEmpty else { return .none }
+        return recoverableLabels.count >= lapsedLabels.count ? .all : .partial
+    }
+
+    public var unrecoverableCount: Int {
+        max(0, lapsedLabels.count - recoverableLabels.count)
+    }
+}
+
+/// Typed result of a lifecycle or explicit availability command.
+public struct SeatLayerPickerLifecycleResult: Sendable, Equatable {
+    public let snapshot: SeatLayerPickerSnapshot?
+    public let outcome: SeatLayerPickerAvailabilityOutcome?
+
+    public init(
+        snapshot: SeatLayerPickerSnapshot? = nil,
+        outcome: SeatLayerPickerAvailabilityOutcome? = nil
+    ) {
+        self.snapshot = snapshot
+        self.outcome = outcome
+    }
+}
+
 public struct SeatLayerPickerViewportInsets: Sendable, Equatable {
     public let top: Double
     public let right: Double

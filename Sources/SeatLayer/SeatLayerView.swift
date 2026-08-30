@@ -75,6 +75,9 @@ public final class SeatLayerView: UIView {
         let controller = WKUserContentController()
         let webConfiguration = WKWebViewConfiguration()
         webConfiguration.userContentController = controller
+        // Buyer access and hold/session material must not survive this picker
+        // process in cookies, local storage, or the shared website data store.
+        webConfiguration.websiteDataStore = .nonPersistent()
         webConfiguration.allowsInlineMediaPlayback = true
         webConfiguration.suppressesIncrementalRendering = false
 
@@ -252,7 +255,22 @@ public final class SeatLayerView: UIView {
     private func accepts(origin: WKSecurityOrigin) -> Bool {
         guard let page = allowedPageURL else { return false }
         if page.isFileURL { return origin.protocol == "file" }
-        return origin.protocol == page.scheme && origin.host == page.host
+        guard origin.protocol.caseInsensitiveCompare(page.scheme ?? "") == .orderedSame,
+              origin.host.caseInsensitiveCompare(page.host ?? "") == .orderedSame
+        else { return false }
+
+        if let explicitPort = page.port {
+            return origin.port == explicitPort
+        }
+
+        // `WKSecurityOrigin.port` uses 0 for an omitted default port on some
+        // WebKit builds and the numeric default (443/80) on others. These are
+        // the same origin only when the configured URL itself omits its port;
+        // an explicitly configured non-default port still has to match above.
+        let defaultPort = page.scheme?.lowercased() == "https" ? 443
+            : page.scheme?.lowercased() == "http" ? 80
+            : 0
+        return origin.port == 0 || origin.port == defaultPort
     }
 
     private func handle(_ signal: BridgeSignal) {
@@ -408,7 +426,11 @@ public final class SeatLayerView: UIView {
 
         case "ga.click":
             if let area = try? payload?["area"]?.decode(GAArea.self) {
-                delegate?.seatLayerView(self, didTapGAArea: area)
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(generalAdmissionCandidate: area)
+                } else {
+                    delegate?.seatLayerView(self, didTapGAArea: area)
+                }
             }
 
         case "hint":
@@ -669,9 +691,17 @@ public final class SeatLayerView: UIView {
 
     /// Tear the chart down. Subsequent commands fail with `destroyed`.
     public func destroy() async throws {
-        _ = try? await run("destroy")
+        _ = try? await run(bridgeProfile.isPicker ? "picker.destroy" : "destroy")
         await client.close()
+        handshakeTimeoutTask?.cancel()
+        handshakeTimeoutTask = nil
+        configuration = nil
+        allowedPageURL = nil
+        webView.stopLoading()
+        webView.loadHTMLString("", baseURL: nil)
         readyInfo = nil
+        protocolRevision = nil
+        bundleInfo = nil
     }
 
     private func optional<T: Decodable>(_ value: JSONValue?, as type: T.Type) throws -> T? {

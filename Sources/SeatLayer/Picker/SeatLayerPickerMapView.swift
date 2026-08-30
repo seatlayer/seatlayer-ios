@@ -1,5 +1,8 @@
 #if canImport(UIKit)
 import UIKit
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 
 /// UIKit host for the headless protocol-2 chart.
 ///
@@ -9,7 +12,7 @@ import UIKit
 public final class SeatLayerPickerMapView: UIView {
     public let controller: SeatLayerPickerController
 
-    private let configuration: SeatLayerConfiguration
+    private var configuration: SeatLayerConfiguration?
     private let chartView: SeatLayerView
     private var loadTask: Task<ReadyInfo, Error>?
 
@@ -54,6 +57,7 @@ public final class SeatLayerPickerMapView: UIView {
     @discardableResult
     public func load() async throws -> ReadyInfo {
         if let loadTask { return try await loadTask.value }
+        guard let configuration else { throw SeatLayerError.destroyed }
         let task = Task { @MainActor [configuration, chartView] in
             try await chartView.load(configuration)
         }
@@ -70,7 +74,9 @@ public final class SeatLayerPickerMapView: UIView {
     public func destroy() async {
         loadTask?.cancel()
         loadTask = nil
-        try? await controller.destroy()
+        configuration = nil
+        try? await chartView.destroy()
+        controller.markDestroyed()
     }
 }
 
@@ -106,4 +112,113 @@ public final class SeatLayerPickerMapViewController: UIViewController {
         Task { try? await pickerMapView.load() }
     }
 }
+
+#if canImport(SwiftUI)
+/// Ready-made UIKit host for the same native component tree exposed to
+/// SwiftUI. Use `SeatLayerPickerMapViewController` when the application wants
+/// only the headless map and will compose all chrome itself.
+@MainActor
+public final class SeatLayerPickerViewController: UIHostingController<SeatLayerPicker> {
+    public let pickerController: SeatLayerPickerController
+    public let presentationModel: SeatLayerPickerPresentationModel
+    private let closeHandler: SeatLayerPickerCloseHandler?
+    private let pickerConfiguration: SeatLayerConfiguration
+    private let pickerOptions: SeatLayerPickerOptions
+    private let pickerCallbacks: SeatLayerPickerCallbacks
+    private let checkoutHandler: SeatLayerPickerCheckoutHandler
+    private let pickerBuilders: SeatLayerPickerBuilders
+    private var pickerTheme: SeatLayerPickerTheme
+    private var pickerThemeMode: SeatLayerPickerThemeMode
+    private var pickerStrings: SeatLayerPickerStrings
+    private var pickerStyles: SeatLayerPickerStyles
+
+    public init(
+        configuration: SeatLayerConfiguration,
+        controller: SeatLayerPickerController? = nil,
+        options: SeatLayerPickerOptions = .init(),
+        theme: SeatLayerPickerTheme = .init(),
+        themeMode: SeatLayerPickerThemeMode = .auto,
+        strings: SeatLayerPickerStrings = .init(),
+        styles: SeatLayerPickerStyles = .init(),
+        builders: SeatLayerPickerBuilders = .init(),
+        callbacks: SeatLayerPickerCallbacks = .init(),
+        onCheckout: @escaping SeatLayerPickerCheckoutHandler,
+        onClose: SeatLayerPickerCloseHandler? = nil
+    ) {
+        let resolved = controller ?? SeatLayerPickerController()
+        pickerController = resolved
+        let presentation = SeatLayerPickerPresentationModel(controller: resolved, options: options)
+        presentationModel = presentation
+        closeHandler = onClose
+        pickerConfiguration = configuration
+        pickerOptions = options
+        pickerCallbacks = callbacks
+        checkoutHandler = onCheckout
+        pickerBuilders = builders
+        pickerTheme = theme
+        pickerThemeMode = themeMode
+        pickerStrings = strings
+        pickerStyles = styles
+        super.init(rootView: SeatLayerPicker(
+            configuration: configuration,
+            controller: resolved,
+            presentation: presentation,
+            options: options,
+            theme: theme,
+            themeMode: themeMode,
+            strings: strings,
+            styles: styles,
+            builders: builders,
+            callbacks: callbacks,
+            onCheckout: onCheckout,
+            onClose: onClose
+        ))
+    }
+
+    @available(*, unavailable)
+    public required dynamic init?(coder aDecoder: NSCoder) {
+        fatalError("SeatLayerPickerViewController must be created in code.")
+    }
+
+    /// The same prompt → cart → confirmation → section → venue → close ladder
+    /// used by the ready-made header. UIKit navigation owners can call this
+    /// from their back item or interactive-pop coordinator.
+    @discardableResult
+    public func handleBack() async -> SeatLayerPickerBackStep {
+        await presentationModel.back(using: closeHandler)
+    }
+
+    public var nextBackStep: SeatLayerPickerBackStep {
+        presentationModel.nextBackStep
+    }
+
+    /// Re-resolve native and renderer colors in place. The active controller,
+    /// renderer view, camera, selection, prompt, and cart remain mounted.
+    public func updateAppearance(
+        theme: SeatLayerPickerTheme? = nil,
+        themeMode: SeatLayerPickerThemeMode? = nil,
+        strings: SeatLayerPickerStrings? = nil,
+        styles: SeatLayerPickerStyles? = nil
+    ) {
+        if let theme { pickerTheme = theme }
+        if let themeMode { pickerThemeMode = themeMode }
+        if let strings { pickerStrings = strings }
+        if let styles { pickerStyles = styles }
+        rootView = SeatLayerPicker(
+            configuration: pickerConfiguration,
+            controller: pickerController,
+            presentation: presentationModel,
+            options: pickerOptions,
+            theme: pickerTheme,
+            themeMode: pickerThemeMode,
+            strings: pickerStrings,
+            styles: pickerStyles,
+            builders: pickerBuilders,
+            callbacks: pickerCallbacks,
+            onCheckout: checkoutHandler,
+            onClose: closeHandler
+        )
+    }
+}
+#endif
 #endif

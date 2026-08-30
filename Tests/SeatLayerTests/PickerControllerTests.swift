@@ -146,6 +146,69 @@ final class PickerControllerTests: XCTestCase {
         XCTAssertEqual(calls, [])
     }
 
+    func testConcurrentAvailabilityRefreshSharesOneCommandAndRecordsLapse() async {
+        let transport = PickerTransportSpy(
+            responses: [
+                "picker.refreshAvailability": [
+                    "outcome": [
+                        "refreshed": true,
+                        "lost": .array(["A-1"]),
+                        "holdLapsed": true,
+                        "lapsedLabels": .array(["A-2", "A-3"]),
+                        "recoverableLabels": .array(["A-3"]),
+                    ],
+                ],
+            ],
+            delayNanoseconds: 30_000_000
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.refreshAvailability"],
+            capabilities: ["availability-refresh-v1"]
+        )
+
+        async let first = controller.refreshAvailability()
+        async let second = controller.refreshAvailability()
+        let results = await [first, second]
+
+        XCTAssertEqual(results.compactMap { $0?.outcome }.count, 2)
+        XCTAssertEqual(controller.holdLapse?.recovery, .partial)
+        XCTAssertEqual(controller.holdLapse?.recoverableLabels, ["A-3"])
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.refreshAvailability"])
+    }
+
+    func testOptionalRefreshAndHoldSelectionDoNotSendWhenUnsupported() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+
+        let refresh = await controller.refreshAvailability()
+        let hold = try await controller.holdSelection(ttlMs: 120_000)
+        XCTAssertNil(refresh)
+        XCTAssertNil(hold)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls, [])
+    }
+
+    func testHoldSelectionValidatesAndSendsConfiguredTTLWhenSupported() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.holdSelection": ["snapshot": pickerSnapshot(revision: 2)],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.holdSelection"],
+            capabilities: ["hold-selection-v1"]
+        )
+
+        let snapshot = try await controller.holdSelection(ttlMs: 120_000)
+
+        XCTAssertEqual(snapshot?.revision, 2)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls, [
+            .init(name: "picker.holdSelection", payload: ["ttlMs": 120_000]),
+        ])
+    }
+
     private func readyController(
         transport: PickerTransportSpy,
         commands: [String],

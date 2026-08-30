@@ -6,10 +6,11 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-The official SeatLayer iOS SDK for adding an interactive seating chart and
-seat picker to ticketing apps. It hosts the SeatLayer buyer experience in
-`WKWebView` and exposes seat selection, temporary holds, best available,
-general admission, floors, and live events through a typed Swift API.
+The official SeatLayer iOS SDK for adding a native buyer picker or a raw
+interactive seating chart to ticketing apps. The venue renderer stays in one
+version-pinned `WKWebView`; headers, filters, confirmation, cart, hold state,
+checkout, errors, and navigation are native SwiftUI/UIKit components backed by
+a typed headless controller.
 
 [iOS seat-map documentation](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
 [Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
@@ -25,9 +26,10 @@ for origin-bound private buyer sessions; no event key or bearer is put in the
 page URL.
 
 - Swift package (SPM), iOS 15+
-- Hosted runtime: `seatlayer-js@0.66.0/mobile.html`
+- Hosted runtime: `seatlayer-js@0.71.5/mobile.html`
 - Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
-- Protocol revision: 1
+- Raw chart protocol: 1 (unchanged)
+- Native picker protocol: 2 with snapshot contract 1
 
 ## Install
 
@@ -41,7 +43,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.2.0")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.3.0")
 ]
 ```
 
@@ -51,7 +53,93 @@ Add the `SeatLayer` product to your iOS target, then import it:
 import SeatLayer
 ```
 
-## Quick start
+## Ready-made native picker
+
+SwiftUI receives the complete buyer journey in one view. `onCheckout` is
+called once with the typed handoff after the runtime creates or reuses the
+authoritative hold:
+
+```swift
+import SeatLayer
+import SwiftUI
+
+struct TicketPicker: View {
+    var body: some View {
+        SeatLayerPicker(
+            configuration: SeatLayerConfiguration(
+                event: "ev_xxx",
+                locale: "en",
+                currency: "USD"
+            ),
+            onCheckout: { handoff in
+                try await checkoutBackend.begin(with: handoff)
+            }
+        )
+    }
+}
+```
+
+UIKit hosts the exact same component tree:
+
+```swift
+let picker = SeatLayerPickerViewController(
+    configuration: SeatLayerConfiguration(event: "ev_xxx"),
+    onCheckout: { handoff in
+        try await checkoutBackend.begin(with: handoff)
+    },
+    onClose: { navigationController?.popViewController(animated: true) }
+)
+```
+
+Use `picker.handleBack()` from UIKit navigation to consume the deterministic
+prompt → cart → confirmation → section → venue → host ladder. Call
+`updateAppearance(theme:themeMode:strings:styles:)` to change appearance
+without remounting the renderer or losing selection/camera state.
+
+See [Native picker integration](Docs/native-picker.md),
+[security and hold ownership](Docs/native-picker-security.md), and the
+[public API review](Docs/native-picker-api-review.md).
+
+## Compose your own native picker
+
+`SeatLayerPickerScope` gives a custom SwiftUI tree one controller, one
+presentation model, and one renderer session. Use `SeatLayerPickerMap` for the
+map and any of the public native components around it:
+
+```swift
+let options = SeatLayerPickerOptions(confirmSelection: true)
+
+SeatLayerPickerScope(options: options) { controller in
+    ZStack {
+        SeatLayerPickerMap(
+            configuration: SeatLayerConfiguration(event: "ev_xxx"),
+            options: options,
+            controller: controller
+        )
+        VStack {
+            SeatLayerPickerPriceLegend()
+            Spacer()
+            SeatLayerPickerDockBar()
+            SeatLayerPickerCartList()
+        }
+    }
+}
+```
+
+For one-part customization, pass `SeatLayerPickerBuilders`; every builder gets
+the live snapshot/controller/presentation/style plus `defaultContent`, so it
+can wrap the canonical component. `SeatLayerPickerStyles` handles visual-only
+changes. Required test-mode and attribution truth cannot be suppressed.
+
+UIKit apps that own all chrome use `SeatLayerPickerMapView` or
+`SeatLayerPickerMapViewController`, observe `pickerController.snapshot`, and
+call the controller's typed semantic actions. Never create a second map for
+the same scope.
+
+## Raw map quick start
+
+The protocol-1 API remains source compatible for applications that want only
+the renderer and the original one-to-one chart commands:
 
 ```swift
 let map = SeatLayerView()
@@ -84,9 +172,15 @@ The iOS app **selects and holds** inventory. Your trusted backend **inspects and
 books** the hold after payment or order validation.
 
 - Never ship a SeatLayer secret key in the app binary or WebView.
-- Send only the `holdId` and your normal checkout context to your backend.
+- Treat the checkout handoff as opaque client-to-backend data. Do not log,
+  display, persist, or place its `holdId` in analytics.
 - Calculate the charge from server-inspected hold items, not app input.
 - Reuse your stable order id as `bookingRef` for safe booking retries.
+
+The native picker keeps bearer credentials in memory, uses a nonpersistent web
+data store, accepts bridge traffic only from the configured main-frame origin,
+and destroys the session on teardown. If the checkout callback throws, it asks
+the runtime to reject that exact handoff and keeps the buyer in the picker.
 
 Continue with
 [seat holds and secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
@@ -102,7 +196,7 @@ every gesture and neither behaves. Give it a definite frame.
 The SDK already disables the WebView affordances that fight the canvas: scroll,
 bounce, double-tap zoom, long-press callout, and text selection.
 
-## API
+## Raw chart API
 
 `hold` · `resumeHold` · `extendHold` · `release` · `releaseLabels` ·
 `bestAvailable` · `holdGA` · `setSeatTier` · `getSelection` · `getCurrentHold` ·
@@ -179,13 +273,15 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView** —
 
 ### Simulator
 
-`Example/SeatLayerDemo.xcodeproj` runs on a simulator against a real SeatLayer
-API. Its explicit local fixture override is retained for development; production
-uses the pinned hosted page. The example fetches chart and object data, upgrades
-to the event WebSocket, and exercises hold, extend and release. By default it expects
-the locally seeded `ios-e2e-show` event at `http://localhost:8787`; replace
-those two constants with a production HTTPS API and event key for a hosted
-smoke test.
+`Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
+picker. By default it uses SeatLayer's controlled hosted test event, the pinned
+CDN document, and the production HTTPS API; inventory remains test-only. Set
+`SEATLAYER_EVENT_KEY` and `SEATLAYER_API_BASE` for another authorized event.
+Set `SEATLAYER_VALIDATE_THEME_FLIP=1` to prove that an in-place dark/light
+change preserves the active selection and renderer session.
+
+The current redacted journey evidence and exact runtime checksums are recorded
+in [native-picker validation](Docs/native-picker-validation-2026-08-30.md).
 
 `Docs/simulator-handshake.png` is the historical first successful bridge
 capture, taken against bundle 0.29.0. It is a record of that run, not a
@@ -221,8 +317,10 @@ one-to-one, so iOS and web read as one product.
 
 ### Does it work with SwiftUI?
 
-Yes — wrap `SeatLayerView` in `UIViewRepresentable` and give it a definite
-frame. Do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
+Yes. Use `SeatLayerPicker` for the complete native flow,
+`SeatLayerPickerScope` plus public components for a custom flow, or
+`SeatLayerPickerMap` for only the headless renderer. Give the map a definite
+frame and do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
 pinch gestures.
 
 ### How do temporary seat holds work?

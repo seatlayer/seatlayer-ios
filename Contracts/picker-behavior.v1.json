@@ -1,0 +1,163 @@
+{
+  "$schema": "https://seatlayer.io/schema/picker-behavior-fixtures-1.json",
+  "version": 1,
+  "cases": [
+    {
+      "id": "confirmation-newest-unanswered-v1",
+      "concept": "confirmation",
+      "authoritativeInput": { "selection": ["A-1", "A-2"], "answered": ["A-1"], "holdActive": false, "confirmSelection": true },
+      "localEffect": { "pending": "A-2", "confirmedCartExcludes": "A-2", "checkoutEnabled": false },
+      "command": null,
+      "successResult": "card remains until a buyer decision",
+      "failure": null,
+      "recovery": "a newer snapshot recomputes pending from authoritative selection"
+    },
+    {
+      "id": "confirmation-accept-is-local-v1",
+      "concept": "confirmation",
+      "authoritativeInput": { "pending": "A-2", "runtimeSelectionAlreadyContains": "A-2" },
+      "localEffect": { "markAnswered": "A-2", "pending": null, "confirmedCartIncludes": "A-2" },
+      "command": null,
+      "successResult": "no duplicate inventory mutation",
+      "failure": null,
+      "recovery": "session change clears answered identities"
+    },
+    {
+      "id": "confirmation-cancel-exact-v1",
+      "concept": "confirmation",
+      "authoritativeInput": { "pending": { "seatId": "seat-2", "label": "A-2" } },
+      "localEffect": { "busy": true, "cardRemainsUntilSuccess": true },
+      "command": { "name": "picker.deselectObjects", "payload": { "objects": ["A-2"] } },
+      "successResult": { "answered": "A-2", "pending": "next unanswered or null" },
+      "failure": "record typed action error; keep A-2 retryable",
+      "recovery": "retry the same exact-label deselection"
+    },
+    {
+      "id": "checkout-single-flight-host-accept-v1",
+      "concept": "checkout",
+      "authoritativeInput": { "confirmedCartCount": 1, "valid": true, "holdOwner": "picker-or-none" },
+      "localEffect": { "busy": true, "repeatedContinueJoins": "same task" },
+      "command": { "name": "picker.continue", "maximumConcurrentCalls": 1 },
+      "successResult": { "callbackCount": 1, "handoff": "typed", "holdOwner": "host", "pickerCheckoutDisabled": true },
+      "failure": "typed continue error leaves picker visible",
+      "recovery": "buyer may retry after the in-flight task finishes"
+    },
+    {
+      "id": "checkout-host-rejection-releases-exact-handoff-v1",
+      "concept": "checkout",
+      "authoritativeInput": { "handoffHoldId": "<opaque-hold>", "hostCallback": "throws" },
+      "localEffect": { "busy": true, "handoffNotRetained": true },
+      "command": [
+        { "name": "picker.continue" },
+        { "name": "picker.rejectHandoff", "payload": { "holdId": "<same-opaque-hold>" } }
+      ],
+      "successResult": "exact handed-off hold is released by the runtime",
+      "failure": "host error is surfaced as a typed action error",
+      "recovery": "buyer remains in picker and may choose or continue again"
+    },
+    {
+      "id": "back-ladder-v1",
+      "concept": "back",
+      "authoritativeInput": { "layers": ["prompt", "expandedCart", "pendingConfirmation", "focusedSection", "venue3D", "host"] },
+      "localEffect": { "consumeExactlyOne": true, "order": ["prompt", "cart", "confirmation", "section", "venue", "close"] },
+      "command": ["prompt local dismiss or exact table cancel", "cart local collapse", "pending exact deselect", "picker.overview", "picker.setBuyerView(map) or picker.overview", "picker.abort then host close"],
+      "successResult": "one layer disappears per committed back action",
+      "failure": "typed command error is recorded and deeper layers remain",
+      "recovery": "retry the same ladder step; predictive preview performs no command"
+    },
+    {
+      "id": "close-picker-owned-hold-v1",
+      "concept": "holdOwnership",
+      "authoritativeInput": { "holdActive": true, "holdOwner": "picker" },
+      "localEffect": { "closeSingleFlight": true },
+      "command": { "name": "picker.abort" },
+      "successResult": "runtime releases picker-owned inventory before host close",
+      "failure": "close is best-effort but never exposes the hold identifier",
+      "recovery": "runtime expiry remains the safety net"
+    },
+    {
+      "id": "close-host-owned-hold-v1",
+      "concept": "holdOwnership",
+      "authoritativeInput": { "holdActive": true, "holdOwner": "host" },
+      "localEffect": { "closeSingleFlight": true },
+      "command": { "name": "picker.abort" },
+      "successResult": "runtime preserves host-owned inventory",
+      "failure": "host remains responsible for booking, rejection, release, or expiry",
+      "recovery": "host uses its trusted checkout lifecycle"
+    },
+    {
+      "id": "empty-truth-v1",
+      "concept": "emptyTruth",
+      "authoritativeInput": { "salesClosed": false, "sellableCategoryEvidence": [], "generalAdmissionEvidence": [] },
+      "localEffect": { "renderEmpty": false, "renderLoadingOrMap": true },
+      "command": null,
+      "successResult": "absence of evidence never invents sold-out state",
+      "failure": "load errors use the error component, not empty",
+      "recovery": "render empty only for salesClosed or explicit all-unavailable evidence"
+    },
+    {
+      "id": "theme-continuity-v1",
+      "concept": "theme",
+      "authoritativeInput": { "session": "same", "selectionCount": 1, "camera": "existing", "from": "dark", "to": "light" },
+      "localEffect": { "nativeChromeRecomposes": true, "rendererRemount": false },
+      "command": { "name": "picker.setThemeMode", "payload": { "mode": "light", "mapTheme": "resolved semantic roles" }, "deduplicated": true },
+      "successResult": { "selectionCount": 1, "readyEventDelta": 0, "camera": "unchanged" },
+      "failure": "record action error without destroying the active session",
+      "recovery": "keep previous rendered theme and retry a later distinct theme"
+    },
+    {
+      "id": "viewport-insets-coalesced-v1",
+      "concept": "viewportInsets",
+      "authoritativeInput": { "top": 50, "right": 56, "bottom": 96, "left": 56, "unit": "renderer-css-px" },
+      "localEffect": { "cameraBandsReflectVisibleChrome": true, "snapshotRevisionNotARequestKey": true },
+      "command": { "name": "picker.setViewportInsets", "capability": "viewport-insets-v1", "deduplicated": true },
+      "successResult": "camera framing avoids native chrome without a feedback loop",
+      "failure": "unsupported capability is a no-op",
+      "recovery": "send the next distinct measured inset set"
+    },
+    {
+      "id": "floor-stack-capability-v1",
+      "concept": "floors",
+      "authoritativeInput": { "floors": ["floor-1", "floor-2"], "request": "all" },
+      "localEffect": { "selectorVisible": true },
+      "command": { "name": "picker.setFloor", "payload": { "floorId": "all" }, "capability": "floor-stack-v1" },
+      "successResult": "snapshot floorMode becomes all",
+      "failure": "without the capability, all-floors control is absent and no command is sent",
+      "recovery": "individual supported floor selection remains available"
+    },
+    {
+      "id": "exclusive-prompt-lease-v1",
+      "concept": "prompts",
+      "authoritativeInput": { "generalAdmissionCandidate": "ga-1", "variableTableCandidate": "table-1" },
+      "localEffect": { "activePrompt": "generalAdmission", "overlap": false, "checkoutEnabled": false },
+      "command": null,
+      "successResult": "one exclusive buyer decision is visible",
+      "failure": "a failed prompt action retains the prompt and records an error",
+      "recovery": "dismiss or complete the active prompt before showing the next"
+    },
+    {
+      "id": "immersive-renderer-ownership-v1",
+      "concept": "immersiveModes",
+      "authoritativeInput": { "buyerView": "venue3d", "rendererPixels": true },
+      "localEffect": { "nativeCaptionAndBackChrome": true, "mapSessionReused": true },
+      "command": { "name": "picker.setBuyerView", "payload": { "view": "map" } },
+      "successResult": "renderer returns to map within the same session",
+      "failure": "native chrome stays truthful to the last snapshot",
+      "recovery": "retry only when venue-3d-v1 is advertised"
+    },
+    {
+      "id": "foreground-availability-reconciliation-v1",
+      "concept": "lifecycle",
+      "authoritativeInput": { "transition": "foreground", "refreshOnResume": true, "credentialsPersisted": false },
+      "localEffect": { "staleActionsBlockedUntilSnapshot": true },
+      "command": [
+        { "name": "picker.lifecycle", "payload": { "state": "foreground" } },
+        { "name": "picker.refreshAvailability", "capability": "availability-refresh-v1", "when": "lifecycle returned no outcome" },
+        { "name": "picker.getSnapshot" }
+      ],
+      "successResult": "lost inventory and hold lapse are reconciled before new buyer actions",
+      "failure": "record a recoverable lifecycle error; never restore a bearer from storage",
+      "recovery": "request a fresh in-memory access token and resynchronize"
+    }
+  ]
+}

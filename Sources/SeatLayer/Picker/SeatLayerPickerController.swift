@@ -27,6 +27,9 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public private(set) var snapshot: SeatLayerPickerSnapshot?
     @Published public private(set) var seatView: SeatLayerSeatView?
     @Published public private(set) var lastError: SeatLayerError?
+    @Published public private(set) var availabilityOutcome: SeatLayerPickerAvailabilityOutcome?
+    @Published public private(set) var holdLapse: SeatLayerPickerHoldLapse?
+    @Published public private(set) var generalAdmissionCandidate: GAArea?
 
     public private(set) var bundleInfo: BundleInfo?
 
@@ -56,11 +59,20 @@ public final class SeatLayerPickerController: ObservableObject {
             && bundleInfo?.events.contains("seatView.changed") == true
     }
 
+    public var supportsAvailabilityRefresh: Bool {
+        supports(capability: "availability-refresh-v1", command: "picker.refreshAvailability")
+    }
+
+    public var supportsHoldSelection: Bool {
+        supports(capability: "hold-selection-v1", command: "picker.holdSelection")
+    }
+
     private let snapshots = SeatLayerPickerSnapshotStore()
     private let revisionWaitNanoseconds: UInt64
     private var transport: (any SeatLayerPickerCommandTransport)?
     private var actionTail: Task<Void, Never>?
     private var checkoutFlight: (id: UUID, task: Task<SeatLayerPickerCheckoutHandoff, Error>)?
+    private var availabilityRefreshFlight: Task<SeatLayerPickerLifecycleResult?, Never>?
 
     public init() {
         revisionWaitNanoseconds = 2_000_000_000
@@ -420,11 +432,72 @@ public final class SeatLayerPickerController: ObservableObject {
         return try await task.value
     }
 
+    /// Hold the current selection without minting a checkout handoff.
+    @discardableResult
+    public func holdSelection(ttlMs: Int? = nil) async throws -> SeatLayerPickerSnapshot? {
+        if let ttlMs { try validatePositive(ttlMs, named: "ttlMs") }
+        guard supportsHoldSelection else { return snapshot }
+        return try await mutation(
+            "picker.holdSelection",
+            .object(compacting: ["ttlMs": ttlMs.map(JSONValue.int)])
+        )
+    }
+
+    /// Report a foreground/background transition and retain any availability
+    /// outcome carried by a foreground reply.
+    public func lifecycle(_ state: String) async throws -> SeatLayerPickerLifecycleResult? {
+        try validateNonEmpty(state, named: "state")
+        let foreground = state == "resumed" || state == "foreground"
+        return try await lifecycleMutation(
+            "picker.lifecycle",
+            ["state": .string(foreground ? "foreground" : "background")]
+        )
+    }
+
     @discardableResult
     public func setLifecycle(_ state: String) async throws -> SeatLayerPickerSnapshot? {
-        try validateNonEmpty(state, named: "state")
-        let wireState = state == "resumed" || state == "foreground" ? "foreground" : "background"
-        return try await mutation("picker.lifecycle", ["state": .string(wireState)])
+        try await lifecycle(state)?.snapshot ?? snapshot
+    }
+
+    /// Re-read live availability. Unsupported runtimes and housekeeping
+    /// failures leave the picker usable. Overlapping callers share one read.
+    public func refreshAvailability() async -> SeatLayerPickerLifecycleResult? {
+        if let availabilityRefreshFlight {
+            return await availabilityRefreshFlight.value
+        }
+        guard supportsAvailabilityRefresh else { return nil }
+
+        let task = Task { @MainActor [weak self] () -> SeatLayerPickerLifecycleResult? in
+            guard let self else { return nil }
+            do {
+                return try await self.lifecycleMutation("picker.refreshAvailability")
+            } catch let error as SeatLayerError {
+                self.record(error)
+                return nil
+            } catch {
+                self.record(.transport(error.localizedDescription))
+                return nil
+            }
+        }
+        availabilityRefreshFlight = task
+        let result = await task.value
+        availabilityRefreshFlight = nil
+        return result
+    }
+
+    public func dismissHoldLapse() {
+        holdLapse = nil
+    }
+
+    /// Re-select only labels the server reported recoverable, then recreate a
+    /// hold when the optional runtime command exists.
+    @discardableResult
+    public func reselectLapsedSeats(ttlMs: Int? = nil) async throws -> SeatLayerPickerSnapshot? {
+        guard let lapse = holdLapse, !lapse.recoverableLabels.isEmpty else { return snapshot }
+        _ = try await selectObjects(lapse.recoverableLabels)
+        holdLapse = nil
+        if supportsHoldSelection { _ = try await holdSelection(ttlMs: ttlMs) }
+        return snapshot
     }
 
     public func destroy() async throws {
@@ -440,10 +513,15 @@ public final class SeatLayerPickerController: ObservableObject {
         actionTail = nil
         checkoutFlight?.task.cancel()
         checkoutFlight = nil
+        availabilityRefreshFlight?.cancel()
+        availabilityRefreshFlight = nil
         snapshots.clear()
         snapshot = nil
         seatView = nil
         lastError = nil
+        availabilityOutcome = nil
+        holdLapse = nil
+        generalAdmissionCandidate = nil
         bundleInfo = nil
         transport = nil
         phase = .loading
@@ -472,11 +550,21 @@ public final class SeatLayerPickerController: ObservableObject {
     func accept(snapshot candidate: SeatLayerPickerSnapshot) {
         guard snapshots.apply(candidate) else { return }
         snapshot = candidate
+        if candidate.hold.active { holdLapse = nil }
     }
 
     func accept(seatView value: JSONValue?) {
         guard supportsNativeSeatViewChrome else { return }
         seatView = decodeSeatLayerSeatView(value)
+    }
+
+    func accept(generalAdmissionCandidate area: GAArea) {
+        guard isReady else { return }
+        generalAdmissionCandidate = area
+    }
+
+    public func dismissGeneralAdmissionCandidate() {
+        generalAdmissionCandidate = nil
     }
 
     func fail(_ error: SeatLayerError) {
@@ -493,8 +581,13 @@ public final class SeatLayerPickerController: ObservableObject {
         actionTail = nil
         checkoutFlight?.task.cancel()
         checkoutFlight = nil
+        availabilityRefreshFlight?.cancel()
+        availabilityRefreshFlight = nil
         transport = nil
         seatView = nil
+        availabilityOutcome = nil
+        holdLapse = nil
+        generalAdmissionCandidate = nil
         phase = .destroyed
     }
 
@@ -538,6 +631,35 @@ public final class SeatLayerPickerController: ObservableObject {
 
     private func presentation(_ command: String, _ payload: JSONValue? = nil) async throws {
         try await enqueue { _ = try await self.send(command, payload) }
+    }
+
+    private func lifecycleMutation(
+        _ command: String,
+        _ payload: JSONValue? = nil
+    ) async throws -> SeatLayerPickerLifecycleResult? {
+        try await enqueue {
+            let raw = try await self.send(command, payload)
+            let updated = try await self.applyMutationResult(raw)
+            let outcome = decodeSeatLayerPickerAvailabilityOutcome(
+                raw["outcome"] ?? raw["result"] ?? raw
+            )
+            if let outcome { self.apply(outcome: outcome) }
+            guard updated != nil || outcome != nil else { return nil }
+            return SeatLayerPickerLifecycleResult(snapshot: updated, outcome: outcome)
+        }
+    }
+
+    private func apply(outcome: SeatLayerPickerAvailabilityOutcome) {
+        availabilityOutcome = outcome
+        guard outcome.holdLapsed else { return }
+        let candidate = SeatLayerPickerHoldLapse(
+            lapsedLabels: outcome.lapsedLabels,
+            recoverableLabels: outcome.recoverableLabels,
+            heldForMs: outcome.heldForMs
+        )
+        if holdLapse == nil || candidate.lapsedLabels.count > holdLapse!.lapsedLabels.count {
+            holdLapse = candidate
+        }
     }
 
     private func applyMutationResult(_ result: JSONValue) async throws -> SeatLayerPickerSnapshot? {

@@ -12,6 +12,7 @@
 		AA0000000000000000000103 /* demo.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000003 /* demo.html */; };
 		AA0000000000000000000104 /* seatlayer.js in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000004 /* seatlayer.js */; };
 		AA0000000000000000000105 /* SeatLayer in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000701 /* SeatLayer */; };
+		AA0000000000000000000106 /* CustomPickerExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* CustomPickerExample.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,7 @@
 		AA0000000000000000000004 /* seatlayer.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = seatlayer.js; sourceTree = "<group>"; };
 		AA0000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000000000000000000006 /* SeatLayerDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SeatLayerDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA0000000000000000000007 /* CustomPickerExample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomPickerExample.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +50,7 @@
 			children = (
 				AA0000000000000000000001 /* AppDelegate.swift */,
 				AA0000000000000000000002 /* DemoViewController.swift */,
+				AA0000000000000000000007 /* CustomPickerExample.swift */,
 				AA0000000000000000000005 /* Info.plist */,
 				AA0000000000000000000304 /* Resources */,
 			);
@@ -149,6 +152,7 @@
 			files = (
 				AA0000000000000000000101 /* AppDelegate.swift in Sources */,
 				AA0000000000000000000102 /* DemoViewController.swift in Sources */,
+				AA0000000000000000000106 /* CustomPickerExample.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

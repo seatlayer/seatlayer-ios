@@ -1,276 +1,236 @@
-import UIKit
 import SeatLayer
+import UIKit
 
-/// Loads a chart, shows live selection state, and drives a few commands.
+/// End-to-end host for the ready-made native picker.
 ///
-/// Layout note: the map gets a FIXED-HEIGHT box and the status panel sits below
-/// it. That is the supported v0.1 arrangement — the map is never inside a
-/// scroll view.
+/// The default fixture is SeatLayer's controlled production test event. It
+/// uses the hosted CDN runtime and hosted HTTPS API end to end, while remaining
+/// sandbox inventory. Override either value with a launch environment variable
+/// when exercising a local or customer-specific event.
+@MainActor
 final class DemoViewController: UIViewController {
+    private enum Fixture {
+        static var eventKey: String {
+            ProcessInfo.processInfo.environment["SEATLAYER_EVENT_KEY"]
+                ?? "ev_ba4c90989806"
+        }
 
-    private let mapView = SeatLayerView()
-    private let statusLabel = UILabel()
-    private let selectionLabel = UILabel()
-    private let modeBadge = UILabel()
-    private let holdButton = UIButton(type: .system)
-    private let bestAvailableButton = UIButton(type: .system)
-    private let zoomButton = UIButton(type: .system)
-    private let extendButton = UIButton(type: .system)
-    private let releaseButton = UIButton(type: .system)
+        static var apiBase: String {
+            ProcessInfo.processInfo.environment["SEATLAYER_API_BASE"]
+                ?? "https://api.seatlayer.io"
+        }
+    }
 
-    /// The event served by the local `wrangler dev` worker (see README of this
-    /// demo). `apiBase` is plain http://, which is why this app's Info.plist
-    /// carries the narrow `NSAllowsLocalNetworking` ATS exemption.
-    private static let eventKey = "ios-e2e-show"
-    private static let apiBase = "http://localhost:8787"
+    private var pickerHost: SeatLayerPickerViewController?
+    private var checkoutInvocationCount = 0
+    private var didFlipTheme = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.06, green: 0.07, blue: 0.09, alpha: 1)
-        title = "SeatLayer"
-        buildUI()
-
-        mapView.delegate = self
-        Task { await start() }
+        view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
+        overrideUserInterfaceStyle = .dark
+        installPicker()
     }
 
-    // MARK: - Boot
+    private func installPicker() {
+        var configuration = SeatLayerConfiguration(
+            event: Fixture.eventKey,
+            apiBase: Fixture.apiBase,
+            locale: "en",
+            currency: "EUR"
+        )
+        configuration.hostInfo = [
+            "app": "SeatLayerDemo/1.0",
+            "journey": "native-picker-e2e",
+        ]
 
-    private func start() async {
-        // REAL TRANSPORT. No `pageURL` override and no stub chart: the SDK's
-        // bundled shell builds the bundle's own `SeatingChart`, which fetches
-        // `GET {apiBase}/pub/events/{event}/chart` + `/objects` over HTTP and
-        // opens a WebSocket to `/pub/events/{event}/subscribe`. Every hold,
-        // extend and release below is a real round-trip to that worker.
-        var configuration = SeatLayerConfiguration(event: Self.eventKey, currency: "USD")
-        configuration.apiBase = Self.apiBase
-        configuration.hostInfo = ["app": "SeatLayerDemo/1.0"]
-
-        log("loading…")
-        do {
-            let info = try await mapView.load(configuration)
-            // The single most important line in this file for a real integration:
-            // this is the proof the handshake completed.
-            NSLog("[SeatLayerDemo] sys.ready protocol=\(info.protocolRevision) mode=\(info.mode.rawValue) transport=\(info.transport.rawValue) event=\(info.eventKey ?? "-")")
-            log("ready · protocol \(info.protocolRevision) · transport \(info.transport.rawValue)")
-            showModeBadge(info.mode)
-
-            if let bundle = mapView.bundleInfo {
-                NSLog("[SeatLayerDemo] bundle=\(bundle.bundle) protocol=\(bundle.protocolRange.min)...\(bundle.protocolRange.max) commands=\(bundle.commands.count) events=\(bundle.events.count)")
+        let options = SeatLayerPickerOptions(
+            layout: .phone,
+            confirmSelection: true,
+            holdTtlMs: 15 * 60 * 1_000,
+            panelInitiallyCollapsed: true,
+            refreshOnResume: true,
+            announceHoldLapse: true
+        )
+        weak var appearanceHost: SeatLayerPickerViewController?
+        let callbacks = SeatLayerPickerCallbacks(
+            onReady: { info in
+                NSLog(
+                    "[SeatLayerDemo] E2E ready protocol=%d mode=%@ transport=%@",
+                    info.protocolRevision,
+                    info.mode.rawValue,
+                    info.transport.rawValue
+                )
+            },
+            onSelectionChanged: { [weak self] seats in
+                NSLog(
+                    "[SeatLayerDemo] E2E selection count=%d labels=%@",
+                    seats.count,
+                    seats.map(\.label).joined(separator: ",")
+                )
+                guard let self,
+                      !seats.isEmpty,
+                      !self.didFlipTheme,
+                      ProcessInfo.processInfo.environment["SEATLAYER_VALIDATE_THEME_FLIP"] == "1"
+                else { return }
+                self.didFlipTheme = true
+                appearanceHost?.updateAppearance(themeMode: .light)
+                NSLog("[SeatLayerDemo] E2E theme flip=light selectionPreserved=%d", seats.count)
+            },
+            onHoldChanged: { hold in
+                NSLog(
+                    "[SeatLayerDemo] E2E hold active=%@ owner=%@",
+                    hold.active.description,
+                    hold.owner ?? "-"
+                )
+            },
+            onError: { error in
+                NSLog(
+                    "[SeatLayerDemo] E2E error code=%@ message=%@",
+                    error.code,
+                    error.errorDescription ?? "-"
+                )
             }
+        )
 
-            // Exercise a couple of round-trips so the demo proves cmd→res, not
-            // just the handshake.
-            let floors = try await mapView.getFloors()
-            NSLog("[SeatLayerDemo] getFloors -> \(floors.map(\.name))")
-            let seats = try await mapView.getSelection()
-            NSLog("[SeatLayerDemo] getSelection -> \(seats.map(\.label))")
-            render(selection: seats)
-        } catch let error as SeatLayerError {
-            NSLog("[SeatLayerDemo] load failed: \(error.errorDescription ?? "?")")
-            log(error.requiresAppUpdate ? "please update the app" : "failed: \(error.code)")
-        } catch {
-            NSLog("[SeatLayerDemo] load failed: \(error)")
-            log("failed")
-        }
-    }
+        let host = SeatLayerPickerViewController(
+            configuration: configuration,
+            options: options,
+            themeMode: .dark,
+            callbacks: callbacks,
+            onCheckout: { [weak self] handoff in
+                guard let self else { return }
+                checkoutInvocationCount += 1
+                NSLog(
+                    "[SeatLayerDemo] E2E checkout callback=%d holdTransferred=true lines=%d total=%.2f",
+                    checkoutInvocationCount,
+                    handoff.lineItems.count,
+                    handoff.total
+                )
+                showCheckoutReceipt(handoff)
+            },
+            onClose: { [weak self] in
+                guard let self else { return }
+                NSLog("[SeatLayerDemo] E2E close")
+                showClosedState()
+            }
+        )
+        appearanceHost = host
+        pickerHost = host
 
-    // MARK: - Actions
-
-    @objc private func holdTapped() {
-        Task {
-            do {
-                let hold = try await mapView.hold()
-                NSLog("[SeatLayerDemo] hold -> \(hold?.holdId ?? "nil") items=\(hold?.items?.count ?? 0)")
-                log(hold.map { "held \($0.holdId) · \($0.items?.count ?? 0) seats" } ?? "no hold")
-            } catch let error as SeatLayerError {
-                NSLog("[SeatLayerDemo] hold failed: \(error.code)")
-                log("hold failed: \(error.code)")
-            } catch { log("hold failed") }
-        }
-    }
-
-    @objc private func bestAvailableTapped() {
-        Task {
-            do {
-                let result = try await mapView.bestAvailable(qty: 4)
-                NSLog("[SeatLayerDemo] bestAvailable -> \(result?.labels ?? [])")
-                log("best available: \((result?.labels ?? []).joined(separator: ", "))")
-            } catch let error as SeatLayerError {
-                // `not_enough_together` and `sold_out` arrive here with their
-                // API code intact.
-                NSLog("[SeatLayerDemo] bestAvailable failed: \(error.code)")
-                log("best available: \(error.code)")
-            } catch { log("best available failed") }
-        }
-    }
-
-    @objc private func extendTapped() {
-        Task {
-            do {
-                let hold = try await mapView.extendHold()
-                NSLog("[SeatLayerDemo] extendHold -> \(hold?.holdId ?? "nil") expires=\(hold?.expiresAt ?? 0)")
-                log(hold.map { "extended \($0.holdId) · \(Int($0.timeRemaining))s left" } ?? "nothing to extend")
-            } catch let error as SeatLayerError {
-                NSLog("[SeatLayerDemo] extendHold failed: \(error.code)")
-                log("extend failed: \(error.code)")
-            } catch { log("extend failed") }
-        }
-    }
-
-    @objc private func releaseTapped() {
-        Task {
-            do {
-                try await mapView.release()
-                NSLog("[SeatLayerDemo] release -> ok")
-                log("released")
-            } catch let error as SeatLayerError {
-                NSLog("[SeatLayerDemo] release failed: \(error.code)")
-                log("release failed: \(error.code)")
-            } catch { log("release failed") }
-        }
-    }
-
-    @objc private func zoomTapped() {
-        Task {
-            try? await mapView.zoomToFit()
-            NSLog("[SeatLayerDemo] zoomToFit -> ok")
-            log("zoomed to fit")
-        }
-    }
-
-    // MARK: - UI
-
-    private func log(_ text: String) {
-        statusLabel.text = text
-    }
-
-    private func render(selection seats: [SelectedSeat]) {
-        guard !seats.isEmpty else {
-            selectionLabel.text = "No seats selected"
-            return
-        }
-        let labels = seats.map(\.buyerFacingLabel).joined(separator: ", ")
-        let total = seats.compactMap(\.price).reduce(0, +)
-        selectionLabel.text = "\(seats.count) selected · \(labels)\nTotal $\(Int(total))"
-    }
-
-    private func showModeBadge(_ mode: EventMode) {
-        switch mode {
-        case .test:
-            modeBadge.text = "  TEST EVENT · BOOKS NOTHING  "
-            modeBadge.backgroundColor = UIColor(red: 0.85, green: 0.55, blue: 0.1, alpha: 1)
-            modeBadge.isHidden = false
-        case .live:
-            modeBadge.isHidden = true
-        case .unknown(let raw):
-            modeBadge.text = "  MODE: \(raw.uppercased())  "
-            modeBadge.backgroundColor = .darkGray
-            modeBadge.isHidden = false
-        }
-    }
-
-    private func buildUI() {
-        mapView.translatesAutoresizingMaskIntoConstraints = false
-        mapView.backgroundColor = UIColor(red: 0.06, green: 0.07, blue: 0.09, alpha: 1)
-        view.addSubview(mapView)
-
-        modeBadge.font = .systemFont(ofSize: 11, weight: .bold)
-        modeBadge.textColor = .black
-        modeBadge.layer.cornerRadius = 4
-        modeBadge.clipsToBounds = true
-        modeBadge.isHidden = true
-        modeBadge.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(modeBadge)
-
-        statusLabel.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        statusLabel.textColor = UIColor(white: 0.65, alpha: 1)
-        statusLabel.numberOfLines = 2
-        statusLabel.text = "starting…"
-
-        selectionLabel.font = .systemFont(ofSize: 15, weight: .semibold)
-        selectionLabel.textColor = .white
-        selectionLabel.numberOfLines = 3
-        selectionLabel.text = "No seats selected"
-
-        for (button, title, action) in [
-            (holdButton, "Hold", #selector(holdTapped)),
-            (bestAvailableButton, "Best 4", #selector(bestAvailableTapped)),
-            (extendButton, "Extend", #selector(extendTapped)),
-            (releaseButton, "Release", #selector(releaseTapped)),
-            (zoomButton, "Fit", #selector(zoomTapped)),
-        ] {
-            button.setTitle(title, for: .normal)
-            button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
-            button.setTitleColor(.black, for: .normal)
-            button.backgroundColor = UIColor(red: 0.34, green: 0.85, blue: 0.64, alpha: 1)
-            button.layer.cornerRadius = 8
-            button.addTarget(self, action: action, for: .touchUpInside)
-        }
-
-        let buttons = UIStackView(arrangedSubviews: [
-            holdButton, bestAvailableButton, extendButton, releaseButton, zoomButton,
-        ])
-        buttons.axis = .horizontal
-        buttons.spacing = 8
-        buttons.distribution = .fillEqually
-
-        let panel = UIStackView(arrangedSubviews: [selectionLabel, statusLabel, buttons])
-        panel.axis = .vertical
-        panel.spacing = 10
-        panel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(panel)
-
-        let guide = view.safeAreaLayoutGuide
+        addChild(host)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.accessibilityIdentifier = "seatlayer-demo-picker"
+        view.addSubview(host.view)
         NSLayoutConstraint.activate([
-            mapView.topAnchor.constraint(equalTo: guide.topAnchor),
-            mapView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            mapView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            // A DEFINITE height. The map never lives in a scroll view.
-            mapView.bottomAnchor.constraint(equalTo: panel.topAnchor, constant: -12),
-
-            modeBadge.topAnchor.constraint(equalTo: guide.topAnchor, constant: 8),
-            modeBadge.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 12),
-            modeBadge.heightAnchor.constraint(equalToConstant: 20),
-
-            panel.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
-            panel.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            panel.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -16),
-            buttons.heightAnchor.constraint(equalToConstant: 42),
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        host.didMove(toParent: self)
+    }
+
+    private func showCheckoutReceipt(_ handoff: SeatLayerPickerCheckoutHandoff) {
+        let receipt = CheckoutReceiptViewController(
+            handoff: handoff,
+            callbackCount: checkoutInvocationCount
+        )
+        receipt.modalPresentationStyle = .fullScreen
+        present(receipt, animated: true)
+    }
+
+    private func showClosedState() {
+        let closed = UIViewController()
+        closed.view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
+        let label = UILabel()
+        label.text = "Picker closed"
+        label.font = .preferredFont(forTextStyle: .title2)
+        label.textColor = .white
+        label.translatesAutoresizingMaskIntoConstraints = false
+        closed.view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: closed.view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: closed.view.centerYAnchor),
+        ])
+        closed.modalPresentationStyle = .fullScreen
+        present(closed, animated: true)
     }
 }
 
-// MARK: - SeatLayerViewDelegate
+@MainActor
+private final class CheckoutReceiptViewController: UIViewController {
+    private let handoff: SeatLayerPickerCheckoutHandoff
+    private let callbackCount: Int
 
-extension DemoViewController: SeatLayerViewDelegate {
-    func seatLayerViewDidBecomeReady(_ view: SeatLayerView, info: ReadyInfo) {
-        NSLog("[SeatLayerDemo] delegate ready mode=\(info.mode.rawValue)")
+    init(handoff: SeatLayerPickerCheckoutHandoff, callbackCount: Int) {
+        self.handoff = handoff
+        self.callbackCount = callbackCount
+        super.init(nibName: nil, bundle: nil)
     }
 
-    func seatLayerView(_ view: SeatLayerView, selectionDidChange seats: [SelectedSeat]) {
-        NSLog("[SeatLayerDemo] selection.changed -> \(seats.map(\.label))")
-        render(selection: seats)
+    required init?(coder: NSCoder) {
+        nil
     }
 
-    func seatLayerView(_ view: SeatLayerView, holdDidChange hold: HoldResult) {
-        NSLog("[SeatLayerDemo] hold.changed -> \(hold.holdId) expires in \(Int(hold.timeRemaining))s")
-    }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
+        view.accessibilityIdentifier = "seatlayer-demo-checkout-receipt"
 
-    func seatLayerViewHoldDidExpire(_ view: SeatLayerView) {
-        NSLog("[SeatLayerDemo] hold.expired")
-        log("hold expired")
-    }
+        let success = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
+        success.tintColor = UIColor(red: 0.608, green: 0.541, blue: 0.984, alpha: 1)
+        success.contentMode = .scaleAspectFit
+        success.heightAnchor.constraint(equalToConstant: 58).isActive = true
 
-    func seatLayerView(_ view: SeatLayerView, didFailWith error: SeatLayerError) {
-        NSLog("[SeatLayerDemo] error -> \(error.code): \(error.errorDescription ?? "")")
-    }
+        let title = UILabel()
+        title.text = "Checkout handoff received"
+        title.font = .systemFont(ofSize: 24, weight: .bold)
+        title.textColor = .white
+        title.textAlignment = .center
+        title.accessibilityIdentifier = "seatlayer-demo-checkout-title"
 
-    func seatLayerView(_ view: SeatLayerView, didReceiveHint message: String?) {
-        NSLog("[SeatLayerDemo] hint -> \(message ?? "nil")")
-    }
+        let subtitle = UILabel()
+        subtitle.text = "The native host owns this hold now.\nThe picker callback ran exactly \(callbackCount) time."
+        subtitle.font = .systemFont(ofSize: 15, weight: .regular)
+        subtitle.textColor = UIColor(white: 0.72, alpha: 1)
+        subtitle.numberOfLines = 0
+        subtitle.textAlignment = .center
 
-    func seatLayerView(_ view: SeatLayerView, didReceiveUnknownEvent name: String, payload: JSONValue?) {
-        NSLog("[SeatLayerDemo] unknown event `\(name)` — bundle is ahead of this build")
+        let total = UILabel()
+        total.text = handoff.total.formatted(
+            .currency(code: handoff.currency).precision(.fractionLength(0...2))
+        )
+        total.font = .systemFont(ofSize: 34, weight: .heavy)
+        total.textColor = .white
+        total.textAlignment = .center
+        total.accessibilityIdentifier = "seatlayer-demo-checkout-total"
+
+        let details = UILabel()
+        let lines = handoff.lineItems.map { line in
+            "\(line.quantity)× \(line.displayLabel ?? line.label)"
+        }
+        details.text = ([
+            "Hold: transferred to native host",
+            "Items: \(handoff.lineItems.count)",
+        ] + lines).joined(separator: "\n")
+        details.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        details.textColor = UIColor(white: 0.8, alpha: 1)
+        details.numberOfLines = 0
+        details.textAlignment = .center
+        details.accessibilityIdentifier = "seatlayer-demo-checkout-details"
+
+        let stack = UIStackView(arrangedSubviews: [success, title, subtitle, total, details])
+        stack.axis = .vertical
+        stack.spacing = 18
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 28),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -28),
+            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
+        ])
     }
 }

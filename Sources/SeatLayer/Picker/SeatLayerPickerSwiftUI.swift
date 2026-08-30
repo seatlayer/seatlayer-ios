@@ -4,19 +4,49 @@ import SwiftUI
 /// Supplies one stable controller to a tree of custom picker components.
 public struct SeatLayerPickerScope<Content: View>: View {
     @StateObject private var controller: SeatLayerPickerController
+    @StateObject private var presentation: SeatLayerPickerPresentationModel
+    private let style: SeatLayerPickerStyleEnvironment
+    private let styles: SeatLayerPickerStyles
+    private let builders: SeatLayerPickerBuilders
     private let content: (SeatLayerPickerController) -> Content
 
     public init(
         controller: SeatLayerPickerController? = nil,
+        presentation: SeatLayerPickerPresentationModel? = nil,
+        options: SeatLayerPickerOptions = .init(),
+        theme: SeatLayerPickerTheme = .init(),
+        themeMode: SeatLayerPickerThemeMode = .auto,
+        strings: SeatLayerPickerStrings = .init(),
+        styles: SeatLayerPickerStyles = .init(),
+        builders: SeatLayerPickerBuilders = .init(),
         @ViewBuilder content: @escaping (SeatLayerPickerController) -> Content
     ) {
-        _controller = StateObject(wrappedValue: controller ?? SeatLayerPickerController())
+        let resolved = presentation?.controller ?? controller ?? SeatLayerPickerController()
+        _controller = StateObject(wrappedValue: resolved)
+        _presentation = StateObject(
+            wrappedValue: presentation ?? SeatLayerPickerPresentationModel(
+                controller: resolved,
+                options: options
+            )
+        )
+        style = SeatLayerPickerStyleEnvironment(
+            mode: themeMode,
+            theme: theme,
+            strings: strings,
+            options: options
+        )
+        self.styles = styles
+        self.builders = builders
         self.content = content
     }
 
     public var body: some View {
         content(controller)
             .environmentObject(controller)
+            .environmentObject(presentation)
+            .environment(\.seatLayerPickerStyle, style)
+            .environment(\.seatLayerPickerStyles, styles)
+            .environment(\.seatLayerPickerBuilders, builders)
     }
 }
 
@@ -100,6 +130,7 @@ public struct SeatLayerPickerMap: UIViewRepresentable {
 /// Reusable native overview action for custom chrome.
 public struct SeatLayerPickerOverviewButton<Label: View>: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
+    @Environment(\.seatLayerPickerStyle) private var style
     private let label: () -> Label
 
     public init(@ViewBuilder label: @escaping () -> Label) {
@@ -121,15 +152,23 @@ public struct SeatLayerPickerOverviewButton<Label: View>: View {
             label()
         }
         .disabled(!controller.isReady)
-        .accessibilityLabel("Show the whole venue")
+        .accessibilityLabel(style.strings.text(.overview))
     }
 }
 
-public extension SeatLayerPickerOverviewButton where Label == SwiftUI.Label<Text, Image> {
+public struct SeatLayerPickerOverviewLabel: View {
+    @Environment(\.seatLayerPickerStyle) private var style
+
+    public init() {}
+
+    public var body: some View {
+        Label(style.strings.text(.overview), systemImage: "rectangle.inset.filled.and.person.filled")
+    }
+}
+
+public extension SeatLayerPickerOverviewButton where Label == SeatLayerPickerOverviewLabel {
     init() {
-        self.init {
-            Label("Overview", systemImage: "rectangle.inset.filled.and.person.filled")
-        }
+        self.init { SeatLayerPickerOverviewLabel() }
     }
 }
 #endif

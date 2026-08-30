@@ -1,0 +1,81 @@
+{
+  "$schema": "https://seatlayer.io/schema/picker-public-concepts-1.json",
+  "version": 1,
+  "namingRules": [
+    "Picker is the complete buyer flow; Map is the renderer-owned venue surface.",
+    "Headless is a product description, not a public type name.",
+    "The ready-made picker and custom layouts use the same public parts.",
+    "State and typed commands live outside visual components.",
+    "Platform language and UI mechanics do not become shared product concepts."
+  ],
+  "entryPoints": [
+    { "concept": "rawRenderer", "ios": "SeatLayerView", "semantics": "existing protocol-1 chart API; unchanged" },
+    { "concept": "readyPicker", "ios": "SeatLayerPicker", "semantics": "complete SwiftUI buyer flow" },
+    { "concept": "readyLegacyHost", "ios": "SeatLayerPickerViewController", "semantics": "UIKit host of the same ready picker tree" },
+    { "concept": "customLayoutScope", "ios": "SeatLayerPickerScope", "semantics": "one controller, one presentation model, one renderer session" },
+    { "concept": "snapshot", "ios": "SeatLayerPickerSnapshot", "semantics": "immutable authoritative runtime state; higher revision wins" },
+    { "concept": "sessionAndCommandOwner", "ios": "SeatLayerPickerController", "semantics": "observable runtime state plus serialized typed commands" },
+    { "concept": "nativePresentationState", "ios": "SeatLayerPickerPresentationModel", "semantics": "local prompt, confirmation, cart sheet, error, back, and checkout single-flight state" },
+    { "concept": "rendererComponent", "ios": "SeatLayerPickerMap / SeatLayerPickerMapView", "semantics": "renderer pixels only; reusable by SwiftUI and UIKit custom hosts" },
+    { "concept": "themeMode", "ios": "SeatLayerPickerThemeMode", "semantics": "auto, light, or dark" },
+    { "concept": "nativeTheme", "ios": "SeatLayerPickerTheme", "semantics": "semantic native chrome roles" },
+    { "concept": "mapTheme", "ios": "SeatLayerPickerMapTheme", "semantics": "approved renderer color roles" },
+    { "concept": "behaviorAndVisibility", "ios": "SeatLayerPickerOptions / SeatLayerPickerChromeOptions", "semantics": "flow behavior and default chrome visibility" },
+    { "concept": "layout", "ios": "SeatLayerPickerLayout", "semantics": "phone, wide, or adaptive" },
+    { "concept": "buyerCopy", "ios": "SeatLayerPickerStrings", "semantics": "37 canonical locales, plural rules, and host overrides" },
+    { "concept": "partStyles", "ios": "SeatLayerPickerStyles / SeatLayerPickerPartStyle", "semantics": "visual modifiers that do not change behavior ownership" },
+    { "concept": "wholePartReplacement", "ios": "SeatLayerPickerBuilders / SeatLayerPickerPartBuilder", "semantics": "synchronous replacement or wrapping of one canonical whole part" },
+    { "concept": "hostObservations", "ios": "SeatLayerPickerCallbacks", "semantics": "typed ready, selection, hold, and error observations" },
+    { "concept": "checkoutTransfer", "ios": "SeatLayerPickerCheckoutHandoff", "semantics": "the only public picker value that contains the opaque hold identifier" },
+    { "concept": "customUIKit", "ios": "SeatLayerPickerMapViewController / SeatLayerPickerMapView", "semantics": "host observes the public controller and builds UIKit chrome" }
+  ],
+  "builderParts": [
+    { "id": "header", "iosDefault": "SeatLayerPickerHeader" },
+    { "id": "legend", "iosDefault": "SeatLayerPickerPriceLegend" },
+    { "id": "floorSelector", "iosDefault": "SeatLayerPickerFloorSelector" },
+    { "id": "floorStrip", "iosDefault": "SeatLayerPickerFloorStrip" },
+    { "id": "sectionNavigator", "iosDefault": "SeatLayerPickerSectionNavigator" },
+    { "id": "dockBar", "iosDefault": "SeatLayerPickerDockBar" },
+    { "id": "accessibilityFilters", "iosDefault": "SeatLayerPickerAccessibilityFilters" },
+    { "id": "map", "iosDefault": "SeatLayerPickerMap" },
+    { "id": "mapControls", "iosDefault": "SeatLayerPickerMapControls" },
+    { "id": "bestAvailable", "iosDefault": "SeatLayerBestSeatsForm" },
+    { "id": "seatConfirmation", "iosDefault": "SeatLayerPickerSeatConfirmation" },
+    { "id": "confirmCard", "iosDefault": "SeatLayerConfirmCard" },
+    { "id": "generalAdmissionPrompt", "iosDefault": "SeatLayerPickerGeneralAdmissionPrompt" },
+    { "id": "tablePrompt", "iosDefault": "SeatLayerPickerTablePrompt" },
+    { "id": "cartList", "iosDefault": "SeatLayerPickerCartList" },
+    { "id": "cartSheet", "iosDefault": "SeatLayerPickerCartSheet" },
+    { "id": "venue3D", "iosDefault": "SeatLayerVenue3D" },
+    { "id": "seatViewChrome", "iosDefault": "SeatLayerSeatViewChrome" },
+    { "id": "holdCountdown", "iosDefault": "SeatLayerPickerHoldCountdown" },
+    { "id": "holdLapse", "iosDefault": "SeatLayerHoldLapseNotice" },
+    { "id": "actionError", "iosDefault": "SeatLayerPickerActionError" },
+    { "id": "checkoutBar", "iosDefault": "SeatLayerPickerCheckoutBar" },
+    { "id": "loading", "iosDefault": "SeatLayerPickerLoadingView" },
+    { "id": "error", "iosDefault": "SeatLayerPickerErrorView" },
+    { "id": "empty", "iosDefault": "SeatLayerPickerEmptyView" }
+  ],
+  "requiredTruthComponents": [
+    { "ios": "SeatLayerPickerAttribution", "rule": "render whenever runtime policy requires; not a builder point" },
+    { "ios": "SeatLayerPickerTestModeIndicator", "rule": "render in test mode; not a builder point" }
+  ],
+  "rejectedCanonicalAliases": {
+    "chart": "map",
+    "priceRail": "legend",
+    "selectionTray": "cartList"
+  },
+  "builderContext": [
+    "part",
+    "snapshot",
+    "controller",
+    "presentation",
+    "themeMode",
+    "theme",
+    "strings",
+    "options",
+    "style",
+    "defaultContent"
+  ],
+  "fallbackRule": "An absent builder renders defaultContent. A builder receives defaultContent so it can wrap rather than duplicate the part. Replacing map must retain the scoped default map unless the host deliberately owns the one renderer instance."
+}

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.0
+
+- Adds a complete native picker for SwiftUI and UIKit around one headless
+  protocol-2 renderer session, while preserving the protocol-1 raw chart API.
+- Adds public native confirmation, GA/table, cart, checkout, accessibility,
+  floor, section, 3D, seat-view, hold-lapse, loading/error/empty, attribution,
+  and test-mode components.
+- Adds one-part builders and styles for the canonical 25-part matrix, plus
+  scoped custom composition with a public controller and presentation model.
+- Adds deterministic back handling, exact pending-seat projection, per-line
+  cart removal, checkout single-flight, typed handoff rejection, hold ownership,
+  foreground availability reconciliation, and in-place theme updates.
+- Ships the canonical 37-locale catalog and design-token locks shared with the
+  Flutter and React Native SDKs; supplemental iOS-only strings remain
+  host-overridable English fallbacks until the shared catalog expands.
+- Pins production to `seatlayer-js@0.71.5/mobile.html`, validates the complete
+  protocol-2 handshake surface, and restricts WebKit messages to the configured
+  main-frame HTTPS origin (including default-port normalization).
+- Adds portable protocol/schema/concept/behavior/helper fixtures, contract
+  tests, a hosted UIKit demo, and redacted end-to-end validation evidence.
+
 ## 0.2.0
 
 - Loads the pinned hosted `seatlayer-js@0.66.0/mobile.html` document at the

@@ -6,7 +6,7 @@ import XCTest
 final class UnknownToleranceTests: XCTestCase {
 
     func testHostedAndFixtureVersionsRemainDistinctAndPinned() {
-        XCTAssertEqual(SeatLayer.hostedWebVersion, "0.66.0")
+        XCTAssertEqual(SeatLayer.hostedWebVersion, "0.71.5")
         XCTAssertEqual(SeatLayer.legacyFixtureWebVersion, "0.59.0")
         XCTAssertEqual(
             SeatLayer.mobilePageURL.absoluteString,
@@ -139,6 +139,24 @@ final class UnknownToleranceTests: XCTestCase {
         XCTAssertTrue(info.supports(command: "hold"))
         XCTAssertFalse(info.supports(command: "holdGA"))
         XCTAssertTrue(info.supports(capability: "best-available"))
+    }
+
+    func testBundleInfoAcceptsWebKitDoubleBackedProtocolRange() {
+        let payload = JSONValue(foundation: [
+            "bundle": "0.71.5",
+            "protocol": ["min": 1.0, "max": 2.0],
+            "capabilities": ["picker-session-v2"],
+            "events": ["picker.snapshot"],
+            "commands": ["picker.getSnapshot"],
+        ] as [String: Any])
+
+        let info = BundleInfo(payload)
+
+        XCTAssertEqual(info.protocolRange, ProtocolRange(min: 1, max: 2))
+    }
+
+    func testProtocolRangeRejectsFractionalRevisions() {
+        XCTAssertNil(ProtocolRange.from(["min": .double(1.5), "max": .double(2)]))
     }
 
     /// An error code is an OPEN set: an API code we have never seen must arrive
