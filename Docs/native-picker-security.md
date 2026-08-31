@@ -28,6 +28,14 @@ configuration.buyerAccessTokenProvider = { context in
 }
 ```
 
+The DesiPass example accepts its development API key only through the app's
+launch environment. It uses that host credential to request a short-lived,
+mobile-origin SeatLayer buyer session, then supplies only the returned bearer
+through `buyerAccessTokenProvider`. The key is intentionally absent from
+source, the shared scheme, the app binary, URLs, logs, screenshots, and GIFs;
+production integrators must perform the equivalent exchange in their trusted
+backend rather than ship a long-lived host credential.
+
 ## Prewarm boundary
 
 Prewarm loads only the immutable page URL into a nonpersistent renderer host.

@@ -33,6 +33,10 @@
   presentation behavior.
 - Adds portable protocol/schema/concept/behavior/helper fixtures, contract
   tests, a hosted UIKit demo, and redacted end-to-end validation evidence.
+- Adds an optional DesiPass events → details → Book Now example that exchanges
+  a launch-only development API key for short-lived mobile buyer access, then
+  runs the real hosted native picker and typed checkout handoff without
+  embedding or persisting credentials.
 - Hardens command cancellation/timeouts, session-generation ownership,
   superseded loads, WebView teardown, prewarm mismatch/TTL cleanup, and
   retryable/fatal error recovery without adding production logging or

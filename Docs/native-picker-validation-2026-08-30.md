@@ -85,6 +85,23 @@ Adult/Child choice, authored unselected 3D row target, or panorama state. Those
 combinations were validated through the deterministic protocol closure below,
 not misreported as hosted inventory proof.
 
+### DesiPass host-application journey
+
+The final example app also ran through the real DesiPass development host flow,
+using its launch-only API key to list assigned-seat events, load event details,
+and mint short-lived buyer access for the exact SeatLayer mobile origin. The
+key, buyer bearer, event key, and opaque hold identifier remained in memory and
+did not appear in source, the shared Xcode scheme, UI, logs, screenshots, or the
+GIF.
+
+The recorded journey opened the buyer-visible event `prestige auditorium 25
+aug event` in Berlin, then Book Now launched the pinned hosted picker in test
+mode. Best Available returned Orchestra row ORCH-A seats 25–26 as two Premium
+tickets, the native cart and hold countdown showed EUR 300, and Continue
+produced exactly one typed host checkout callback with two lines, quantity two,
+currency EUR, and total 300. Payment and booking intentionally remain outside
+the SDK demo.
+
 ## Deterministic protocol-2 closure
 
 The validation-only page supplies authored states absent from the hosted
@@ -139,6 +156,9 @@ physical-device production SLA.
 
 ## Evidence files
 
+- [Real DesiPass hosted buyer flow](media/desipass-picker-flow.gif) — 480×1038,
+  245 frames, 20.41 seconds, SHA-256
+  `d40d995175eb0a7f9a8180607952729eaa3f4fed10903d9d70cdad7aba370e65`
 - [Final hosted hold](native-picker-ios-hosted-final-hold-2026-08-30.jpeg)
 - [Final hosted checkout](native-picker-ios-hosted-final-checkout-2026-08-30.jpeg)
 - [Targeted native 3D](native-picker-ios-targeted-3d-closure-2026-08-30.jpeg)

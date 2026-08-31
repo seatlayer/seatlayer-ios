@@ -20,10 +20,15 @@ a typed headless controller.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-![Native iOS picker flow: Child ticket tier, 3D seat inspection, panorama, hold countdown, accessibility filters, cart and checkout handoff](Docs/media/picker-flow.gif)
+![Real DesiPass iOS buyer flow: event discovery, event details, hosted SeatLayer picker, Best Available, test hold, cart and native checkout handoff](Docs/media/desipass-picker-flow.gif)
 
-The walkthrough uses the bundled deterministic test fixture; production
-inventory and checkout truth remain runtime-authored.
+The walkthrough uses a real DesiPass development event, short-lived
+mobile-origin buyer access, and the pinned hosted SeatLayer runtime. It shows
+test inventory—two Premium seats, a live hold countdown, and one native
+checkout handoff—without performing payment or booking. The bundled
+deterministic fixture remains supplemental proof for authored multi-tier,
+3D/panorama, accessibility, and edge-state combinations unavailable in the
+current hosted event; it is not the primary product preview.
 
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
@@ -307,8 +312,19 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView** —
 ### Simulator
 
 `Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
-picker. By default it uses SeatLayer's controlled hosted test event, the pinned
-CDN document, and the production HTTPS API; inventory remains test-only. Set
+picker. Set `DESIPASS_API_KEY` in the scheme's **Run → Arguments → Environment
+Variables** to launch the real DesiPass development flow: events → details →
+Book Now → hosted native picker → hold → typed host checkout handoff. The app
+uses the key only to call DesiPass and mint short-lived, mobile-origin buyer
+access in process memory; it never writes the key, bearer, event key, or hold
+identifier to source, URLs, logs, screenshots, or persistent storage.
+`DESIPASS_GRAPHQL_URL` can override the development GraphQL endpoint. Never
+commit either value to the shared scheme.
+
+Without a DesiPass key, the app retains the direct validation launcher. It uses
+SeatLayer's controlled hosted test event, the pinned CDN document, and the
+production HTTPS API; inventory remains test-only. Set `SEATLAYER_DIRECT_DEMO=1`
+to keep that route even when a DesiPass key is present, or set
 `SEATLAYER_EVENT_KEY` and `SEATLAYER_API_BASE` for another authorized event.
 Set `SEATLAYER_VALIDATE_THEME_FLIP=1` to prove that an in-place dark/light
 change preserves the active selection and renderer session.

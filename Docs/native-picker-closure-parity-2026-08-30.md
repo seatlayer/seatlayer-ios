@@ -93,6 +93,12 @@ and a host-owned receipt. The final evidence record contains the exact line,
 quantity, currency, total, callback count, and tap-to-ready samples while
 excluding credentials and the opaque hold identifier.
 
+The final example additionally proves the production-shaped DesiPass host
+journey: real event discovery and details, mobile-origin short-lived buyer
+access, Book Now, the pinned hosted widget, Best Available, a two-seat Premium
+test hold with countdown, EUR 300 cart truth, and exactly one native checkout
+callback. Its README GIF is direct hosted evidence, not a fixture recording.
+
 The available hosted event is single-price and does not emit every additive
 target/neighbour/panorama field. A controlled hosted multi-tier event and a
 hosted target with panorama content are still needed to repeat those exact
