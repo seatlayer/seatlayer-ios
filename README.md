@@ -20,6 +20,11 @@ a typed headless controller.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
+![Native iOS picker flow: Child ticket tier, 3D seat inspection, panorama, hold countdown, accessibility filters, cart and checkout handoff](Docs/media/picker-flow.gif)
+
+The walkthrough uses the bundled deterministic test fixture; production
+inventory and checkout truth remain runtime-authored.
+
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
 for origin-bound private buyer sessions; no event key or bearer is put in the
