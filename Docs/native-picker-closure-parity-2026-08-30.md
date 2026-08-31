@@ -99,10 +99,11 @@ access, Book Now, the pinned hosted widget, Best Available, a two-seat Premium
 test hold with countdown, EUR 300 cart truth, and exactly one native checkout
 callback. Its README GIF is direct hosted evidence, not a fixture recording.
 
-The available hosted event is single-price and does not emit every additive
-target/neighbour/panorama field. A controlled hosted multi-tier event and a
-hosted target with panorama content are still needed to repeat those exact
-combinations against live inventory.
+The available hosted events expose several seat-category prices but no
+buyer-selectable Adult/Child-style tiers for the same selected seat, and they
+do not emit every additive target/neighbour/panorama field. A controlled
+hosted multi-tier event and a hosted target with panorama content are still
+needed to repeat those exact combinations against live inventory.
 
 | Hosted-only proof | Status |
 | --- | --- |
