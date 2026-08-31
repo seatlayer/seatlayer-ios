@@ -17,7 +17,19 @@ scrollable price legend beside a stable view selector; optional floor context;
 compact required truth; the map as visual anchor; a focused decision surface;
 and a reachable cart/checkout action.
 
+The final attribution refinement also rejects the earlier iOS-only placement
+in the top truth row. “Powered by SeatLayer” now uses the same compact three-bar
+mark as the other SDKs, stays at the safe bottom-right edge, and is rendered
+only when the runtime snapshot says `branding.attributionRequired == true`.
+Host chrome options cannot force it on or suppress it.
+
 ![Rejected and corrected iOS top chrome](evidence/native-picker-correction-2026-08-31/ios-top-chrome-before-after.png)
+
+![API-required and API-disabled attribution](evidence/native-picker-correction-2026-08-31/ios-attribution-api-true-false-fixture-dark.png)
+
+The left capture uses the same production native controller with runtime
+attribution required; the right capture differs only by the runtime branding
+value. The right side removes the attribution and reclaims the control inset.
 
 ## Reference locks and trust boundary
 
@@ -25,10 +37,10 @@ The audit used source and pixels, not the previous prose.
 
 | Platform | Locked reference | What was used |
 | --- | --- | --- |
-| Flutter | `848be0c3dfadaba5efcda04d951a436cbd983e6f` | `lib/src/picker/`, `test/goldens/`, and `doc/media/picker-flow.gif`; the flexible legend plus fixed selector and compact 30/32-point paint inside 44-point targets are the primary top-chrome reference. |
-| React Native | source commit `9046330090d86b8c7e88f8967a763c9af05a8261` | Picker source at the required commit supplied measured legend/selector geometry, overflow, RTL, and target behavior. The public GIF at current checkout `73cea45c52452ecf3918c37145d90ca79c69ab54` was used only as visible corroboration, not presented as evidence from the older source commit. |
-| Android | `cd7451c68bc7cadcc7945e159dc0f74523b270b0` | Current native-picker source and the picker-only Android recording; its resolved compact hierarchy and map-to-cart balance were treated as a primary quality reference. |
-| Web/runtime | `seatlayer-js@0.71.5`, source commit `4628345457409976a7fd477a3bdb41e2077c4b49` | Pinned source hierarchy and renderer ownership. A local browser harness still targeted the retired `seatmap-api.paiteq.in` endpoint and could not load inventory, so it was not used as visual proof and no synthetic web screenshot was substituted. |
+| Flutter | `848be0c3dfadaba5efcda04d951a436cbd983e6f` | `lib/src/picker/`, `test/goldens/`, and `doc/media/picker-flow.gif`; the flexible legend plus fixed selector and compact 30/32-point paint inside 44-point targets are the primary top-chrome reference. Attribution renders only for runtime `branding.attributionRequired == true` and uses the three-bar mark. |
+| React Native | source commit `9046330090d86b8c7e88f8967a763c9af05a8261` | Picker source at the required commit supplied measured legend/selector geometry, overflow, RTL, target behavior, and runtime-owned attribution visibility with the three-bar mark. The public GIF at current checkout `73cea45c52452ecf3918c37145d90ca79c69ab54` was used only as visible corroboration, not presented as evidence from the older source commit. |
+| Android | `cd7451c68bc7cadcc7945e159dc0f74523b270b0` | Current native-picker source and the picker-only Android recording; its resolved compact hierarchy and map-to-cart balance were treated as a primary quality reference. Its attribution also follows the snapshot branding requirement. |
+| Web/runtime | `seatlayer-js@0.71.5`, source commit `4628345457409976a7fd477a3bdb41e2077c4b49` | Pinned source hierarchy and renderer ownership. The runtime derives `branding.attributionRequired` from API theme policy; iOS consumes that snapshot truth rather than inventing a local override. A local browser harness still targeted the retired `seatmap-api.paiteq.in` endpoint and could not load inventory, so it was not used as visual proof and no synthetic web screenshot was substituted. |
 | iOS baseline | `5eb4965` before this correction | Rejected screenshot, rejected animation, final source diff, fresh hosted runtime, and deterministic closure fixture. |
 
 The comparison sheets normalize only framing; they do not recolor or redraw the
@@ -60,11 +72,16 @@ hosted event does not publish authored panorama content.
 - Compact chip paint is 30 points and the selector paint is 32 points inside
   independent 44-point interaction frames. Regular paint is 40 points. The
   floor strip follows the same paint-versus-hit-target discipline.
-- Test Mode is a compact 20-point truth badge. Test Mode and attribution live
-  in a measured truth band instead of floating over map pixels, confirmation,
-  or cart. Wide layouts keep attribution in the rail when that rail exists.
+- Test Mode is a compact 20-point truth badge in the upper truth row.
+  Attribution is independent, API-owned, and anchored at bottom-right. Wide
+  overview layouts place it at the bottom-right of the side rail; wide decision
+  layouts and compact layouts use a safe bottom-right overlay.
+- The legacy host `chrome.attribution` option remains source-compatible but is
+  deliberately non-authoritative. Only the decoded runtime branding snapshot
+  decides whether attribution exists.
 - Map controls paint at the shared compact control size inside 44-point targets.
-  The duplicate in-map view selector is suppressed when the fixed rail owns it.
+  The duplicate in-map view selector is suppressed when the fixed rail owns it,
+  and bottom controls receive an attribution inset only while the badge exists.
 - Renderer top and bottom insets are calculated from the rails, truth band,
   immersive controls, dock, and cart rather than stale visual guesses.
 - Phone decision cards scroll internally while their Cancel/Select actions
@@ -78,7 +95,10 @@ Changed implementation files:
 
 - `Sources/SeatLayer/Picker/SeatLayerPicker.swift`
 - `Sources/SeatLayer/Picker/SeatLayerPickerChrome.swift`
-- `Sources/SeatLayer/Picker/SeatLayerPickerAdvancedChrome.swift`
+- `Sources/SeatLayer/Picker/SeatLayerPickerModels.swift`
+- `Sources/SeatLayer/Picker/SeatLayerPickerOptions.swift`
+- `Tests/SeatLayerTests/PickerSnapshotTests.swift`
+- `Example/SeatLayerDemo/Resources/picker-closure-fixture.html`
 
 ## Twenty-five-part visible ownership audit
 
@@ -115,9 +135,11 @@ lanes are never conflated.
 | 24 | Error | Retryable and fatal variants communicate ownership and recovery. | Retained direct light/dark screenshots and tests. |
 | 25 | Empty | Empty, sold-out, and sales-closed remain distinct commercial truths. | Retained direct screenshots and state tests. |
 
-Required non-builder truth was audited separately: Test Mode and attribution
-were both redesigned into the measured truth band and are present in hosted,
-deterministic, compact, 3D, and wide evidence.
+Required non-builder truth was audited separately. Test Mode remains compact
+and top-aligned. Attribution is bottom-right in hosted overview, section,
+confirmation, hold, cart, and 3D evidence, plus deterministic compact and wide
+evidence. The paired deterministic capture proves both the API-required and
+API-disabled branches without substituting fixture pixels for hosted inventory.
 
 ## State and layout acceptance
 
@@ -127,8 +149,9 @@ The rebuilt `SeatLayerPickerViewController` used the pinned production runtime
 and controlled test inventory on a 390×844 iPhone Simulator. One picker-only
 recording covers overview, section focus, seat focus, pending confirmation,
 selection, a real active test hold, collapsed and expanded cart, and visible
-Continue. A separate hosted capture covers venue 3D. Continue is deliberately
-not activated in the public animation, so no host checkout or receipt is shown.
+Continue. The same picker-only recording includes the real venue 3D mode and
+return transition. Continue is deliberately not activated in the public
+animation, so no host checkout or receipt is shown.
 
 Light and dark hosted overview pixels were inspected. The active hold/header,
 cart, and 3D captures are dark. The 1024×1366 hosted wide overview is light.
@@ -139,10 +162,11 @@ The production native controller and bridge load a validation-only protocol-2
 page for states the hosted event cannot author. Fresh captures cover multi-tier
 confirmation, 320-point compression, 430-point large-phone composition,
 700-point constrained-wide composition, 1024-point wide confirmation,
-panorama, Arabic RTL, and accessibility-extra-large type. Existing direct
-evidence remains authoritative for accessibility filters, loading, retryable
-and fatal error, empty, sold-out, sales-closed, hold lapse, and in-place theme
-continuity.
+panorama, Arabic RTL, accessibility-extra-large type, and the final
+attribution-required/disabled API branch at compact width and required branch
+at wide width. Existing direct evidence remains authoritative for accessibility
+filters, loading, retryable and fatal error, empty, sold-out, sales-closed, hold
+lapse, and in-place theme continuity.
 
 | Layout | Fresh method | Result |
 | --- | --- | --- |
@@ -154,6 +178,8 @@ continuity.
 
 Evidence:
 
+- [API-required versus API-disabled attribution](evidence/native-picker-correction-2026-08-31/ios-attribution-api-true-false-fixture-dark.png)
+- [API-required attribution at wide width](evidence/native-picker-correction-2026-08-31/ios-wide-attribution-required-fixture-light.png)
 - [320pt compact decision](evidence/native-picker-correction-2026-08-31/ios-compact-320-constrained-fixture-dark.png)
 - [390pt hosted overview, dark](evidence/native-picker-correction-2026-08-31/ios-compact-hosted-overview-dark.png)
 - [430pt large-phone decision](evidence/native-picker-correction-2026-08-31/ios-large-430-fixture-overview-dark.png)
@@ -176,35 +202,49 @@ they are not inferred from still images.
 ## Recording and evidence classification
 
 - Public GIF: `Docs/media/desipass-picker-flow.gif` — hosted picker only,
-  480×1039, 169 frames, 21.13 seconds, 8 fps, SHA-256
-  `688cb0ccca747b46f7292096657a58807efbc642e5df0e86920879b3a46a0200`.
+  480×1039, 272 frames, 34.01 seconds, 8 fps, SHA-256
+  `4d4d4d3d60d077f44853f1f47f41546b61ebd106a109d5cf6b42e527f484403c`.
 - Full hosted picker-only recording:
   `Docs/evidence/native-picker-correction-2026-08-31/ios-compact-hosted-picker-flow-dark.mp4`.
 - Deterministic proof is stored as explicitly named fixture captures. It is not
   described as hosted inventory.
+- The refreshed hosted dark set, API true/false sheet, wide required capture,
+  and updated comparison sheets are the final attribution-placement evidence.
+  Older unchanged state captures remain scoped to the other behavior named by
+  their files and are not used to infer final attribution placement.
 - `manifest.json` records source pins, devices, dimensions, and evidence lanes.
   `SHA256SUMS` is generated only after the final media and documentation settle.
 
 ## Direct verification
 
-- `swift test`: **171 tests passed, 0 failures**. The first sandboxed invocation
-  could not write Swift/Clang caches; the identical unrestricted invocation
-  completed successfully.
-- Final demo build:
+- Attribution predicate:
+  `swift test --filter PickerSnapshotTests/testAttributionVisibilityFollowsRuntimeBranding`
+  — **1 test passed, 0 failures**. It directly covers runtime true, explicit
+  false, omitted-field compatibility, and no-snapshot behavior. The first
+  sandboxed invocation could not write Swift/Clang caches; the identical
+  unrestricted invocation completed successfully.
+- The preceding visual-correction baseline remains **171 tests passed,
+  0 failures**; no unrelated broad suite was repeated for this narrow branding
+  placement change.
+- Final demo build after the attribution change:
   `xcodebuild -project Example/SeatLayerDemo.xcodeproj -scheme SeatLayerDemo -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`
-  — **BUILD SUCCEEDED** for arm64 and x86_64 from the exact restored source.
+  — **BUILD SUCCEEDED** for arm64 and x86_64.
 - Clean external consumer:
   `xcodebuild -scheme ExternalSeatLayerApp -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/seatlayer-ios-external-dd-final CODE_SIGNING_ALLOWED=NO build`
   — **BUILD SUCCEEDED**. It imports ready/custom SwiftUI and ready/custom UIKit
   using only the public local package.
-- Pixels and accessibility trees: inspected on 390×844 phone and 1024×1366
-  iPad; additional fresh width checks are listed above.
+- Pixels: inspected on 390×844 phone and 1024×1366 iPad, including side-by-side
+  API-required/disabled compact states, bottom-control reclamation, wide rail
+  placement, hosted confirmation, real hold, cart, and 3D. Existing
+  accessibility-tree inspection remains valid because target ownership did not
+  change.
 - Static integrity: `git diff --check`, explicit staging, staged secret scan,
   and evidence hashes are final pre-commit gates.
 
-No broad unrelated application suite was run. The picker source changed, so the
-full Swift package suite was the directly relevant authoritative test gate; the
-demo and consumer builds covered integration and public compilation.
+No broad unrelated application suite was rerun. The new predicate test covers
+the changed decision boundary; the demo build covers final SwiftUI composition
+and both simulator architectures; the existing full-suite and consumer-build
+results remain baseline integration evidence.
 
 ## Honest remaining gates
 

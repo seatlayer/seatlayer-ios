@@ -153,7 +153,8 @@
         salesClosed: fixtureState === 'sales-closed'
       },
       branding: {
-        brandName: 'SeatLayer', attributionRequired: true,
+        brandName: 'SeatLayer',
+        attributionRequired: fixtureState !== 'no-attribution',
         tokens: {
           accent: '#6e7bff', accentInk: '#ffffff', background: '#08121f',
           surface: '#111f33', text: '#f8fafc', muted: '#9daabd',

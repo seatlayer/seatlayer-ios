@@ -50,6 +50,8 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     public var dock: Bool
     public var confirmCard: Bool
     public var holdPill: Bool
+    /// Retained for source compatibility. Runtime `branding.attributionRequired`
+    /// is authoritative and cannot be overridden by host chrome options.
     public var attribution: Bool
     public var venue3D: Bool
     public var seatViewChrome: Bool

@@ -323,6 +323,15 @@ public struct SeatLayerPickerSnapshot: Sendable, Equatable {
     public let raw: JSONValue
 }
 
+/// The runtime branding entitlement is the only authority for whether native
+/// picker chrome renders the SeatLayer attribution. Before the first snapshot
+/// arrives there is no branding decision to present.
+func seatLayerPickerAttributionVisible(
+    in snapshot: SeatLayerPickerSnapshot?
+) -> Bool {
+    snapshot?.branding.attributionRequired == true
+}
+
 public struct SeatLayerSeatView: Sendable, Equatable {
     public let seatId: String?
     public let title: String?

@@ -7,30 +7,40 @@
     "baseline_commit": "5eb49659ba2d6f971de4803fd594ffa15cb0da5d",
     "baseline_tree": "473874cf1edc24bd17953a3aa9e13975d94c8c80",
     "runtime": "seatlayer-js@0.71.5",
-    "minimum_os": "iOS 15"
+    "minimum_os": "iOS 15",
+    "attribution_authority": "snapshot.branding.attributionRequired == true",
+    "attribution_acceptance_files": [
+      "ios-attribution-api-true-false-fixture-dark.png",
+      "ios-wide-attribution-required-fixture-light.png",
+      "ios-compact-hosted-picker-flow-dark.mp4"
+    ]
   },
   "references": {
     "flutter": {
       "commit": "848be0c3dfadaba5efcda04d951a436cbd983e6f",
       "tree": "8e470c516a862e7539d044a19abea2bea9420176",
-      "evidence": ["lib/src/picker", "test/goldens", "doc/media/picker-flow.gif"]
+      "evidence": ["lib/src/picker", "test/goldens", "doc/media/picker-flow.gif"],
+      "attribution_visibility": "runtime branding.attributionRequired == true"
     },
     "react_native": {
       "source_commit": "9046330090d86b8c7e88f8967a763c9af05a8261",
       "visible_corroboration_commit": "73cea45c52452ecf3918c37145d90ca79c69ab54",
       "visible_corroboration_tree": "253ff95e26247139fcac74e221c00999004dd82b",
-      "note": "Current public GIF pixels corroborate the hierarchy; source geometry was inspected at the required older commit."
+      "note": "Current public GIF pixels corroborate the hierarchy; source geometry was inspected at the required older commit.",
+      "attribution_visibility": "runtime branding.attributionRequired == true"
     },
     "android": {
       "commit": "cd7451c68bc7cadcc7945e159dc0f74523b270b0",
       "tree": "f2535c70ee1afa7c7ff7f21a8085206e605421c6",
-      "evidence": "current native-picker source and picker-only recording"
+      "evidence": "current native-picker source and picker-only recording",
+      "attribution_visibility": "snapshot branding.attributionRequired == true"
     },
     "web_runtime": {
       "version": "0.71.5",
       "commit": "4628345457409976a7fd477a3bdb41e2077c4b49",
       "tree": "846844b36ce3cf219b4df59e37934e39ad1bf2ea",
-      "note": "Pinned source was inspected. The retired API used by the local browser harness failed, so no new Web screenshot is claimed."
+      "note": "Pinned source was inspected. The retired API used by the local browser harness failed, so no new Web screenshot is claimed.",
+      "attribution_visibility": "runtime-derived branding.attributionRequired"
     }
   },
   "layouts": [
@@ -95,20 +105,20 @@
       "file": "ios-compact-hosted-picker-flow-dark.mp4",
       "lane": "hosted",
       "pixels": "1170x2532",
-      "duration_seconds": 69.785,
-      "frames": 167,
-      "average_frame_rate": "33400/13957",
-      "contents": ["overview", "section", "seat", "confirmation", "selection", "active test hold", "collapsed cart", "expanded cart", "Continue visible"],
+      "duration_seconds": 34.0,
+      "frames": 1020,
+      "average_frame_rate": "30/1",
+      "contents": ["overview", "venue 3D", "map return", "section", "seat", "confirmation", "selection", "active test hold", "collapsed cart", "expanded cart", "Continue visible", "bottom-right attribution"],
       "excludes": ["event feed", "event details", "host receipt", "payment", "booking"]
     },
     {
       "file": "../../media/desipass-picker-flow.gif",
       "lane": "hosted-public-preview",
       "pixels": "480x1039",
-      "duration_seconds": 21.13,
-      "frames": 169,
+      "duration_seconds": 34.01,
+      "frames": 272,
       "frame_rate": 8,
-      "note": "Picker-only derivative; stops before Continue."
+      "note": "Picker-only derivative; shows API-required bottom-right attribution and stops before Continue."
     },
     {
       "file": "ios-compact-hosted-overview-light.png",
@@ -156,6 +166,33 @@
       "pixels": "1170x2532"
     },
     {
+      "file": "ios-attribution-api-true-false-fixture-dark.png",
+      "lane": "deterministic-comparison",
+      "pixels": "1178x1266",
+      "columns": ["runtime attribution required", "runtime attribution disabled"],
+      "note": "Same controller and fixture state; only branding.attributionRequired differs."
+    },
+    {
+      "file": "ios-compact-attribution-required-fixture-dark.png",
+      "lane": "deterministic",
+      "pixels": "1170x2532",
+      "runtime_attribution_required": true
+    },
+    {
+      "file": "ios-compact-attribution-hidden-fixture-dark.png",
+      "lane": "deterministic",
+      "pixels": "1170x2532",
+      "runtime_attribution_required": false
+    },
+    {
+      "file": "ios-wide-attribution-required-fixture-light.png",
+      "lane": "deterministic",
+      "pixels": "2048x2732",
+      "picker_width_points": 1024,
+      "runtime_attribution_required": true,
+      "note": "Attribution occupies the bottom-right of the wide side rail."
+    },
+    {
       "file": "ios-compact-confirmation-rtl-large-light.png",
       "lane": "deterministic",
       "pixels": "1170x2532",
@@ -187,10 +224,11 @@
     }
   ],
   "verification": {
-    "swift_tests": {"passed": 171, "failed": 0},
-    "demo_build": "BUILD SUCCEEDED; arm64 and x86_64 iOS Simulator",
+    "swift_tests_baseline": {"passed": 171, "failed": 0},
+    "attribution_predicate_test": {"passed": 1, "failed": 0, "name": "PickerSnapshotTests/testAttributionVisibilityFollowsRuntimeBranding"},
+    "demo_build_after_attribution_change": "BUILD SUCCEEDED; arm64 and x86_64 iOS Simulator",
     "external_consumer": "BUILD SUCCEEDED; public SwiftUI and UIKit",
-    "visual_inspection": ["320pt constrained", "390pt phone", "430pt phone", "700pt constrained wide", "1024pt iPad", "light", "dark", "RTL", "large Dynamic Type"],
+    "visual_inspection": ["320pt constrained", "390pt phone", "430pt phone", "700pt constrained wide", "1024pt iPad", "light", "dark", "RTL", "large Dynamic Type", "runtime attribution true", "runtime attribution false", "bottom-control reclamation", "hosted hold", "hosted cart", "hosted venue 3D"],
     "accessibility_tree_inspection": ["390pt phone", "1024pt iPad"]
   },
   "security": {

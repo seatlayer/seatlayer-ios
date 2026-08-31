@@ -277,7 +277,7 @@ private struct SeatLayerPickerReadyLayout: View {
                                     ? SeatLayerPickerReadyMetrics.truthBandHeight
                                     : 0)
                                 + 6,
-                            bottomInset: bottomChromeHeight + 10,
+                            bottomInset: bottomOverlayControlInset,
                             showsMapBackControl: !showsBuyerViewControl
                         )
                     }
@@ -289,7 +289,7 @@ private struct SeatLayerPickerReadyLayout: View {
                     SeatLayerPickerPartHost(.seatViewChrome) {
                         SeatLayerSeatViewChrome(
                             topInset: 10,
-                            bottomInset: bottomChromeHeight + 10
+                            bottomInset: bottomOverlayControlInset
                         )
                     }
                     .allowsHitTesting(false)
@@ -301,7 +301,7 @@ private struct SeatLayerPickerReadyLayout: View {
                     Spacer()
                     SeatLayerPickerPartHost(.holdLapse) { SeatLayerHoldLapseNotice() }
                         .padding(.horizontal, 10)
-                        .padding(.bottom, bottomChromeHeight + 8)
+                        .padding(.bottom, bottomOverlayControlInset)
                         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 }
                 .opacity(decisionVisible ? 0 : 1)
@@ -484,7 +484,7 @@ private struct SeatLayerPickerReadyLayout: View {
         if style.options.chrome.mapControls, chromeVisibility.mapControls {
             SeatLayerPickerPartHost(.mapControls) {
                 SeatLayerPickerMapControls(
-                    bottomInset: bottomChromeHeight + 10,
+                    bottomInset: bottomOverlayControlInset,
                     includeBuyerViewControl: false
                 )
             }
@@ -535,7 +535,14 @@ private struct SeatLayerPickerReadyLayout: View {
                         .padding(12)
                 }
                 Spacer(minLength: 0)
-                SeatLayerPickerAttribution()
+                if attributionVisible {
+                    HStack {
+                        Spacer(minLength: 0)
+                        SeatLayerPickerAttribution()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
+                }
             }
             .frame(width: wideRailWidth)
             .background(palette.surface)
@@ -554,77 +561,49 @@ private struct SeatLayerPickerReadyLayout: View {
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
-        if decisionVisible {
-            VStack {
-                HStack(alignment: .center, spacing: 8) {
-                    SeatLayerPickerTestModeIndicator()
-                    Spacer(minLength: 8)
-                    SeatLayerPickerAttribution()
-                        .padding(.horizontal, 8)
-                        .seatLayerPickerTranslucentBackground(
-                            palette.surface,
-                            opacity: 0.94
-                        )
-                        .clipShape(Capsule())
-                }
-                .padding(.horizontal, 10)
-                .padding(.top, primaryChromeHeight + 4)
-                Spacer()
-            }
-            .allowsHitTesting(false)
-        } else if chromeVisibility.venue3D {
-            VStack {
-                HStack(alignment: .center, spacing: 8) {
-                    SeatLayerPickerTestModeIndicator()
-                    Spacer(minLength: 8)
-                    SeatLayerPickerAttribution()
-                        .padding(.horizontal, 8)
-                        .seatLayerPickerTranslucentBackground(
-                            palette.surface,
-                            opacity: 0.94
-                        )
-                        .clipShape(Capsule())
-                }
-                .padding(.horizontal, 10)
-                .padding(.top, primaryChromeHeight + 4)
-                Spacer()
-            }
-            .allowsHitTesting(false)
-        } else if chromeVisibility.panorama {
-            VStack {
-                Spacer()
-                HStack {
-                    SeatLayerPickerTestModeIndicator()
-                    Spacer()
-                    if !usesWideLayout {
-                        SeatLayerPickerAttribution()
+        ZStack {
+            if isTestMode {
+                if chromeVisibility.panorama {
+                    VStack {
+                        Spacer(minLength: 0)
+                        HStack {
+                            SeatLayerPickerTestModeIndicator()
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, bottomChromeHeight + 6)
+                    }
+                } else {
+                    VStack {
+                        HStack {
+                            SeatLayerPickerTestModeIndicator()
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, primaryChromeHeight + 4)
+                        Spacer(minLength: 0)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.bottom, max(6, bottomChromeHeight + 6))
             }
-            .allowsHitTesting(false)
-        } else {
-            VStack {
-                HStack(alignment: .center, spacing: 8) {
-                    SeatLayerPickerTestModeIndicator()
-                    Spacer(minLength: 8)
-                    if !usesWideLayout {
+
+            if bottomAttributionOverlayVisible {
+                VStack {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer(minLength: 0)
                         SeatLayerPickerAttribution()
-                            .padding(.horizontal, 8)
                             .seatLayerPickerTranslucentBackground(
                                 palette.surface,
                                 opacity: 0.94
                             )
                             .clipShape(Capsule())
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, bottomChromeHeight + 6)
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, primaryChromeHeight + 4)
-                Spacer()
             }
-            .allowsHitTesting(false)
         }
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -749,16 +728,22 @@ private struct SeatLayerPickerReadyLayout: View {
     }
 
     private var attributionVisible: Bool {
-        controller.snapshot?.branding.attributionRequired != false
-            || style.options.chrome.attribution
+        seatLayerPickerAttributionVisible(in: controller.snapshot)
     }
 
     private var truthBandVisibleAtTop: Bool {
         guard !chromeVisibility.panorama else { return false }
-        if decisionVisible || chromeVisibility.venue3D {
-            return isTestMode || attributionVisible
-        }
-        return isTestMode || (!usesWideLayout && attributionVisible)
+        return isTestMode
+    }
+
+    private var bottomAttributionOverlayVisible: Bool {
+        attributionVisible && (!usesWideLayout || decisionVisible)
+    }
+
+    private var bottomOverlayControlInset: Double {
+        bottomChromeHeight + (bottomAttributionOverlayVisible
+            ? SeatLayerPickerReadyMetrics.attributionControlInset
+            : 10)
     }
 
     private var decisionVisible: Bool {
@@ -878,6 +863,7 @@ private enum SeatLayerPickerReadyMetrics {
     static let floorRailHeight = 44.0
     static let truthBandHeight = 26.0
     static let immersiveControlBandHeight = 52.0
+    static let attributionControlInset = SeatLayerPickerSizeTokens.attributionHeight + 14
 }
 
 private struct SeatLayerPickerCartHeightPreferenceKey: PreferenceKey {

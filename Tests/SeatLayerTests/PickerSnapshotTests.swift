@@ -29,6 +29,21 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.raw["future"]?["loyalty"]?.intValue, 42)
     }
 
+    func testAttributionVisibilityFollowsRuntimeBranding() throws {
+        let required = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot()))
+        let hidden = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot(additions: [
+            "branding": ["attributionRequired": false],
+        ])))
+        let omitted = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot(additions: [
+            "branding": ["brandName": "Venue"],
+        ])))
+
+        XCTAssertTrue(seatLayerPickerAttributionVisible(in: required))
+        XCTAssertFalse(seatLayerPickerAttributionVisible(in: hidden))
+        XCTAssertTrue(seatLayerPickerAttributionVisible(in: omitted))
+        XCTAssertFalse(seatLayerPickerAttributionVisible(in: nil))
+    }
+
     func testRejectsOnlyAnInvalidSnapshotIdentity() {
         XCTAssertNil(decodeSeatLayerPickerSnapshot(nil))
         XCTAssertNil(decodeSeatLayerPickerSnapshot(["schema": "future/2"]))
