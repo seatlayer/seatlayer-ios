@@ -7,6 +7,9 @@
   overloads while adding richer hold-transition and close-reason APIs.
 - Adds a complete native picker for SwiftUI and UIKit around one headless
   protocol-2 renderer session, while preserving the protocol-1 raw chart API.
+- Refines the responsive native chrome with a bounded scrolling legend, fixed
+  map/3D selector, compact required truth, measured renderer insets, and
+  collision-free compact, large-phone, RTL, and wide decision layouts.
 - Adds public native confirmation, GA/table, cart, checkout, accessibility,
   floor, section, 3D, seat-view, hold-lapse, loading/error/empty, attribution,
   and test-mode components.

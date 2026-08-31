@@ -1,0 +1,202 @@
+{
+  "schema": "seatlayer-native-picker-visual-evidence/v1",
+  "date": "2026-08-31",
+  "scope": "SeatLayer iOS picker only",
+  "ios": {
+    "branch": "feat/native-picker",
+    "baseline_commit": "5eb49659ba2d6f971de4803fd594ffa15cb0da5d",
+    "baseline_tree": "473874cf1edc24bd17953a3aa9e13975d94c8c80",
+    "runtime": "seatlayer-js@0.71.5",
+    "minimum_os": "iOS 15"
+  },
+  "references": {
+    "flutter": {
+      "commit": "848be0c3dfadaba5efcda04d951a436cbd983e6f",
+      "tree": "8e470c516a862e7539d044a19abea2bea9420176",
+      "evidence": ["lib/src/picker", "test/goldens", "doc/media/picker-flow.gif"]
+    },
+    "react_native": {
+      "source_commit": "9046330090d86b8c7e88f8967a763c9af05a8261",
+      "visible_corroboration_commit": "73cea45c52452ecf3918c37145d90ca79c69ab54",
+      "visible_corroboration_tree": "253ff95e26247139fcac74e221c00999004dd82b",
+      "note": "Current public GIF pixels corroborate the hierarchy; source geometry was inspected at the required older commit."
+    },
+    "android": {
+      "commit": "cd7451c68bc7cadcc7945e159dc0f74523b270b0",
+      "tree": "f2535c70ee1afa7c7ff7f21a8085206e605421c6",
+      "evidence": "current native-picker source and picker-only recording"
+    },
+    "web_runtime": {
+      "version": "0.71.5",
+      "commit": "4628345457409976a7fd477a3bdb41e2077c4b49",
+      "tree": "846844b36ce3cf219b4df59e37934e39ad1bf2ea",
+      "note": "Pinned source was inspected. The retired API used by the local browser harness failed, so no new Web screenshot is claimed."
+    }
+  },
+  "layouts": [
+    {
+      "logical_size_points": "320x844",
+      "method": "320-point picker host constrained inside a 390x844 simulator",
+      "lane": "deterministic",
+      "file": "ios-compact-320-constrained-fixture-dark.png"
+    },
+    {
+      "logical_size_points": "390x844",
+      "device_id": "19026756-0AF8-43A5-81F6-5EBE3A0E960E",
+      "method": "booted phone simulator",
+      "lanes": ["hosted", "deterministic"]
+    },
+    {
+      "logical_size_points": "430x932",
+      "device_id": "00D1C9D1-C67B-44FD-817D-33521EBA00ED",
+      "method": "booted iPhone 15 Pro Max simulator",
+      "lane": "deterministic",
+      "file": "ios-large-430-fixture-overview-dark.png"
+    },
+    {
+      "logical_size_points": "700x1366",
+      "method": "700-point wide picker host constrained inside a 1024x1366 simulator",
+      "lane": "deterministic",
+      "file": "ios-constrained-wide-700-fixture-light.png"
+    },
+    {
+      "logical_size_points": "1024x1366",
+      "device_id": "6AE194D0-BF54-41F7-B240-3BE8AFD7D129",
+      "method": "booted iPad simulator",
+      "lanes": ["hosted", "deterministic"]
+    }
+  ],
+  "media": [
+    {
+      "file": "rejected-ios-before.png",
+      "lane": "rejected-baseline",
+      "pixels": "926x586"
+    },
+    {
+      "file": "ios-top-chrome-before-after.png",
+      "lane": "comparison",
+      "pixels": "1620x430"
+    },
+    {
+      "file": "cross-sdk-overview-confirmation-cart.png",
+      "lane": "comparison",
+      "pixels": "960x1557",
+      "columns": ["Flutter", "React Native", "Android", "iOS"],
+      "rows": ["overview", "pending confirmation", "selected/cart"]
+    },
+    {
+      "file": "cross-sdk-immersive.png",
+      "lane": "comparison",
+      "pixels": "960x1038",
+      "columns": ["Flutter", "React Native", "Android", "iOS"],
+      "rows": ["venue 3D", "panorama or seat view"]
+    },
+    {
+      "file": "ios-compact-hosted-picker-flow-dark.mp4",
+      "lane": "hosted",
+      "pixels": "1170x2532",
+      "duration_seconds": 69.785,
+      "frames": 167,
+      "average_frame_rate": "33400/13957",
+      "contents": ["overview", "section", "seat", "confirmation", "selection", "active test hold", "collapsed cart", "expanded cart", "Continue visible"],
+      "excludes": ["event feed", "event details", "host receipt", "payment", "booking"]
+    },
+    {
+      "file": "../../media/desipass-picker-flow.gif",
+      "lane": "hosted-public-preview",
+      "pixels": "480x1039",
+      "duration_seconds": 21.13,
+      "frames": 169,
+      "frame_rate": 8,
+      "note": "Picker-only derivative; stops before Continue."
+    },
+    {
+      "file": "ios-compact-hosted-overview-light.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-overview-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-section-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-seat-selection-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-selected-cart-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-cart-expanded-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-hosted-venue3d-dark.png",
+      "lane": "hosted",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-wide-hosted-overview-light.png",
+      "lane": "hosted",
+      "pixels": "2048x2732"
+    },
+    {
+      "file": "ios-compact-ready-light.png",
+      "lane": "deterministic",
+      "pixels": "1170x2532"
+    },
+    {
+      "file": "ios-compact-confirmation-rtl-large-light.png",
+      "lane": "deterministic",
+      "pixels": "1170x2532",
+      "traits": ["Arabic RTL", "accessibility-extra-large Dynamic Type"]
+    },
+    {
+      "file": "ios-compact-320-constrained-fixture-dark.png",
+      "lane": "deterministic",
+      "pixels": "1170x2532",
+      "picker_width_points": 320
+    },
+    {
+      "file": "ios-large-430-fixture-overview-dark.png",
+      "lane": "deterministic",
+      "pixels": "1290x2796",
+      "picker_width_points": 430
+    },
+    {
+      "file": "ios-constrained-wide-700-fixture-light.png",
+      "lane": "deterministic",
+      "pixels": "2048x2732",
+      "picker_width_points": 700
+    },
+    {
+      "file": "ios-wide-confirmation-dark.png",
+      "lane": "deterministic",
+      "pixels": "2048x2732",
+      "picker_width_points": 1024
+    }
+  ],
+  "verification": {
+    "swift_tests": {"passed": 171, "failed": 0},
+    "demo_build": "BUILD SUCCEEDED; arm64 and x86_64 iOS Simulator",
+    "external_consumer": "BUILD SUCCEEDED; public SwiftUI and UIKit",
+    "visual_inspection": ["320pt constrained", "390pt phone", "430pt phone", "700pt constrained wide", "1024pt iPad", "light", "dark", "RTL", "large Dynamic Type"],
+    "accessibility_tree_inspection": ["390pt phone", "1024pt iPad"]
+  },
+  "security": {
+    "credentials_in_evidence": false,
+    "opaque_hold_ids_in_evidence": false,
+    "push_tag_or_pull_request": false
+  },
+  "hashes": "SHA256SUMS"
+}

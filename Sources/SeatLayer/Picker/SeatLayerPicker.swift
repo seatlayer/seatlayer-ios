@@ -189,12 +189,15 @@ private struct SeatLayerPickerReadyLayout: View {
         VStack(spacing: 0) {
             if style.options.chrome.header {
                 SeatLayerPickerPartHost(.header) {
-                    SeatLayerPickerHeader(onClose: onClose == nil ? nil : requestClose)
+                    SeatLayerPickerHeader(
+                        onClose: onClose == nil ? nil : requestClose,
+                        compact: !usesWideLayout
+                    )
                 }
-                // Dense global chrome still grows for accessibility, but caps
-                // before it can consume the whole compact viewport. The
-                // decision content below keeps the user's full Dynamic Type.
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                // Identity remains readable at larger text sizes without
+                // allowing global chrome to consume the compact viewport.
+                // Decision surfaces below keep the user's full Dynamic Type.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
             ZStack {
                 SeatLayerPickerPartHost(.map) {
@@ -215,7 +218,6 @@ private struct SeatLayerPickerReadyLayout: View {
 
                 chrome(palette: palette)
                     .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .allowsHitTesting(!interactionBlocked)
                     .accessibilityHidden(interactionBlocked)
 
@@ -270,8 +272,13 @@ private struct SeatLayerPickerReadyLayout: View {
                 if chromeVisibility.venue3D, style.options.chrome.venue3D {
                     SeatLayerPickerPartHost(.venue3D) {
                         SeatLayerVenue3D(
-                            topInset: topChromeHeight + 8,
-                            bottomInset: bottomChromeHeight + 10
+                            topInset: primaryChromeHeight
+                                + (truthBandVisibleAtTop
+                                    ? SeatLayerPickerReadyMetrics.truthBandHeight
+                                    : 0)
+                                + 6,
+                            bottomInset: bottomChromeHeight + 10,
+                            showsMapBackControl: !showsBuyerViewControl
                         )
                     }
                     .allowsHitTesting(!interactionBlocked)
@@ -300,7 +307,7 @@ private struct SeatLayerPickerReadyLayout: View {
                 .opacity(decisionVisible ? 0 : 1)
 
                 requiredTruthChrome
-                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .dynamicTypeSize(...DynamicTypeSize.large)
 
                 if let flight = presentation.selectionFlight,
                    let flightColor = selectionFlightColor(flight, palette: palette) {
@@ -423,12 +430,31 @@ private struct SeatLayerPickerReadyLayout: View {
     @ViewBuilder
     private func chrome(palette: SeatLayerPickerPalette) -> some View {
         VStack(spacing: 0) {
-            if style.options.chrome.priceLegend, chromeVisibility.priceLegend {
-                SeatLayerPickerPartHost(.legend) { SeatLayerPickerPriceLegend() }
-                    .padding(.trailing, showsBuyerViewControl ? buyerViewReservedWidth : 0)
+            if topRailVisible {
+                HStack(spacing: 8) {
+                    if priceLegendVisible {
+                        SeatLayerPickerPartHost(.legend) {
+                            SeatLayerPickerPriceLegend(compact: !usesWideLayout)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .layoutPriority(1)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+                    if showsBuyerViewControl {
+                        SeatLayerPickerBuyerViewControl(compact: !usesWideLayout)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .padding(.trailing, 8)
+                    }
+                }
+                .frame(height: SeatLayerPickerReadyMetrics.topRailHeight)
+                .dynamicTypeSize(...DynamicTypeSize.large)
             }
-            if style.options.chrome.floorStrip, chromeVisibility.floors {
-                SeatLayerPickerPartHost(.floorStrip) { SeatLayerPickerFloorStrip() }
+            if floorRailVisible {
+                SeatLayerPickerPartHost(.floorStrip) {
+                    SeatLayerPickerFloorStrip(compact: !usesWideLayout)
+                }
+                .dynamicTypeSize(...DynamicTypeSize.large)
             }
             Spacer(minLength: 0)
             if style.options.chrome.dock, chromeVisibility.dock {
@@ -458,9 +484,8 @@ private struct SeatLayerPickerReadyLayout: View {
         if style.options.chrome.mapControls, chromeVisibility.mapControls {
             SeatLayerPickerPartHost(.mapControls) {
                 SeatLayerPickerMapControls(
-                    topInset: style.options.chrome.priceLegend
-                        && chromeVisibility.priceLegend ? 3 : topChromeHeight + 8,
-                    bottomInset: bottomChromeHeight + 10
+                    bottomInset: bottomChromeHeight + 10,
+                    includeBuyerViewControl: false
                 )
             }
         }
@@ -524,46 +549,79 @@ private struct SeatLayerPickerReadyLayout: View {
 
     @ViewBuilder
     private var requiredTruthChrome: some View {
-        if dynamicTypeSize.isAccessibilitySize, !usesWideLayout {
-            let palette = resolveSeatLayerPickerPalette(
-                style: style,
-                colorScheme: colorScheme,
-                snapshot: controller.snapshot
-            )
-            VStack(spacing: 4) {
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: controller.snapshot
+        )
+        if decisionVisible {
+            VStack {
+                HStack(alignment: .center, spacing: 8) {
+                    SeatLayerPickerTestModeIndicator()
+                    Spacer(minLength: 8)
+                    SeatLayerPickerAttribution()
+                        .padding(.horizontal, 8)
+                        .seatLayerPickerTranslucentBackground(
+                            palette.surface,
+                            opacity: 0.94
+                        )
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, primaryChromeHeight + 4)
+                Spacer()
+            }
+            .allowsHitTesting(false)
+        } else if chromeVisibility.venue3D {
+            VStack {
+                HStack(alignment: .center, spacing: 8) {
+                    SeatLayerPickerTestModeIndicator()
+                    Spacer(minLength: 8)
+                    SeatLayerPickerAttribution()
+                        .padding(.horizontal, 8)
+                        .seatLayerPickerTranslucentBackground(
+                            palette.surface,
+                            opacity: 0.94
+                        )
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, primaryChromeHeight + 4)
+                Spacer()
+            }
+            .allowsHitTesting(false)
+        } else if chromeVisibility.panorama {
+            VStack {
+                Spacer()
                 HStack {
                     SeatLayerPickerTestModeIndicator()
                     Spacer()
+                    if !usesWideLayout {
+                        SeatLayerPickerAttribution()
+                    }
                 }
-                HStack {
-                    SeatLayerPickerAttribution()
-                        .padding(.horizontal, 8)
-                        .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.92)
-                        .clipShape(Capsule())
-                    Spacer()
-                }
-                Spacer()
+                .padding(.horizontal, 10)
+                .padding(.bottom, max(6, bottomChromeHeight + 6))
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 8)
             .allowsHitTesting(false)
         } else {
             VStack {
-                HStack {
+                HStack(alignment: .center, spacing: 8) {
                     SeatLayerPickerTestModeIndicator()
-                    Spacer()
-                }
-                .padding(.leading, 10)
-                .padding(.top, topChromeHeight + 8)
-                Spacer()
-                if !usesWideLayout {
-                    HStack {
-                        Spacer()
+                    Spacer(minLength: 8)
+                    if !usesWideLayout {
                         SeatLayerPickerAttribution()
+                            .padding(.horizontal, 8)
+                            .seatLayerPickerTranslucentBackground(
+                                palette.surface,
+                                opacity: 0.94
+                            )
+                            .clipShape(Capsule())
                     }
-                    .padding(.trailing, 10)
-                    .padding(.bottom, max(4, bottomChromeHeight + 4))
                 }
+                .padding(.horizontal, 10)
+                .padding(.top, primaryChromeHeight + 4)
+                Spacer()
             }
             .allowsHitTesting(false)
         }
@@ -586,14 +644,21 @@ private struct SeatLayerPickerReadyLayout: View {
     }
 
     private var topChromeHeight: Double {
-        let legendHeight = dynamicTypeSize.isAccessibilitySize ? 64.0 : 50.0
-        let floorHeight = dynamicTypeSize.isAccessibilitySize ? 64.0 : 46.0
-        var value = style.options.chrome.priceLegend && chromeVisibility.priceLegend
-            ? legendHeight
-            : 0
-        if chromeVisibility.floors,
-           style.options.chrome.floorStrip,
-           (controller.snapshot?.map.floors.count ?? 0) > 1 { value += floorHeight }
+        var value = primaryChromeHeight
+        if chromeVisibility.venue3D, style.options.chrome.venue3D {
+            if truthBandVisibleAtTop {
+                value += SeatLayerPickerReadyMetrics.truthBandHeight
+            }
+            value += SeatLayerPickerReadyMetrics.immersiveControlBandHeight
+        } else if truthBandVisibleAtTop {
+            value += SeatLayerPickerReadyMetrics.truthBandHeight
+        }
+        return value
+    }
+
+    private var primaryChromeHeight: Double {
+        var value = topRailVisible ? SeatLayerPickerReadyMetrics.topRailHeight : 0
+        if floorRailVisible { value += SeatLayerPickerReadyMetrics.floorRailHeight }
         return value
     }
 
@@ -611,10 +676,6 @@ private struct SeatLayerPickerReadyLayout: View {
                 : SeatLayerPickerSizeTokens.dockBarHeight
         }
         return value
-    }
-
-    private var buyerViewReservedWidth: Double {
-        dynamicTypeSize.isAccessibilitySize ? 210 : 144
     }
 
     private var viewportInsets: SeatLayerPickerViewportInsets {
@@ -658,11 +719,46 @@ private struct SeatLayerPickerReadyLayout: View {
         guard style.options.chrome.mapControls,
               style.options.chrome.map3D,
               style.options.enable3D,
-              chromeVisibility.mapControls,
+              !chromeVisibility.panorama,
               let snapshot = controller.snapshot else { return false }
-        return snapshot.map.buyerView == "map"
+        return ["map", "venue3d"].contains(snapshot.map.buyerView)
             && snapshot.capabilities.contains("venue3d")
             && controller.supportsVenue3D
+    }
+
+    private var priceLegendVisible: Bool {
+        style.options.chrome.priceLegend
+            && chromeVisibility.priceLegend
+            && !(controller.snapshot?.categories.filter { !$0.notForSale }.isEmpty ?? true)
+    }
+
+    private var topRailVisible: Bool {
+        priceLegendVisible || showsBuyerViewControl
+    }
+
+    private var floorRailVisible: Bool {
+        style.options.chrome.floorStrip
+            && chromeVisibility.floors
+            && (controller.snapshot?.map.floors.count ?? 0) > 1
+    }
+
+    private var isTestMode: Bool {
+        guard let mode = controller.snapshot?.event.mode else { return false }
+        if case .test = mode { return true }
+        return false
+    }
+
+    private var attributionVisible: Bool {
+        controller.snapshot?.branding.attributionRequired != false
+            || style.options.chrome.attribution
+    }
+
+    private var truthBandVisibleAtTop: Bool {
+        guard !chromeVisibility.panorama else { return false }
+        if decisionVisible || chromeVisibility.venue3D {
+            return isTestMode || attributionVisible
+        }
+        return isTestMode || (!usesWideLayout && attributionVisible)
     }
 
     private var decisionVisible: Bool {
@@ -747,9 +843,9 @@ private struct SeatLayerPickerReadyLayout: View {
     }
 
     private var decisionTruthTopReserve: Double {
-        dynamicTypeSize.isAccessibilitySize && !usesWideLayout
-            ? (SeatLayerPickerSizeTokens.minimumHitTarget * 2) + 8
-            : SeatLayerPickerSizeTokens.minimumHitTarget
+        truthBandVisibleAtTop
+            ? primaryChromeHeight + SeatLayerPickerReadyMetrics.truthBandHeight + 8
+            : primaryChromeHeight + 8
     }
 
     private func reportTheme(dark: Bool) {
@@ -775,6 +871,13 @@ private struct SeatLayerPickerReadyLayout: View {
         reportedReady = info
         callbacks.onReady?(info)
     }
+}
+
+private enum SeatLayerPickerReadyMetrics {
+    static let topRailHeight = 44.0
+    static let floorRailHeight = 44.0
+    static let truthBandHeight = 26.0
+    static let immersiveControlBandHeight = 52.0
 }
 
 private struct SeatLayerPickerCartHeightPreferenceKey: PreferenceKey {

@@ -20,15 +20,17 @@ a typed headless controller.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-![Real DesiPass iOS buyer flow: event discovery, event details, hosted SeatLayer picker, Best Available, test hold, cart and native checkout handoff](Docs/media/desipass-picker-flow.gif)
+![Hosted SeatLayer iOS picker: header, legend, map modes, section and seat interaction, confirmation, active test hold, cart and Continue](Docs/media/desipass-picker-flow.gif)
 
-The walkthrough uses a real DesiPass development event, short-lived
-mobile-origin buyer access, and the pinned hosted SeatLayer runtime. It shows
-test inventory—two Premium seats, a live hold countdown, and one native
-checkout handoff—without performing payment or booking. The bundled
-deterministic fixture remains supplemental proof for authored multi-tier,
-3D/panorama, accessibility, and edge-state combinations unavailable in the
-current hosted event; it is not the primary product preview.
+The walkthrough starts directly inside the real hosted SeatLayer picker and
+uses controlled test inventory. It shows the picker-owned header, bounded
+price legend, map/3D control, section and seat interaction, confirmation,
+active hold countdown, expanded cart, and reachable Continue action. Continue
+is intentionally not activated, so the recording contains no host event feed,
+event-detail screen, checkout receipt, payment, or booking. The bundled
+deterministic fixture remains separately labelled supplemental proof for
+multi-tier, authored 3D/panorama, accessibility, and edge-state combinations
+unavailable in the current hosted event.
 
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required

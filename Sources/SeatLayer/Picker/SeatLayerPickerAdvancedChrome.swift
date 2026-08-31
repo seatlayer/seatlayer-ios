@@ -528,15 +528,18 @@ public struct SeatLayerVenue3D: View {
     private let onBackToVenue: (() -> Void)?
     private let topInset: Double
     private let bottomInset: Double
+    private let showsMapBackControl: Bool
 
     public init(
         onBackToVenue: (() -> Void)? = nil,
         topInset: Double = 10,
-        bottomInset: Double = 10
+        bottomInset: Double = 10,
+        showsMapBackControl: Bool = true
     ) {
         self.onBackToVenue = onBackToVenue
         self.topInset = max(0, topInset)
         self.bottomInset = max(0, bottomInset)
+        self.showsMapBackControl = showsMapBackControl
     }
 
     public var body: some View {
@@ -561,7 +564,7 @@ public struct SeatLayerVenue3D: View {
                             enabled: !busy,
                             palette: palette
                         ) { execute(.back) }
-                    } else {
+                    } else if showsMapBackControl {
                         control(
                             symbol: "map",
                             label: style.strings.text(.mapView),

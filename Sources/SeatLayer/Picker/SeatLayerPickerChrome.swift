@@ -1,15 +1,42 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 
+private enum SeatLayerPickerChromeMetrics {
+    static let compactRailHeight = 44.0
+    static let compactLegendPaintHeight = 30.0
+    static let regularLegendPaintHeight = 40.0
+    static let compactViewModePaintHeight = 32.0
+    static let regularViewModePaintHeight = 40.0
+    static let compactFloorPaintHeight = 30.0
+    static let regularFloorPaintHeight = 36.0
+    static let compactTruthPaintHeight = 20.0
+}
+
+private struct SeatLayerPickerLegendContentWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct SeatLayerPickerLegendViewportWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// Event identity, hold countdown, and optional close control.
 public struct SeatLayerPickerHeader: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
     private let onClose: (() -> Void)?
+    private let compact: Bool
 
-    public init(onClose: (() -> Void)? = nil) {
+    public init(onClose: (() -> Void)? = nil, compact: Bool = false) {
         self.onClose = onClose
+        self.compact = compact
     }
 
     public var body: some View {
@@ -20,13 +47,29 @@ public struct SeatLayerPickerHeader: View {
         )
         HStack(spacing: 10) {
             SeatLayerPickerLogo()
+                .fixedSize()
             if !style.options.hideEventDetails {
-                Text(controller.snapshot?.event.name ?? style.strings.text(.chooseSeats))
-                    .seatLayerPickerFont(size: 16, weight: .heavy)
-                    .foregroundColor(palette.text)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(controller.snapshot?.event.name ?? style.strings.text(.chooseSeats))
+                        .seatLayerPickerFont(size: compact ? 14 : 16, weight: .bold)
+                        .foregroundColor(palette.text)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if !compact,
+                       let venue = controller.snapshot?.event.venue,
+                       !venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(venue)
+                            .seatLayerPickerFont(size: 11, weight: .medium)
+                            .foregroundColor(palette.mutedText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            } else {
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 8)
             if style.options.chrome.holdPill,
                let expiry = controller.snapshot?.hold.expiresAt,
                controller.snapshot?.hold.active == true,
@@ -34,6 +77,7 @@ public struct SeatLayerPickerHeader: View {
                 SeatLayerPickerPartHost(.holdCountdown) {
                     SeatLayerPickerHoldCountdown(expiresAt: expiry)
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
             if let onClose {
                 Button(action: onClose) {
@@ -49,7 +93,9 @@ public struct SeatLayerPickerHeader: View {
                 .accessibilityLabel(style.strings.text(.close))
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .padding(.vertical, compact ? 0 : 6)
         .frame(minHeight: SeatLayerPickerSizeTokens.headerHeight)
         .background(palette.surface)
         .overlay(alignment: .bottom) {
@@ -142,8 +188,14 @@ public struct SeatLayerPickerPriceLegend: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
+    @State private var contentWidth: CGFloat = 0
+    @State private var viewportWidth: CGFloat = 0
+    private let compact: Bool
 
-    public init() {}
+    public init(compact: Bool = false) {
+        self.compact = compact
+    }
 
     public var body: some View {
         let snapshot = controller.snapshot
@@ -157,10 +209,11 @@ public struct SeatLayerPickerPriceLegend: View {
             bundle: controller.bundleInfo,
             seatView: controller.seatView
         )
-        if !immersive.panoramaChrome {
+        let categories = snapshot?.categories.filter { !$0.notForSale } ?? []
+        if !immersive.panoramaChrome, !categories.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 7) {
-                    ForEach(snapshot?.categories.filter { !$0.notForSale } ?? [], id: \.key) { category in
+                HStack(spacing: compact ? 5 : 6) {
+                    ForEach(categories, id: \.key) { category in
                         let selected = snapshot?.map.categoryFilter.contains(category.key) == true
                         Button {
                             runPickerAction(controller) {
@@ -170,19 +223,31 @@ public struct SeatLayerPickerPriceLegend: View {
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(Color(uiColor: UIColor(slHex: category.color) ?? .systemIndigo))
-                                    .frame(width: 10, height: 10)
+                                    .frame(width: compact ? 8 : 10, height: compact ? 8 : 10)
                                 Text(priceLabel(category, currency: snapshot?.currency ?? "USD"))
                                     .lineLimit(1)
                             }
-                            .seatLayerPickerFont(size: 11, weight: .heavy)
+                            .seatLayerPickerFont(size: compact ? 11 : 12, weight: .bold)
                             .foregroundColor(selected ? palette.onAccent : palette.text)
-                            .padding(.horizontal, 10)
-                            .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
-                            .background(selected ? palette.accent : palette.surface)
+                            .padding(.horizontal, compact ? 8 : 10)
+                            .frame(height: legendPaintHeight)
+                            .background(
+                                selected
+                                    ? palette.accent
+                                    : palette.surface.opacity(0.94)
+                            )
                             .overlay {
-                                Capsule().stroke(selected ? palette.accent : palette.divider, lineWidth: 1)
+                                Capsule().stroke(
+                                    selected ? palette.accent : palette.divider,
+                                    lineWidth: selected ? 1 : 0.75
+                                )
                             }
                             .clipShape(Capsule())
+                            .frame(
+                                minWidth: SeatLayerPickerSizeTokens.minimumHitTarget,
+                                minHeight: SeatLayerPickerSizeTokens.minimumHitTarget
+                            )
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .disabled(!controller.isReady)
@@ -190,10 +255,59 @@ public struct SeatLayerPickerPriceLegend: View {
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }
-                .padding(.horizontal, 10)
+                .padding(.leading, compact ? 8 : 12)
+                .padding(.trailing, 20)
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: SeatLayerPickerLegendContentWidthKey.self,
+                            value: geometry.size.width
+                        )
+                    }
+                }
             }
-            .padding(.vertical, 7)
-            .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.96)
+            .frame(height: SeatLayerPickerChromeMetrics.compactRailHeight)
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: SeatLayerPickerLegendViewportWidthKey.self,
+                        value: geometry.size.width
+                    )
+                }
+            }
+            .mask { legendOverflowMask }
+            .onPreferenceChange(SeatLayerPickerLegendContentWidthKey.self) {
+                contentWidth = $0
+            }
+            .onPreferenceChange(SeatLayerPickerLegendViewportWidthKey.self) {
+                viewportWidth = $0
+            }
+        }
+    }
+
+    private var legendPaintHeight: Double {
+        compact
+            ? SeatLayerPickerChromeMetrics.compactLegendPaintHeight
+            : SeatLayerPickerChromeMetrics.regularLegendPaintHeight
+    }
+
+    @ViewBuilder
+    private var legendOverflowMask: some View {
+        if contentWidth > viewportWidth + 1, viewportWidth > 0 {
+            GeometryReader { geometry in
+                let fade = min(18 / max(1, geometry.size.width), 0.35)
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: 1 - fade),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: layoutDirection == .rightToLeft ? .trailing : .leading,
+                    endPoint: layoutDirection == .rightToLeft ? .leading : .trailing
+                )
+            }
+        } else {
+            Rectangle().fill(Color.black)
         }
     }
 
@@ -212,8 +326,11 @@ public struct SeatLayerPickerBuyerViewControl: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    private let compact: Bool
 
-    public init() {}
+    public init(compact: Bool = false) {
+        self.compact = compact
+    }
 
     public var body: some View {
         let snapshot = controller.snapshot
@@ -237,10 +354,19 @@ public struct SeatLayerPickerBuyerViewControl: View {
                     runPickerAction(controller) { _ = try await controller.setBuyerView("venue3d") }
                 }
             }
-            .foregroundColor(palette.text)
-            .background(palette.surface)
-            .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
-            .clipShape(Capsule())
+            .frame(height: SeatLayerPickerChromeMetrics.compactRailHeight)
+            .background {
+                Capsule()
+                    .fill(palette.surface.opacity(0.94))
+                    .frame(height: viewModePaintHeight)
+                    .shadow(color: .black.opacity(0.14), radius: 4, y: 2)
+            }
+            .overlay {
+                Capsule()
+                    .stroke(palette.divider, lineWidth: 0.75)
+                    .frame(height: viewModePaintHeight)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.large)
         }
     }
 
@@ -252,15 +378,33 @@ public struct SeatLayerPickerBuyerViewControl: View {
         )
         return Button(action: action) {
             Text(label)
-                .seatLayerPickerFont(size: 12, weight: .heavy)
+                .seatLayerPickerFont(size: 12, weight: .bold)
                 .foregroundColor(selected ? palette.onAccent : palette.text)
-                .padding(.horizontal, 12)
-                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
-                .background(selected ? palette.accent : Color.clear)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .padding(.horizontal, compact ? 10 : 12)
+                .frame(
+                    minWidth: 46,
+                    minHeight: SeatLayerPickerSizeTokens.minimumHitTarget
+                )
+                .background {
+                    if selected {
+                        Capsule()
+                            .fill(palette.accent)
+                            .frame(height: viewModePaintHeight)
+                    }
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!controller.isReady)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var viewModePaintHeight: Double {
+        compact
+            ? SeatLayerPickerChromeMetrics.compactViewModePaintHeight
+            : SeatLayerPickerChromeMetrics.regularViewModePaintHeight
     }
 }
 
@@ -279,14 +423,26 @@ public struct SeatLayerPickerTestModeIndicator: View {
                 snapshot: controller.snapshot
             )
             Text(style.strings.text(.testMode))
-                .tracking(1.1)
-                .seatLayerPickerFont(size: 12, weight: .heavy)
-                .foregroundColor(palette.warning)
-                .padding(.horizontal, 12)
-                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
-                .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.92)
-                .overlay { Capsule().stroke(palette.warning, lineWidth: 1.5) }
+                .tracking(0.6)
+                .seatLayerPickerFont(size: 10, weight: .black)
+                .foregroundColor(palette.dark ? palette.warning : palette.text)
+                .padding(.horizontal, 8)
+                .frame(height: SeatLayerPickerChromeMetrics.compactTruthPaintHeight)
+                .background(
+                    palette.dark
+                        ? palette.surface.opacity(0.92)
+                        : palette.warning
+                )
+                .overlay {
+                    Capsule().stroke(
+                        palette.warning,
+                        lineWidth: palette.dark ? 1 : 0
+                    )
+                }
                 .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.16), radius: 4, y: 1)
+                .dynamicTypeSize(...DynamicTypeSize.large)
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(style.strings.text(.testModeDescription))
         }
     }
@@ -307,15 +463,18 @@ public struct SeatLayerPickerMapControls: View {
     private let topInset: Double
     private let bottomInset: Double
     private let edgeInset: Double
+    private let includeBuyerViewControl: Bool
 
     public init(
         topInset: Double = 10,
         bottomInset: Double = 10,
-        edgeInset: Double = 10
+        edgeInset: Double = 10,
+        includeBuyerViewControl: Bool = true
     ) {
         self.topInset = max(0, topInset)
         self.bottomInset = max(0, bottomInset)
         self.edgeInset = max(0, edgeInset)
+        self.includeBuyerViewControl = includeBuyerViewControl
     }
 
     public var body: some View {
@@ -327,14 +486,16 @@ public struct SeatLayerPickerMapControls: View {
         )
         if snapshot?.map.buyerView == "map", !availability.panoramaChrome {
             ZStack {
-                VStack {
-                    HStack {
+                if includeBuyerViewControl {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            SeatLayerPickerBuyerViewControl(compact: !usesWideLayout)
+                        }
+                        .padding(.top, topInset)
+                        .padding(.trailing, edgeInset)
                         Spacer()
-                        SeatLayerPickerBuyerViewControl()
                     }
-                    .padding(.top, topInset)
-                    .padding(.trailing, edgeInset)
-                    Spacer()
                 }
                 VStack {
                     Spacer()
@@ -405,14 +566,19 @@ public struct SeatLayerPickerMapControls: View {
                 .seatLayerPickerFont(size: 15, weight: .bold)
                 .foregroundColor(palette.text)
                 .frame(
-                    width: SeatLayerPickerSizeTokens.minimumHitTarget,
-                    height: SeatLayerPickerSizeTokens.minimumHitTarget
+                    width: SeatLayerPickerSizeTokens.mapControlSize,
+                    height: SeatLayerPickerSizeTokens.mapControlSize
                 )
                 .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.94)
                 .overlay {
                     Circle().stroke(palette.divider, lineWidth: 1)
                 }
                 .clipShape(Circle())
+                .frame(
+                    width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                    height: SeatLayerPickerSizeTokens.minimumHitTarget
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!controller.isReady || !enabled)
@@ -680,8 +846,11 @@ public struct SeatLayerPickerFloorStrip: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    private let compact: Bool
 
-    public init() {}
+    public init(compact: Bool = false) {
+        self.compact = compact
+    }
 
     public var body: some View {
         let floors = controller.snapshot?.map.floors ?? []
@@ -709,10 +878,9 @@ public struct SeatLayerPickerFloorStrip: View {
                         )
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, compact ? 8 : 12)
             }
-            .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.94)
+            .frame(height: SeatLayerPickerChromeMetrics.compactRailHeight)
         }
     }
 
@@ -726,15 +894,34 @@ public struct SeatLayerPickerFloorStrip: View {
             runPickerAction(controller) { _ = try await controller.setFloor(id) }
         } label: {
             Text(label)
-                .seatLayerPickerFont(size: 12, weight: .bold)
+                .seatLayerPickerFont(size: compact ? 11 : 12, weight: .bold)
                 .foregroundColor(selected ? palette.onAccent : palette.text)
-                .padding(.horizontal, 12)
-                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
-                .background(selected ? palette.accent : palette.surface)
+                .lineLimit(1)
+                .padding(.horizontal, compact ? 10 : 12)
+                .frame(height: floorPaintHeight)
+                .background(
+                    selected
+                        ? palette.accent
+                        : palette.surface.opacity(0.94)
+                )
+                .overlay {
+                    Capsule().stroke(
+                        selected ? palette.accent : palette.divider,
+                        lineWidth: selected ? 1 : 0.75
+                    )
+                }
                 .clipShape(Capsule())
+                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var floorPaintHeight: Double {
+        compact
+            ? SeatLayerPickerChromeMetrics.compactFloorPaintHeight
+            : SeatLayerPickerChromeMetrics.regularFloorPaintHeight
     }
 }
 
@@ -862,6 +1049,7 @@ public struct SeatLayerPickerAttribution: View {
             .seatLayerPickerFont(size: 9, weight: .semibold)
             .foregroundColor(palette.mutedText)
             .frame(minHeight: SeatLayerPickerSizeTokens.attributionHeight)
+            .dynamicTypeSize(...DynamicTypeSize.large)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(style.strings.text(.poweredBy))
         }

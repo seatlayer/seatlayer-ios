@@ -97,7 +97,10 @@ The final example additionally proves the production-shaped DesiPass host
 journey: real event discovery and details, mobile-origin short-lived buyer
 access, Book Now, the pinned hosted widget, Best Available, a two-seat Premium
 test hold with countdown, EUR 300 cart truth, and exactly one native checkout
-callback. Its README GIF is direct hosted evidence, not a fixture recording.
+callback. The README GIF now isolates only the real hosted picker through the
+active hold and expanded cart, then stops before Continue. Host navigation and
+the typed callback remain separately documented evidence; neither is presented
+as picker-owned UI.
 
 The available hosted events expose several seat-category prices but no
 buyer-selectable Adult/Child-style tiers for the same selected seat, and they

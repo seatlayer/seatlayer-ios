@@ -1,5 +1,11 @@
 # Native picker validation — final audit 2026-08-31
 
+> Visual correction notice: the earlier visual-parity approval and original
+> README animation description are superseded by the
+> [31 August visual correction report](native-picker-visual-correction-2026-08-31.md).
+> The behavioral, contract, and security evidence below remains applicable;
+> the new report and evidence pack are authoritative for visible composition.
+
 This is the release-quality evidence record for the local SeatLayer iOS
 `0.3.0` native-picker candidate. The immutable iOS commit/tree/archive hashes
 are recorded in the Android handoff after the local candidate commit is
@@ -91,8 +97,8 @@ The final example app also ran through the real DesiPass development host flow,
 using its launch-only API key to list assigned-seat events, load event details,
 and mint short-lived buyer access for the exact SeatLayer mobile origin. The
 key, buyer bearer, event key, and opaque hold identifier remained in memory and
-did not appear in source, the shared Xcode scheme, UI, logs, screenshots, or the
-GIF.
+did not appear in source, the shared Xcode scheme, UI, logs, screenshots, or
+published picker media.
 
 The recorded journey opened the buyer-visible event `prestige auditorium 25
 aug event` in Berlin, then Book Now launched the pinned hosted picker in test
@@ -156,9 +162,13 @@ physical-device production SLA.
 
 ## Evidence files
 
-- [Real DesiPass hosted buyer flow](media/desipass-picker-flow.gif) — 480×1038,
-  245 frames, 20.41 seconds, SHA-256
-  `d40d995175eb0a7f9a8180607952729eaa3f4fed10903d9d70cdad7aba370e65`
+- [Corrected hosted picker-only flow](media/desipass-picker-flow.gif) —
+  480×1039, 169 frames, 21.13 seconds, SHA-256
+  `688cb0ccca747b46f7292096657a58807efbc642e5df0e86920879b3a46a0200`.
+  It starts and ends inside the picker, shows a real controlled test hold, and
+  stops before Continue; it contains no host feed, detail page, or receipt.
+- [Visual correction evidence pack](evidence/native-picker-correction-2026-08-31/)
+  — comparison sheets, hosted recording, layout captures, manifest, and hashes.
 - [Final hosted hold](native-picker-ios-hosted-final-hold-2026-08-30.jpeg)
 - [Final hosted checkout](native-picker-ios-hosted-final-checkout-2026-08-30.jpeg)
 - [Targeted native 3D](native-picker-ios-targeted-3d-closure-2026-08-30.jpeg)
