@@ -85,8 +85,11 @@ public enum SeatLayerPickerAccessibility {
     public static func draft(
         from snapshot: SeatLayerPickerSnapshot?
     ) -> SeatLayerPickerAccessibilityDraft {
-        SeatLayerPickerAccessibilityDraft(
-            types: snapshot?.map.accessibilityFilter ?? [],
+        let reported = snapshot?.map.accessNeeds ?? []
+        let takeable = Set(reported.filter { $0.count > 0 }.map(\.key))
+        let selected = snapshot?.map.accessibilityFilter ?? []
+        return SeatLayerPickerAccessibilityDraft(
+            types: reported.isEmpty ? selected : selected.filter(takeable.contains),
             hideLimitedView: snapshot?.map.hideLimitedView ?? false,
             colorblindSafe: snapshot?.map.colorblindSafe ?? false
         )

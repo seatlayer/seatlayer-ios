@@ -19,8 +19,10 @@ public struct SeatLayerConfirmCard: View {
 /// Quantity and optional tier decision for a tapped general-admission area.
 public struct SeatLayerPickerGeneralAdmissionPrompt: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
+    @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let suppliedArea: GAArea?
     @State private var quantity = 1
     @State private var tierId: String?
@@ -31,7 +33,8 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
     }
 
     public var body: some View {
-        if let area = suppliedArea ?? controller.generalAdmissionCandidate {
+        if presentation.canMutateInventory,
+           let area = suppliedArea ?? controller.generalAdmissionCandidate {
             promptFrame(
                 title: area.label ?? style.strings.text(.generalAdmission),
                 subtitle: style.strings.text(
@@ -41,7 +44,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
             ) {
                 if let tiers = area.tiers, !tiers.isEmpty {
                     Text(style.strings.text(.ticketType))
-                        .font(.system(size: 12, weight: .bold))
+                        .seatLayerPickerFont(size: 12, weight: .bold)
                         .foregroundColor(paletteForPrompt.mutedText)
                     ScrollView {
                         SeatLayerPickerTicketTierChoices(
@@ -72,13 +75,13 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                                     areaId: area.id,
                                     quantity: quantity,
                                     tierId: .some(selected),
-                                    ttlMs: style.options.holdTtlMs
+                                    ttlMs: style.options.normalizedHoldTtlMs
                                 )
                             } else {
                                 _ = try await controller.holdGeneralAdmission(
                                     areaId: area.id,
                                     quantity: quantity,
-                                    ttlMs: style.options.holdTtlMs
+                                    ttlMs: style.options.normalizedHoldTtlMs
                                 )
                             }
                             controller.dismissGeneralAdmissionCandidate()
@@ -123,8 +126,8 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
     ) -> some View {
         let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
         VStack(alignment: .leading, spacing: 14) {
-            Text(title).font(.system(size: 19, weight: .heavy)).foregroundColor(palette.text)
-            Text(subtitle).font(.system(size: 13, weight: .semibold)).foregroundColor(palette.mutedText)
+            Text(title).seatLayerPickerFont(size: 19, weight: .heavy).foregroundColor(palette.text)
+            Text(subtitle).seatLayerPickerFont(size: 13, weight: .semibold).foregroundColor(palette.mutedText)
             content()
         }
         .padding(18)
@@ -143,7 +146,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
         return HStack(spacing: 16) {
             quantityButton("minus", enabled: quantity > minimum) { quantity -= 1 }
             Text("\(quantity)")
-                .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .seatLayerPickerFont(size: 24, weight: .heavy, design: .rounded)
                 .foregroundColor(palette.text)
                 .monospacedDigit()
                 .frame(minWidth: 64)
@@ -156,7 +159,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
         let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
         return Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold))
+                .seatLayerPickerFont(size: 15, weight: .bold)
                 .foregroundColor(palette.text)
                 .frame(width: 44, height: 44)
                 .background(palette.background)
@@ -192,7 +195,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
             .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
             .disabled(!confirmEnabled || busy)
         }
-        .font(.system(size: 14, weight: .heavy))
+        .seatLayerPickerFont(size: 14, weight: .heavy)
     }
 }
 
@@ -211,18 +214,19 @@ public struct SeatLayerPickerTablePrompt: View {
     }
 
     public var body: some View {
-        if let table = suppliedTable ?? presentation.pendingTable {
+        if presentation.canMutateInventory,
+           let table = suppliedTable ?? presentation.pendingTable {
             let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
             VStack(alignment: .leading, spacing: 14) {
                 Text(table.buyerFacingLabel)
-                    .font(.system(size: 19, weight: .heavy))
+                    .seatLayerPickerFont(size: 19, weight: .heavy)
                     .foregroundColor(palette.text)
                 Text(style.strings.text(.chooseGuests))
-                    .font(.system(size: 13, weight: .semibold))
+                    .seatLayerPickerFont(size: 13, weight: .semibold)
                     .foregroundColor(palette.mutedText)
                 Stepper(value: $quantity, in: bounds(for: table)) {
                     Text("\(quantity)")
-                        .font(.system(size: 22, weight: .heavy, design: .rounded))
+                        .seatLayerPickerFont(size: 22, weight: .heavy, design: .rounded)
                         .foregroundColor(palette.text)
                         .monospacedDigit()
                 }
@@ -240,7 +244,10 @@ public struct SeatLayerPickerTablePrompt: View {
                         Task { @MainActor in
                             defer { busy = false }
                             do {
-                                _ = try await controller.setTableQuantity(label: table.label, quantity: quantity)
+                                _ = try await presentation.setTableQuantity(
+                                    label: table.label,
+                                    quantity: quantity
+                                )
                                 presentation.confirmTable(table)
                             } catch let error as SeatLayerError { controller.record(error) }
                             catch { controller.record(.transport(error.localizedDescription)) }
@@ -252,7 +259,7 @@ public struct SeatLayerPickerTablePrompt: View {
                     .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
                     .disabled(busy)
                 }
-                .font(.system(size: 14, weight: .heavy))
+                .seatLayerPickerFont(size: 14, weight: .heavy)
             }
             .padding(18)
             .background(palette.surface)
@@ -278,11 +285,14 @@ public struct SeatLayerPickerTablePrompt: View {
 /// Best-available selection form for empty and expanded carts.
 public struct SeatLayerBestSeatsForm: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
+    @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var quantity = 2
     @State private var categoryKey: String?
     @State private var zoneId: String?
+    @State private var sessionId: String?
     @State private var busy = false
 
     public init() {}
@@ -291,51 +301,145 @@ public struct SeatLayerBestSeatsForm: View {
         if style.options.enableBestAvailable, controller.supports(command: "picker.bestAvailable") {
             let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
             VStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Stepper(value: $quantity, in: 1...max(1, controller.snapshot?.maxSelection ?? 10)) {
-                        Text("\(quantity)").monospacedDigit()
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 8) {
+                        categoryMenu(palette: palette)
+                        zoneMenu(palette: palette)
                     }
-                    .frame(minHeight: 44)
-                    Menu(categoryLabel) {
-                        Button(style.strings.text(.anyTicketType)) { categoryKey = nil }
-                        ForEach(controller.snapshot?.categories.filter { !$0.notForSale } ?? [], id: \.key) { category in
-                            Button(category.label) { categoryKey = category.key }
-                        }
+                } else {
+                    HStack(spacing: 8) {
+                        categoryMenu(palette: palette)
+                        zoneMenu(palette: palette)
                     }
-                    .frame(minHeight: 44)
                 }
-                Button {
-                    busy = true
-                    runPickerAction(controller) {
-                        defer { busy = false }
-                        _ = try await controller.bestAvailable(
-                            quantity: quantity,
-                            categoryKey: categoryKey,
-                            zoneId: zoneId,
-                            ttlMs: style.options.holdTtlMs
-                        )
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 8) {
+                        quantityStepper
+                        findSeatsButton(palette: palette)
                     }
-                } label: {
-                    HStack(spacing: 7) {
-                        if busy { ProgressView().tint(palette.onAccent) }
-                        Image(systemName: "sparkles")
-                        Text(style.strings.text(.bestSeats))
+                } else {
+                    HStack(spacing: 8) {
+                        quantityStepper
+                        findSeatsButton(palette: palette)
                     }
-                    .font(.system(size: 14, weight: .heavy))
-                    .foregroundColor(palette.onAccent)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(palette.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
                 }
-                .buttonStyle(.plain)
-                .disabled(busy || quantity < 1)
             }
+            .onAppear { adoptSession() }
+            .onChange(of: controller.snapshot?.sessionId) { _ in adoptSession() }
         }
+    }
+
+    private var maximum: Int {
+        max(1, controller.snapshot?.maxSelection ?? 10)
+    }
+
+    private var enabled: Bool {
+        presentation.canUseBestAvailable && !busy
+    }
+
+    private func categoryMenu(palette: SeatLayerPickerPalette) -> some View {
+        Menu {
+            Button(style.strings.text(.anyTicketType)) { categoryKey = nil }
+            ForEach(controller.snapshot?.categories.filter { !$0.notForSale } ?? [], id: \.key) { category in
+                Button(category.label) { categoryKey = category.key }
+            }
+        } label: {
+            pickerMenuLabel(categoryLabel, palette: palette)
+        }
+        .disabled(!enabled)
+        .frame(maxWidth: .infinity, minHeight: 44)
+    }
+
+    private func zoneMenu(palette: SeatLayerPickerPalette) -> some View {
+        Menu {
+            Button(style.strings.text(.anyVenueZone)) { zoneId = nil }
+            ForEach(controller.snapshot?.bestAvailableZones ?? [], id: \.id) { zone in
+                Button(zone.label) { zoneId = zone.id }
+            }
+        } label: {
+            pickerMenuLabel(zoneLabel, palette: palette)
+        }
+        .disabled(!enabled)
+        .frame(maxWidth: .infinity, minHeight: 44)
+    }
+
+    private var quantityStepper: some View {
+        Stepper(value: $quantity, in: 1...maximum) {
+            Text("\(quantity)").monospacedDigit()
+        }
+        .disabled(!enabled)
+        .frame(maxWidth: .infinity, minHeight: 44)
+    }
+
+    private func findSeatsButton(palette: SeatLayerPickerPalette) -> some View {
+        Button {
+            busy = true
+            runPickerAction(controller) {
+                defer { busy = false }
+                _ = try await controller.bestAvailable(
+                    quantity: quantity,
+                    categoryKey: categoryKey,
+                    zoneId: zoneId,
+                    ttlMs: style.options.normalizedHoldTtlMs
+                )
+            }
+        } label: {
+            HStack(spacing: 7) {
+                if busy { ProgressView().tint(palette.onAccent) }
+                Image(systemName: "sparkles")
+                Text(style.strings.findBestSeats(quantity))
+                    .lineLimit(2)
+            }
+            .seatLayerPickerFont(size: 14, weight: .heavy)
+            .foregroundColor(palette.onAccent)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .background(palette.accent)
+            .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled || quantity < 1)
     }
 
     private var categoryLabel: String {
         controller.snapshot?.categories.first { $0.key == categoryKey }?.label
             ?? style.strings.text(.anyTicketType)
+    }
+
+    private var zoneLabel: String {
+        controller.snapshot?.bestAvailableZones.first { $0.id == zoneId }?.label
+            ?? style.strings.text(.anyVenueZone)
+    }
+
+    private func pickerMenuLabel(
+        _ text: String,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        HStack(spacing: 5) {
+            Text(text).lineLimit(1)
+            Image(systemName: "chevron.down")
+                .seatLayerPickerFont(size: 10, weight: .bold)
+        }
+        .seatLayerPickerFont(size: 13, weight: .semibold)
+        .foregroundColor(enabled ? palette.text : palette.mutedText)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .padding(.horizontal, 10)
+        .background(palette.background)
+        .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+    }
+
+    private func adoptSession() {
+        guard sessionId != controller.snapshot?.sessionId else { return }
+        sessionId = controller.snapshot?.sessionId
+        quantity = min(2, maximum)
+        let filter = controller.snapshot?.map.categoryFilter ?? []
+        categoryKey = filter.count == 1
+            && controller.snapshot?.categories.contains { $0.key == filter[0] } == true
+            ? filter[0]
+            : nil
+        let focusedZone = controller.snapshot?.map.focusedSection?.zoneId
+        zoneId = controller.snapshot?.bestAvailableZones.contains { $0.id == focusedZone } == true
+            ? focusedZone
+            : nil
     }
 }
 
@@ -418,6 +522,7 @@ public struct SeatLayerPickerSectionNavigator: View {
 /// Native chrome over renderer-owned venue-3D pixels.
 public struct SeatLayerVenue3D: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
+    @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @State private var busy = false
     private let onBackToVenue: (() -> Void)?
@@ -483,7 +588,7 @@ public struct SeatLayerVenue3D: View {
                 VStack(spacing: 8) {
                     if let caption = caption(for: position.targetSeat) {
                         Text(caption)
-                            .font(.system(size: 12, weight: .bold))
+                            .seatLayerPickerFont(size: 12, weight: .bold)
                             .foregroundColor(palette.text)
                             .lineLimit(1)
                             .padding(.horizontal, 12)
@@ -599,9 +704,9 @@ public struct SeatLayerVenue3D: View {
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 14, weight: .bold))
+                Image(systemName: symbol).seatLayerPickerFont(size: 14, weight: .bold)
                 if labelled {
-                    Text(label).font(.system(size: 13, weight: .heavy)).lineLimit(1)
+                    Text(label).seatLayerPickerFont(size: 13, weight: .heavy).lineLimit(1)
                 }
             }
             .foregroundColor(palette.text)
@@ -655,7 +760,10 @@ public struct SeatLayerVenue3D: View {
                       bundle: controller.bundleInfo,
                       seatView: controller.seatView
                   ).seatViewAction else { return }
+            let seat = snapshot.map.view3DTargetSeat
+                ?? snapshot.selection.first { $0.id == seatId }
             _ = try await controller.openSeatView(seatId)
+            if let seat { presentation.recordSeatViewOpened(seat) }
         }
     }
 
@@ -738,11 +846,11 @@ public struct SeatLayerSeatViewChrome: View {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
                             if let title = wording.title {
-                                Text(title).font(.system(size: 14, weight: .heavy)).lineLimit(2)
+                                Text(title).seatLayerPickerFont(size: 14, weight: .heavy).lineLimit(2)
                             }
                             if let caption = wording.caption {
                                 Text(caption)
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .seatLayerPickerFont(size: 12, weight: .semibold)
                                     .foregroundColor(palette.mutedText)
                                     .lineLimit(2)
                             }
@@ -750,7 +858,7 @@ public struct SeatLayerSeatViewChrome: View {
                         Spacer(minLength: 0)
                         if let badge = wording.badge {
                             Text(badge)
-                                .font(.system(size: 12, weight: .heavy))
+                                .seatLayerPickerFont(size: 12, weight: .heavy)
                                 .foregroundColor(seatView.real ? palette.onAccent : palette.text)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -774,7 +882,7 @@ public struct SeatLayerSeatViewChrome: View {
                     .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
                     if showDragHint, let hint = wording.dragHint {
                         Text(hint)
-                            .font(.system(size: 12, weight: .semibold))
+                            .seatLayerPickerFont(size: 12, weight: .semibold)
                             .foregroundColor(palette.mutedText)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
@@ -818,26 +926,27 @@ public struct SeatLayerHoldLapseNotice: View {
             let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
             VStack(alignment: .leading, spacing: 9) {
                 Label(style.strings.text(.holdExpired), systemImage: "clock.badge.exclamationmark")
-                    .font(.system(size: 14, weight: .heavy))
+                    .seatLayerPickerFont(size: 14, weight: .heavy)
                     .foregroundColor(palette.text)
                 Text(recoveryCopy(lapse))
-                    .font(.system(size: 12, weight: .semibold))
+                    .seatLayerPickerFont(size: 12, weight: .semibold)
                     .foregroundColor(palette.mutedText)
                 HStack(spacing: 8) {
                     Button(style.strings.text(.dismiss)) { controller.dismissHoldLapse() }
+                        .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                     if !lapse.recoverableLabels.isEmpty {
                         Button(style.strings.text(.recoverSeats)) {
                             runPickerAction(controller) {
-                                _ = try await controller.reselectLapsedSeats(ttlMs: style.options.holdTtlMs)
+                                _ = try await controller.reselectLapsedSeats(ttlMs: style.options.normalizedHoldTtlMs)
                             }
                         }
                         .foregroundColor(palette.onAccent)
                         .padding(.horizontal, 12)
+                        .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                         .background(palette.accent)
                         .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
                     }
                 }
-                .frame(minHeight: 44)
             }
             .padding(12)
             .background(palette.surface)
@@ -869,10 +978,13 @@ public struct SeatLayerPickerEmptyView: View {
 
     public var body: some View {
         let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
+        let message = controller.snapshot?.event.salesClosed == true
+            ? style.strings.text(.salesClosed)
+            : style.strings.text(.noTicketsAvailable)
         VStack(spacing: 10) {
-            Image(systemName: "ticket.fill").font(.system(size: 24)).foregroundColor(palette.mutedText)
-            Text(style.strings.text(.noTicketsAvailable))
-                .font(.system(size: 14, weight: .bold))
+            Image(systemName: "ticket.fill").seatLayerPickerFont(size: 24).foregroundColor(palette.mutedText)
+            Text(message)
+                .seatLayerPickerFont(size: 14, weight: .bold)
                 .foregroundColor(palette.text)
                 .multilineTextAlignment(.center)
         }

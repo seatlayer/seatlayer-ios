@@ -304,6 +304,37 @@ final class BridgeClientTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 3)
     }
 
+    func testInvalidTimeoutsAreNormalizedBeforeNanosecondConversion() {
+        XCTAssertEqual(BridgeClient.normalizedTimeout(-1), BridgeClient.defaultTimeout)
+        XCTAssertEqual(BridgeClient.normalizedTimeout(.nan), BridgeClient.defaultTimeout)
+        XCTAssertEqual(BridgeClient.normalizedTimeout(.infinity), BridgeClient.defaultTimeout)
+        XCTAssertEqual(BridgeClient.normalizedTimeout(90_000), 86_400)
+        XCTAssertEqual(BridgeClient.normalizedTimeout(0.25), 0.25)
+    }
+
+    func testCancellingACommandRemovesItsPendingContinuation() async {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 30)
+        let task = Task { try await client.command("getSelection") }
+
+        for _ in 0..<20 where channel.sent.isEmpty {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertEqual(channel.sent.count, 1)
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("expected cancellation")
+        } catch is CancellationError {
+            // expected
+        } catch {
+            XCTFail("unexpected error \(error)")
+        }
+        let open = await client.openCommandCount
+        XCTAssertEqual(open, 0)
+    }
+
     /// A reply that arrives after its command already timed out must be
     /// DROPPED, not delivered — the continuation is gone and resuming it twice
     /// would trap.
@@ -390,6 +421,32 @@ final class BridgeClientTests: XCTestCase {
         let holdWatermark = await client.highestSequence(for: "hold.expired")
         XCTAssertEqual(selectionWatermark, 20)
         XCTAssertEqual(holdWatermark, 2)
+    }
+
+    func testEverySequenceLessEventIsFreshAndDoesNotSetAWatermark() async {
+        let client = BridgeClient(channel: FakeChannel(), timeout: 5)
+        let received = Received()
+        await client.onSignal { signal in
+            if case .event(let name, let payload, let sequence) = signal {
+                received.append((name, payload, sequence))
+            }
+        }
+
+        await client.ingest(Envelope(
+            kind: .evt,
+            type: "future.event",
+            payload: ["value": 1]
+        ))
+        await client.ingest(Envelope(
+            kind: .evt,
+            type: "future.event",
+            payload: ["value": 2]
+        ))
+
+        XCTAssertEqual(received.all.map { $0.1?["value"]?.intValue }, [1, 2])
+        XCTAssertEqual(received.all.map(\.2), [Int.min, Int.min])
+        let watermark = await client.highestSequence(for: "future.event")
+        XCTAssertNil(watermark)
     }
 
     func testHelloIsSurfacedAsItsOwnSignal() async {

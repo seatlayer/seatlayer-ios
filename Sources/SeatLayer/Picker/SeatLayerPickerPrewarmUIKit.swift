@@ -72,7 +72,7 @@ final class SeatLayerPickerPrewarmPool {
     }
 
     func prewarm(pageURL: URL, ttl: TimeInterval) async throws {
-        guard ttl.isFinite, ttl > 0 else {
+        guard let ttl = normalizedSeatLayerPickerPrewarmTTL(ttl) else {
             throw SeatLayerError.decoding("prewarm TTL must be a positive finite interval")
         }
         let now = Date().timeIntervalSinceReferenceDate
@@ -86,8 +86,7 @@ final class SeatLayerPickerPrewarmPool {
             try await hosted.host.waitUntilNavigationFinished()
 
         case .replace(let previousGeneration, let entry):
-            if let previousGeneration,
-               hosted?.generation == previousGeneration {
+            if previousGeneration != nil || hosted != nil {
                 hosted?.host.cancelPrewarm()
                 hosted = nil
             }
@@ -117,7 +116,12 @@ final class SeatLayerPickerPrewarmPool {
         let now = Date().timeIntervalSinceReferenceDate
         guard let generation = ledger.consume(pageURL: pageURL, now: now),
               let hosted,
-              hosted.generation == generation else { return nil }
+              hosted.generation == generation else {
+            // A page mismatch or an already-expired ledger entry must not leave
+            // a detached page alive until a later TTL callback.
+            cancel()
+            return nil
+        }
         self.hosted = nil
         expiryTask?.cancel()
         expiryTask = nil
@@ -126,10 +130,8 @@ final class SeatLayerPickerPrewarmPool {
     }
 
     func cancel() {
-        let generation = ledger.cancel()
-        if let generation, hosted?.generation == generation {
-            hosted?.host.cancelPrewarm()
-        }
+        _ = ledger.cancel()
+        hosted?.host.cancelPrewarm()
         hosted = nil
         expiryTask?.cancel()
         expiryTask = nil
@@ -148,7 +150,15 @@ final class SeatLayerPickerPrewarmPool {
             let generation = self.ledger.expire(
                 now: Date().timeIntervalSinceReferenceDate
             )
-            guard generation == entry.generation else { return }
+            guard generation == entry.generation else {
+                // Long finite TTLs sleep in bounded chunks so the nanosecond
+                // conversion cannot overflow and expiry is still eventually
+                // enforced.
+                if self.ledger.entry?.generation == entry.generation {
+                    self.scheduleExpiry(entry)
+                }
+                return
+            }
             if self.hosted?.generation == entry.generation {
                 self.hosted?.host.cancelPrewarm()
                 self.hosted = nil

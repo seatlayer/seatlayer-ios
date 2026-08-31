@@ -1,5 +1,31 @@
 import Foundation
 
+/// Renders one authoritative runtime amount in native picker chrome.
+/// A throwing or blank result falls back to the SDK's locale-aware formatter.
+public typealias SeatLayerPickerMoneyFormatter = @Sendable (
+    _ amount: Double,
+    _ currency: String
+) throws -> String
+
+/// Native-chrome money presentation. Inventory prices and totals remain
+/// runtime-authored; this changes formatting only.
+public struct SeatLayerPickerPricing: Sendable, Equatable {
+    public var formatter: SeatLayerPickerMoneyFormatter? {
+        didSet { formatterIdentity = formatter == nil ? nil : UUID() }
+    }
+
+    private var formatterIdentity: UUID?
+
+    public init(formatter: SeatLayerPickerMoneyFormatter? = nil) {
+        self.formatter = formatter
+        formatterIdentity = formatter == nil ? nil : UUID()
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.formatterIdentity == rhs.formatterIdentity
+    }
+}
+
 public enum SeatLayerPickerLayoutMode: String, Sendable, Equatable, CaseIterable {
     case adaptive
     case phone
@@ -25,6 +51,16 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     public var confirmCard: Bool
     public var holdPill: Bool
     public var attribution: Bool
+    public var venue3D: Bool
+    public var seatViewChrome: Bool
+    public var systemBars: Bool
+    /// Dense phone chrome keeps these controls in their native sheets by
+    /// default. Set the corresponding flag to expose the enabled control on
+    /// the map as well; the original `overview`, `zoom`, and `colorblind`
+    /// switches remain source-compatible master gates.
+    public var phoneOverview: Bool
+    public var phoneZoom: Bool
+    public var phoneColorblind: Bool
 
     public init(
         header: Bool = true,
@@ -42,7 +78,13 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
         dock: Bool = true,
         confirmCard: Bool = true,
         holdPill: Bool = true,
-        attribution: Bool = true
+        attribution: Bool = true,
+        venue3D: Bool = true,
+        seatViewChrome: Bool = true,
+        systemBars: Bool = true,
+        phoneOverview: Bool = false,
+        phoneZoom: Bool = false,
+        phoneColorblind: Bool = false
     ) {
         self.header = header
         self.priceLegend = priceLegend
@@ -60,7 +102,17 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
         self.confirmCard = confirmCard
         self.holdPill = holdPill
         self.attribution = attribution
+        self.venue3D = venue3D
+        self.seatViewChrome = seatViewChrome
+        self.systemBars = systemBars
+        self.phoneOverview = phoneOverview
+        self.phoneZoom = phoneZoom
+        self.phoneColorblind = phoneColorblind
     }
+
+    public func showsOverview(wide: Bool) -> Bool { overview && (wide || phoneOverview) }
+    public func showsZoom(wide: Bool) -> Bool { zoom && (wide || phoneZoom) }
+    public func showsColorblind(wide: Bool) -> Bool { colorblind && (wide || phoneColorblind) }
 }
 
 /// Runtime behaviour shared by the ready-made and headless picker surfaces.
@@ -81,6 +133,7 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
     public var announceHoldLapse: Bool
     public var haptics: Bool
     public var languages: [String]
+    public var pricing: SeatLayerPickerPricing?
 
     public init(
         layout: SeatLayerPickerLayoutMode = .adaptive,
@@ -98,7 +151,8 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         refreshOnResume: Bool = true,
         announceHoldLapse: Bool = true,
         haptics: Bool = true,
-        languages: [String] = []
+        languages: [String] = [],
+        pricing: SeatLayerPickerPricing? = nil
     ) {
         self.layout = layout
         self.chrome = chrome
@@ -116,6 +170,7 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         self.announceHoldLapse = announceHoldLapse
         self.haptics = haptics
         self.languages = languages
+        self.pricing = pricing
     }
 
     var bridgeConfig: [String: JSONValue] {
@@ -128,12 +183,40 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
             "hideEventDetails": .bool(hideEventDetails),
             "panelCollapsed": .bool(panelInitiallyCollapsed),
         ]
-        if let holdTtlMs { config["holdTtlMs"] = .int(holdTtlMs) }
-        if let initialHoldId { config["initialHoldId"] = .string(initialHoldId) }
-        if let max3DSeats { config["max3DSeats"] = .int(max3DSeats) }
-        if !languages.isEmpty {
-            config["languages"] = .array(languages.map(JSONValue.string))
+        if let normalizedHoldTtlMs { config["holdTtlMs"] = .int(normalizedHoldTtlMs) }
+        if let normalizedInitialHoldId { config["initialHoldId"] = .string(normalizedInitialHoldId) }
+        if let normalizedMax3DSeats { config["max3DSeats"] = .int(normalizedMax3DSeats) }
+        if !normalizedLanguages.isEmpty {
+            config["languages"] = .array(normalizedLanguages.map(JSONValue.string))
         }
         return config
+    }
+
+    var normalizedHoldTtlMs: Int? {
+        holdTtlMs.flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    private var normalizedInitialHoldId: String? {
+        guard let initialHoldId else { return nil }
+        let normalized = initialHoldId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private var normalizedMax3DSeats: Int? {
+        max3DSeats.flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    private var normalizedLanguages: [String] {
+        guard languages.count <= 64 else { return [] }
+        var seen: Set<String> = []
+        return languages.compactMap { language in
+            let normalized = language.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "_", with: "-")
+            let key = normalized.lowercased()
+            guard !normalized.isEmpty, normalized.count <= 128, seen.insert(key).inserted else {
+                return nil
+            }
+            return normalized
+        }
     }
 }

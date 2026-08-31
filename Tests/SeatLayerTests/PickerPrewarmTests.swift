@@ -54,4 +54,13 @@ final class PickerPrewarmTests: XCTestCase {
         // consumed by SeatLayerView.load(configuration:).
         XCTAssertEqual(Mirror(reflecting: ledger.entry!).children.count, 3)
     }
+
+    func testPrewarmTTLNormalizationRejectsInvalidAndBoundsHugeIntervals() {
+        XCTAssertNil(normalizedSeatLayerPickerPrewarmTTL(0))
+        XCTAssertNil(normalizedSeatLayerPickerPrewarmTTL(-1))
+        XCTAssertNil(normalizedSeatLayerPickerPrewarmTTL(.nan))
+        XCTAssertNil(normalizedSeatLayerPickerPrewarmTTL(.infinity))
+        XCTAssertEqual(normalizedSeatLayerPickerPrewarmTTL(30), 30)
+        XCTAssertEqual(normalizedSeatLayerPickerPrewarmTTL(.greatestFiniteMagnitude), 86_400)
+    }
 }

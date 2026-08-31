@@ -17,7 +17,10 @@ func decodeSeatLayerPickerSnapshot(_ value: JSONValue?) -> SeatLayerPickerSnapsh
     let cart = root["cart"]?.objectValue
     let hold = root["hold"]?.objectValue
     let access = root["access"]?.objectValue
-    let cartLines = decodeList(cart?["items"] ?? cart?["lines"], using: decodeCartLine)
+    let categories = decodeList(catalog?["categories"], using: decodeCategory)
+    let cartLines = decodeList(cart?["items"] ?? cart?["lines"]) {
+        decodeCartLine($0, categories: categories)
+    }
     let selected = decodeCodableList(selectionNode?["seats"], as: SelectedSeat.self)
     let lineTotal = cartLines.reduce(0) { $0 + $1.total }
 
@@ -27,7 +30,7 @@ func decodeSeatLayerPickerSnapshot(_ value: JSONValue?) -> SeatLayerPickerSnapsh
         revision: revision,
         event: event,
         branding: decodeBranding(root["branding"]),
-        categories: decodeList(catalog?["categories"], using: decodeCategory),
+        categories: categories,
         zones: decodeList(catalog?["zones"], using: decodeZone),
         sections: decodeList(catalog?["sections"], using: decodeSection),
         generalAdmissionAreas: decodeCodableList(catalog?["gaAreas"], as: GAArea.self),
@@ -57,14 +60,17 @@ func decodeSeatLayerPickerSnapshot(_ value: JSONValue?) -> SeatLayerPickerSnapsh
 }
 
 func decodeSeatLayerPickerCheckoutHandoff(
-    _ value: JSONValue?
+    _ value: JSONValue?,
+    categories: [SeatLayerPickerCategory] = []
 ) -> SeatLayerPickerCheckoutHandoff? {
     guard let item = value?.objectValue,
           let holdId = nonEmpty(item["holdId"]?.stringValue),
           let expiresAt = finiteDouble(item["expiresAt"]) else {
         return nil
     }
-    let lines = decodeList(item["lineItems"], using: decodeCartLine)
+    let lines = decodeList(item["lineItems"]) {
+        decodeCartLine($0, categories: categories)
+    }
     return SeatLayerPickerCheckoutHandoff(
         holdId: holdId,
         expiresAt: expiresAt,
@@ -153,13 +159,15 @@ private func decodeCategory(_ value: JSONValue) -> SeatLayerPickerCategory? {
     let tiers = decodeCodableList(item["tiers"], as: CategoryTier.self)
     let prices = tiers.map(\.price)
     let base = finiteDouble(item["price"]) ?? prices.first ?? 0
+    let reportedAvailability = exactInteger(item["available"])
     return SeatLayerPickerCategory(
         key: key,
         label: item["label"]?.stringValue ?? key,
         color: item["color"]?.stringValue ?? "#6e7bff",
         priceMin: finiteDouble(item["priceMin"]) ?? prices.min() ?? base,
         priceMax: finiteDouble(item["priceMax"]) ?? prices.max() ?? base,
-        available: exactInteger(item["available"]) ?? 0,
+        available: max(0, reportedAvailability ?? 0),
+        availabilityReported: reportedAvailability.map { $0 >= 0 } ?? false,
         notForSale: item["notForSale"]?.boolValue ?? false,
         tiers: tiers
     )
@@ -193,10 +201,19 @@ private func decodeSection(_ value: JSONValue) -> SeatLayerPickerSectionSummary?
     )
 }
 
-private func decodeCartLine(_ value: JSONValue) -> SeatLayerPickerCartLine? {
+private func decodeCartLine(
+    _ value: JSONValue,
+    categories: [SeatLayerPickerCategory]
+) -> SeatLayerPickerCartLine? {
     guard let item = value.objectValue,
           let label = nonEmpty(item["label"]?.stringValue) else { return nil }
     let objectId = item["objectId"]?.stringValue ?? label
+    let categoryKey = item["categoryKey"]?.stringValue ?? ""
+    let tierId = item["tierId"]?.stringValue
+    let tierName = nonEmpty(item["tierName"]?.stringValue) ?? categories
+        .first(where: { $0.key == categoryKey })?
+        .tiers.first(where: { $0.id == tierId })?
+        .name
     return SeatLayerPickerCartLine(
         lineKey: item["lineKey"]?.stringValue ?? item["key"]?.stringValue ?? objectId,
         label: label,
@@ -204,8 +221,9 @@ private func decodeCartLine(_ value: JSONValue) -> SeatLayerPickerCartLine? {
         displayType: item["displayType"]?.stringValue,
         objectId: objectId,
         objectType: item["objectType"]?.stringValue ?? "seat",
-        categoryKey: item["categoryKey"]?.stringValue ?? "",
-        tierId: item["tierId"]?.stringValue,
+        categoryKey: categoryKey,
+        tierId: tierId,
+        tierName: tierName,
         unitPrice: finiteDouble(item["unitPrice"]) ?? 0,
         currency: item["currency"]?.stringValue ?? "USD",
         quantity: exactInteger(item["quantity"]) ?? 1,

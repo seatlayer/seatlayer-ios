@@ -21,7 +21,7 @@
     { "concept": "nativeTheme", "ios": "SeatLayerPickerTheme", "semantics": "semantic native chrome roles" },
     { "concept": "mapTheme", "ios": "SeatLayerPickerMapTheme", "semantics": "approved renderer color roles" },
     { "concept": "behaviorAndVisibility", "ios": "SeatLayerPickerOptions / SeatLayerPickerChromeOptions", "semantics": "flow behavior and default chrome visibility" },
-    { "concept": "layout", "ios": "SeatLayerPickerLayout", "semantics": "phone, wide, or adaptive" },
+    { "concept": "layout", "ios": "SeatLayerPickerLayoutMode", "semantics": "phone, wide, or adaptive" },
     { "concept": "buyerCopy", "ios": "SeatLayerPickerStrings", "semantics": "37 canonical locales, plural rules, and host overrides" },
     { "concept": "partStyles", "ios": "SeatLayerPickerStyles / SeatLayerPickerPartStyle", "semantics": "visual modifiers that do not change behavior ownership" },
     { "concept": "wholePartReplacement", "ios": "SeatLayerPickerBuilders / SeatLayerPickerPartBuilder", "semantics": "synchronous replacement or wrapping of one canonical whole part" },
@@ -77,5 +77,5 @@
     "style",
     "defaultContent"
   ],
-  "fallbackRule": "An absent builder renders defaultContent. A builder receives defaultContent so it can wrap rather than duplicate the part. Replacing map must retain the scoped default map unless the host deliberately owns the one renderer instance."
+  "fallbackRule": "An absent or throwing builder renders defaultContent. A builder receives defaultContent so it can wrap rather than duplicate the part. Replacing map must retain the scoped default map unless the host deliberately owns the one renderer instance."
 }

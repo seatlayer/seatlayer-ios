@@ -48,12 +48,13 @@ func resolveSeatLayerPickerPalette(
     let brand = snapshot?.branding
 
     func role(_ explicit: String?, _ fallback: String) -> String {
-        explicit.flatMap(UIColor.init(slHex:)) != nil ? explicit! : fallback
+        guard let explicit, UIColor(slHex: explicit) != nil else { return fallback }
+        return explicit
     }
 
     func brandRole(_ explicit: String?, _ branded: String?, _ fallback: String) -> String {
-        if explicit.flatMap(UIColor.init(slHex:)) != nil { return explicit! }
-        if branded.flatMap(UIColor.init(slHex:)) != nil { return branded! }
+        if let explicit, UIColor(slHex: explicit) != nil { return explicit }
+        if let branded, UIColor(slHex: branded) != nil { return branded }
         return fallback
     }
 
@@ -80,19 +81,19 @@ func resolveSeatLayerPickerPalette(
     )
 
     return SeatLayerPickerPalette(
-        background: Color(uiColor: UIColor(slHex: background)!),
-        surface: Color(uiColor: UIColor(slHex: surface)!),
-        text: Color(uiColor: UIColor(slHex: text)!),
-        mutedText: Color(uiColor: UIColor(slHex: muted)!),
-        divider: Color(uiColor: UIColor(slHex: divider)!),
-        error: Color(uiColor: UIColor(slHex: error)!),
-        warning: Color(uiColor: UIColor(slHex: warning)!),
-        accent: Color(uiColor: UIColor(slHex: accent)!),
-        onAccent: Color(uiColor: UIColor(slHex: onAccent)!),
-        mapBackground: Color(uiColor: UIColor(slHex: mapBackground)!),
-        mapRowLabel: Color(uiColor: UIColor(slHex: mapRow)!),
-        mapText: Color(uiColor: UIColor(slHex: mapText)!),
-        mapSelection: Color(uiColor: UIColor(slHex: mapSelection)!),
+        background: Color(uiColor: UIColor(slHex: background) ?? .systemBackground),
+        surface: Color(uiColor: UIColor(slHex: surface) ?? .secondarySystemBackground),
+        text: Color(uiColor: UIColor(slHex: text) ?? .label),
+        mutedText: Color(uiColor: UIColor(slHex: muted) ?? .secondaryLabel),
+        divider: Color(uiColor: UIColor(slHex: divider) ?? .separator),
+        error: Color(uiColor: UIColor(slHex: error) ?? .systemRed),
+        warning: Color(uiColor: UIColor(slHex: warning) ?? .systemOrange),
+        accent: Color(uiColor: UIColor(slHex: accent) ?? .systemIndigo),
+        onAccent: Color(uiColor: UIColor(slHex: onAccent) ?? .white),
+        mapBackground: Color(uiColor: UIColor(slHex: mapBackground) ?? .systemBackground),
+        mapRowLabel: Color(uiColor: UIColor(slHex: mapRow) ?? .label),
+        mapText: Color(uiColor: UIColor(slHex: mapText) ?? .label),
+        mapSelection: Color(uiColor: UIColor(slHex: mapSelection) ?? .systemIndigo),
         mapTheme: SeatLayerPickerMapTheme(
             background: mapBackground,
             rowLabelColor: mapRow,
@@ -104,12 +105,20 @@ func resolveSeatLayerPickerPalette(
 }
 
 func seatLayerMoney(_ amount: Double, currency: String, locale: Locale = .current) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = currency
-    formatter.locale = locale
-    formatter.maximumFractionDigits = amount.rounded() == amount ? 0 : 2
-    return formatter.string(from: NSNumber(value: amount)) ?? "\(currency) \(amount)"
+    formatSeatLayerPickerMoney(amount, currency: currency, locale: locale, pricing: nil)
+}
+
+func seatLayerPickerMoney(
+    _ amount: Double,
+    currency: String,
+    style: SeatLayerPickerStyleEnvironment
+) -> String {
+    formatSeatLayerPickerMoney(
+        amount,
+        currency: currency,
+        locale: style.strings.resolvedLocale,
+        pricing: style.options.pricing
+    )
 }
 
 extension UIColor {

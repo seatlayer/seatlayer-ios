@@ -212,6 +212,7 @@ final class PickerContractFixtureTests: XCTestCase {
             objectType: fields["objectType"]?.stringValue ?? "",
             categoryKey: fields["categoryKey"]?.stringValue ?? "",
             tierId: fields["tierId"]?.stringValue,
+            tierName: fields["tierName"]?.stringValue,
             unitPrice: fields["unitPrice"]?.doubleValue ?? 0,
             currency: fields["currency"]?.stringValue ?? "",
             quantity: fields["quantity"]?.intValue ?? 1,

@@ -96,6 +96,12 @@ prompt → cart → confirmation → section → venue → host ladder. Call
 `updateAppearance(theme:themeMode:strings:styles:)` to change appearance
 without remounting the renderer or losing selection/camera state.
 
+`SeatLayerPickerCallbacks` exposes typed ready/load, selection/validity,
+hold/expiry, access, unavailable-object, close/error, theme, section, seat,
+seat-view, and Continue observations. The original one-argument
+`onHoldChanged` callback remains source compatible; `onHoldTransition` adds
+the optional hold/handoff lifecycle without changing that closure type.
+
 Applicable Adult/Child/Companion tiers render natively and are applied before
 confirmation, with the authoritative tier and price retained through cart and
 checkout. Capability-gated native 3D chrome supports authored targets,
@@ -145,7 +151,13 @@ SeatLayerPickerScope(options: options) { controller in
 For one-part customization, pass `SeatLayerPickerBuilders`; every builder gets
 the live snapshot/controller/presentation/style plus `defaultContent`, so it
 can wrap the canonical component. `SeatLayerPickerStyles` handles visual-only
-changes. Required test-mode and attribution truth cannot be suppressed.
+changes. If a builder is absent or throws, the canonical default renders.
+Required test-mode and attribution truth cannot be suppressed.
+
+`SeatLayerPickerChromeOptions` keeps the original Boolean `overview`, `zoom`,
+and `colorblind` master switches. Dense phone layouts keep those actions in
+native sheets by default; enable `phoneOverview`, `phoneZoom`, or
+`phoneColorblind` to duplicate an enabled master action directly on the map.
 
 UIKit apps that own all chrome use `SeatLayerPickerMapView` or
 `SeatLayerPickerMapViewController`, observe `pickerController.snapshot`, and
@@ -300,6 +312,13 @@ The validation-only `SEATLAYER_CLOSURE_FIXTURE=1` supplies authored
 Adult/Child, 3D target/neighbour, panorama, floor, and access states that the
 current hosted event lacks. `SEATLAYER_DEMO_WIDE=1` renders the wide
 composition; `SEATLAYER_DEMO_SKIP_CONFIRM=1` exposes its confirmed-cart rail.
+`SEATLAYER_DEMO_HOLD_AFTER_CONFIRM=1` creates an explicit picker-owned hold
+after native confirmation for lifecycle evidence.
+`SEATLAYER_CLOSURE_STATE` can be `loading`, `retryable-error`, `fatal-error`,
+`empty`, `sold-out`, `sales-closed`, `hold-countdown`, or `hold-lapsed`; the
+lapse state is delivered by a background/foreground reconciliation. Visual
+audit launches may also set `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
+and `SEATLAYER_DEMO_LONG_TEXT`.
 
 The current redacted journey evidence and exact runtime checksums are recorded
 in [native-picker validation](Docs/native-picker-validation-2026-08-30.md).
@@ -380,8 +399,8 @@ checkout.
   when choosing between native iOS, Flutter, React Native, and Android.
 - [Explore the 3D seating chart for web buyers](https://seatlayer.io/3d-seat-map/)
   as a separate browser capability when comparing the wider buyer experience.
-- [Point AI coding agents at the SeatLayer docs index](https://docs.seatlayer.io/llms.txt)
-  (`llms.txt`) for an agent-readable map of the documentation.
+- [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
+  (`llms.txt`) for a compact map of the documentation.
 
 ## SeatLayer SDK ecosystem
 

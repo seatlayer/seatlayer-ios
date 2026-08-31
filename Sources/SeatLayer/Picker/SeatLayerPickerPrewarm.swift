@@ -3,6 +3,14 @@ import Foundation
 /// How long an unused renderer host remains transferable by default.
 public let seatLayerPickerPrewarmDefaultTTL: TimeInterval = 30
 
+/// Detached page ownership is deliberately short lived. The upper bound also
+/// guarantees finite `Date` and `Task.sleep` arithmetic for untrusted host
+/// configuration.
+func normalizedSeatLayerPickerPrewarmTTL(_ ttl: TimeInterval) -> TimeInterval? {
+    guard ttl.isFinite, ttl > 0 else { return nil }
+    return min(ttl, 86_400)
+}
+
 public enum SeatLayerPickerPrewarmStatus: String, Sendable, Equatable, CaseIterable {
     case idle
     case loading

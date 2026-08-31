@@ -63,20 +63,26 @@
   ];
   var EVENTS = ['picker.snapshot', 'seatView.changed', 'telemetry.chartLoad', 'hold.expired'];
   var surface = document.getElementById('surface');
+  var fixtureState = new URLSearchParams(window.location.search).get('state') || 'ready';
   var seq = 0;
   var revision = 1;
   var buyerView = 'map';
   var targetId = null;
   var navigationMode = 'orbit';
   var tierId = 'adult';
-  var selected = true;
+  var selected = fixtureState !== 'empty'
+    && fixtureState !== 'sold-out'
+    && fixtureState !== 'sales-closed';
   var panorama = null;
   var activeFloorId = 'stalls';
   var accessibilityFilter = [];
   var hideLimitedView = false;
   var colorblindSafe = false;
   var rung = 'seats';
-  var hold = { active: false, expiresAt: null, ownership: null };
+  var hold = fixtureState === 'hold-countdown' || fixtureState === 'hold-lapsed'
+    ? { active: true, expiresAt: Date.now() + 300000, ownership: 'picker' }
+    : { active: false, expiresAt: null, ownership: null };
+  var lapseDelivered = false;
   var lastMutation = 'Protocol 2 fixture ready';
 
   var tiers = [
@@ -143,7 +149,8 @@
       revision: revision,
       event: {
         key: 'ev_ios_closure', name: 'Native picker closure fixture', mode: 'test',
-        currency: 'EUR', venue: 'SeatLayer Test Theatre', locale: 'en', salesClosed: false
+        currency: 'EUR', venue: 'SeatLayer Test Theatre', locale: 'en',
+        salesClosed: fixtureState === 'sales-closed'
       },
       branding: {
         brandName: 'SeatLayer', attributionRequired: true,
@@ -156,7 +163,8 @@
       catalog: {
         categories: [{
           key: 'gold', label: 'Gold', color: '#f2b84b', priceMin: 60,
-          priceMax: 100, available: 42, notForSale: false, tiers: tiers
+          priceMax: 100, available: fixtureState === 'sold-out' ? 0 : 42,
+          notForSale: false, tiers: tiers
         }],
         zones: [{ id: 'auditorium', label: 'Auditorium', color: '#6e7bff' }],
         sections: [{
@@ -361,7 +369,7 @@
         revision: revision,
         snapshot: checkoutSnapshot,
         handoff: {
-          holdId: 'hold_ios_closure_001', expiresAt: hold.expiresAt,
+          holdId: 'fixture-only-handoff', expiresAt: hold.expiresAt,
           currency: 'EUR', lineItems: lineItems(),
           total: selected ? tier().price : 0
         }
@@ -379,6 +387,29 @@
       mutation(frame);
       return;
     case 'picker.lifecycle':
+      if (fixtureState === 'hold-lapsed' && payload.state === 'foreground' && !lapseDelivered) {
+        lapseDelivered = true;
+        selected = false;
+        hold = { active: false, expiresAt: null, ownership: null };
+        revision += 1;
+        var lapsedSnapshot = snapshot();
+        event('picker.snapshot', { snapshot: lapsedSnapshot });
+        response(frame, {
+          revision: revision,
+          snapshot: lapsedSnapshot,
+          outcome: {
+            refreshed: true, holdLapsed: true,
+            lapsedLabels: ['A-12'], recoverableLabels: ['A-12'],
+            heldForMs: 300000, revision: revision
+          }
+        });
+        return;
+      }
+      response(frame, {
+        revision: revision, snapshot: snapshot(),
+        outcome: { refreshed: true, lost: [], holdLapsed: false, revision: revision }
+      });
+      return;
     case 'picker.refreshAvailability':
       response(frame, {
         revision: revision, snapshot: snapshot(),
@@ -406,6 +437,15 @@
       if (!frame || frame.sl !== 1) return;
       if (frame.k === 'init') {
         render();
+        if (fixtureState === 'retryable-error' || fixtureState === 'fatal-error') {
+          event('sys.error', {
+            code: fixtureState === 'fatal-error' ? 'bad_payload' : 'network_error',
+            message: fixtureState === 'fatal-error'
+              ? 'The controlled fixture rejected an invalid contract.'
+              : 'The controlled fixture could not reach inventory.'
+          });
+          return;
+        }
         var current = snapshot();
         event('picker.snapshot', { snapshot: current });
         event('telemetry.chartLoad', { trace: {
@@ -433,7 +473,7 @@
         capabilities: CAPABILITIES, commands: REQUIRED_COMMANDS, events: EVENTS
       }
     });
-  }, 0);
+  }, fixtureState === 'loading' ? 5000 : 0);
 }());
 </script>
 </body>

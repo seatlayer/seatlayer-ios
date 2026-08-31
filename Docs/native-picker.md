@@ -67,6 +67,14 @@ actions. `picker.presentationModel` exposes native-only prompt/cart/error
 state. Connect UIKit navigation to `await picker.handleBack()` and inspect
 `picker.nextBackStep` for a non-mutating preview.
 
+Pass `SeatLayerPickerCallbacks` for observations that do not own checkout.
+The callback surface covers ready/chart-load, selection and validity,
+hold/expiry, access expiry/unavailability, unavailable selected objects,
+close/error, resolved theme, focused section, confirmed selection/removal,
+seat-view opening, and Continue. `onHoldChanged` retains its original
+one-hold closure type; use additive `onHoldTransition` when the host also needs
+the optional checkout-handoff transition.
+
 Use `picker.updateAppearance(...)` for in-place theme, locale, or style
 changes. It keeps the controller, renderer, session, camera, selection, prompt,
 and cart mounted.
@@ -163,7 +171,9 @@ Every `SeatLayerPickerPartContext` contains `part`, `snapshot`, `controller`,
 `defaultContent`. An absent builder renders the default. Wrapping
 `defaultContent` preserves component behavior. A replacement for `.map` must
 retain the scoped default map unless the host deliberately takes ownership of
-the single renderer instance.
+the single renderer instance. Builder execution is fail-safe: an absent or
+throwing builder renders `defaultContent` rather than a blank or partially
+owned buyer surface.
 
 The canonical 25 parts are:
 
@@ -222,6 +232,13 @@ source lock.
 `SeatLayerPickerMapTheme` exposes only the approved renderer background, row
 label, text, and selection roles. `auto`, `light`, and `dark` are supported.
 
+`SeatLayerPickerChromeOptions` contains the default-part visibility gates.
+`overview`, `zoom`, and `colorblind` remain Boolean master gates for source
+compatibility. Compact layouts place these actions in their native sheets by
+default; `phoneOverview`, `phoneZoom`, and `phoneColorblind` opt an enabled
+master action into direct map chrome. Layout remains `adaptive`, `phone`, or
+`wide` through `SeatLayerPickerLayoutMode`.
+
 ## State ownership
 
 - `SeatLayerPickerSnapshot` is immutable runtime truth. Only strictly higher
@@ -234,8 +251,11 @@ label, text, and selection roles. `auto`, `light`, and `dark` are supported.
 - The newest unanswered seat is excluded from the confirmed cart. Confirming
   it is local because runtime selection already contains it; cancelling sends
   one exact-label deselection.
-- Back consumes exactly one layer in this order: prompt, cart, confirmation,
-  focused section, immersive venue, host close.
+- Back consumes exactly one native layer at a time: exclusive prompt, expanded
+  cart, pending confirmation, focused section, immersive venue, then host
+  close. Inside the runtime-owned immersive venue it resolves panorama →
+  target → 3D overview → map; the original pending decision remains unanswered
+  and returns after the map step.
 
 ## Layout and accessibility
 

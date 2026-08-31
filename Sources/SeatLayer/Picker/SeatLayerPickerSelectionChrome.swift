@@ -14,6 +14,7 @@ public enum SeatLayerPickerConfirmationAction: Sendable, Equatable {
 public struct SeatLayerPickerTicketTierChoices: View {
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let tiers: [CategoryTier]
     private let fallbackCurrency: String
     private let enabled: Bool
@@ -51,31 +52,13 @@ public struct SeatLayerPickerTicketTierChoices: View {
                 Button {
                     selection = tier.id
                 } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(selected ? palette.accent : palette.mutedText)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(tier.name)
-                                .font(.system(size: 14, weight: .heavy))
-                                .foregroundColor(palette.text)
-                            if let guidance {
-                                Text(guidance)
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(palette.mutedText)
-                                    .multilineTextAlignment(.leading)
-                            }
-                        }
-                        Spacer(minLength: 8)
-                        if let quote {
-                            Text(seatLayerMoney(
-                                quote.amount,
-                                currency: quote.currency ?? fallbackCurrency
-                            ))
-                            .font(.system(size: 13, weight: .heavy))
-                            .foregroundColor(palette.text)
-                        }
-                    }
+                    tierLabel(
+                        tier,
+                        selected: selected,
+                        guidance: guidance,
+                        quote: quote,
+                        palette: palette
+                    )
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -101,6 +84,79 @@ public struct SeatLayerPickerTicketTierChoices: View {
         .onChange(of: tierSignature) { _ in normalizeSelection() }
     }
 
+    @ViewBuilder
+    private func tierLabel(
+        _ tier: CategoryTier,
+        selected: Bool,
+        guidance: String?,
+        quote: SeatLayerPickerTierQuote?,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    tierSelectionImage(selected: selected, palette: palette)
+                    Text(tier.name)
+                        .seatLayerPickerFont(size: 14, weight: .heavy)
+                        .foregroundColor(palette.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let guidance {
+                    Text(guidance)
+                        .seatLayerPickerFont(size: 11, weight: .semibold)
+                        .foregroundColor(palette.mutedText)
+                        .multilineTextAlignment(.leading)
+                }
+                if let quote {
+                    tierPrice(quote, palette: palette)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        } else {
+            HStack(spacing: 10) {
+                tierSelectionImage(selected: selected, palette: palette)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tier.name)
+                        .seatLayerPickerFont(size: 14, weight: .heavy)
+                        .foregroundColor(palette.text)
+                    if let guidance {
+                        Text(guidance)
+                            .seatLayerPickerFont(size: 11, weight: .semibold)
+                            .foregroundColor(palette.mutedText)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                Spacer(minLength: 8)
+                if let quote { tierPrice(quote, palette: palette) }
+            }
+        }
+    }
+
+    private func tierSelectionImage(
+        selected: Bool,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+            .font(.system(
+                size: dynamicTypeSize.isAccessibilitySize ? 24 : 18,
+                weight: .semibold
+            ))
+            .foregroundColor(selected ? palette.accent : palette.mutedText)
+    }
+
+    private func tierPrice(
+        _ quote: SeatLayerPickerTierQuote,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        Text(seatLayerPickerMoney(
+            quote.amount,
+            currency: quote.currency ?? fallbackCurrency,
+            style: style
+        ))
+        .seatLayerPickerFont(size: 13, weight: .heavy)
+        .foregroundColor(palette.text)
+    }
+
     private var tierSignature: String { tiers.map(\.id).joined(separator: "\u{1f}") }
 
     private func normalizeSelection() {
@@ -116,7 +172,13 @@ public struct SeatLayerPickerTicketTierChoices: View {
         )
         return [
             tier.name,
-            quote.map { seatLayerMoney($0.amount, currency: $0.currency ?? fallbackCurrency) },
+            quote.map {
+                seatLayerPickerMoney(
+                    $0.amount,
+                    currency: $0.currency ?? fallbackCurrency,
+                    style: style
+                )
+            },
             guidance,
         ].compactMap { $0 }.joined(separator: " · ")
     }
@@ -146,9 +208,9 @@ private struct SeatLayerPickerConfirmationCard: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let seat: SelectedSeat
     let onAction: ((SeatLayerPickerConfirmationAction, SelectedSeat) -> Void)?
-    @State private var tierId: String?
     @State private var localBusy = false
 
     init(
@@ -157,7 +219,6 @@ private struct SeatLayerPickerConfirmationCard: View {
     ) {
         self.seat = seat
         self.onAction = onAction
-        _tierId = State(initialValue: seat.tierId ?? seat.tiers?.first?.id)
     }
 
     var body: some View {
@@ -169,119 +230,30 @@ private struct SeatLayerPickerConfirmationCard: View {
         )
         let category = snapshot?.categories.first { $0.key == seat.categoryKey }
         let categoryColor = Color(
-            uiColor: UIColor(slHex: category?.color ?? "") ?? UIColor(slHex: "#5B4B8A")!
+            uiColor: UIColor(slHex: category?.color ?? "") ?? .systemIndigo
         )
 
-        VStack(spacing: 0) {
-            identityRow(palette: palette)
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(categoryColor)
-                    .frame(width: 13, height: 13)
-                    .overlay { Circle().stroke(palette.text.opacity(0.28), lineWidth: 1) }
-                Text(category?.label ?? seat.categoryKey ?? style.strings.text(.ticket))
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundColor(palette.text)
-                    .lineLimit(1)
-                Spacer()
-                if let quote = selectedQuote {
-                    Text(seatLayerMoney(
-                        quote.amount,
-                        currency: quote.currency ?? snapshot?.currency ?? "USD"
-                    ))
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundColor(palette.text)
-                }
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                confirmationContent(
+                    palette: palette,
+                    categoryColor: categoryColor,
+                    categoryLabel: category?.label
+                        ?? seat.categoryKey
+                        ?? style.strings.text(.ticket),
+                    fallbackCurrency: snapshot?.currency ?? "USD"
+                )
+                .frame(maxHeight: .infinity)
+            } else {
+                confirmationContent(
+                    palette: palette,
+                    categoryColor: categoryColor,
+                    categoryLabel: category?.label
+                        ?? seat.categoryKey
+                        ?? style.strings.text(.ticket),
+                    fallbackCurrency: snapshot?.currency ?? "USD"
+                )
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 52)
-            .background(categoryColor.opacity(0.10))
-            .overlay(alignment: .top) { Rectangle().fill(palette.divider).frame(height: 1) }
-            .overlay(alignment: .bottom) { Rectangle().fill(palette.divider).frame(height: 1) }
-
-            VStack(alignment: .leading, spacing: 12) {
-                if let tiers = seat.tiers, tiers.count > 1 {
-                    Text(style.strings.text(.ticketType))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(palette.mutedText)
-                    SeatLayerPickerTicketTierChoices(
-                        tiers: tiers,
-                        fallbackCurrency: seat.currency ?? snapshot?.currency ?? "USD",
-                        selection: $tierId,
-                        enabled: !localBusy && !presentation.actionInFlight
-                    )
-                } else if let tier = seat.tiers?.first,
-                          let guidance = SeatLayerPickerTiering.guidance(
-                              for: tier,
-                              companionFallback: style.strings.text(.tierCompanionGuidance)
-                          ) {
-                    Text(guidance)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(palette.mutedText)
-                }
-
-                if seat.commercial?.restrictedView == true || seat.commercial?.obstructedView == true {
-                    notice(
-                        symbol: "eye.slash.fill",
-                        title: style.strings.text(.viewInformation),
-                        message: seat.commercial?.note ?? style.strings.text(.limitedViewNotice),
-                        color: palette.warning,
-                        palette: palette
-                    )
-                }
-                if seat.wheelchairSpaceType != nil ||
-                    seat.accessibility?.contains(where: { $0.lowercased().contains("wheelchair") }) == true {
-                    notice(
-                        symbol: "figure.roll",
-                        title: style.strings.text(.accessiblePlace),
-                        message: seat.wheelchairSpaceType == "no-seat"
-                            ? style.strings.text(.wheelchairSpaceNoFixedChair)
-                            : style.strings.text(.wheelchairAccessibleSeating),
-                        color: palette.accent,
-                        palette: palette
-                    )
-                }
-
-                inspectionActions(palette: palette)
-
-                HStack(spacing: 0) {
-                    Button {
-                        Task { @MainActor in
-                            localBusy = true
-                            let cancelled = await presentation.cancelPending()
-                            localBusy = false
-                            if cancelled { onAction?(.cancel, seat) }
-                        }
-                    } label: {
-                        Text(style.strings.text(.cancel))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .foregroundColor(palette.text)
-                    .background(palette.background)
-                    .disabled(localBusy || presentation.actionInFlight)
-                    .accessibilityLabel(style.strings.text(.cancel))
-                    .accessibilityIdentifier("seatlayer-confirm-cancel")
-
-                    Button {
-                        Task { @MainActor in await confirm() }
-                    } label: {
-                        HStack(spacing: 7) {
-                            if localBusy { ProgressView().tint(palette.onAccent) }
-                            Image(systemName: "checkmark")
-                            Text(style.strings.text(.select))
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .foregroundColor(palette.onAccent)
-                    .background(palette.accent)
-                    .disabled(localBusy || presentation.actionInFlight)
-                    .accessibilityLabel(style.strings.text(.select))
-                    .accessibilityIdentifier("seatlayer-confirm-select")
-                }
-                .font(.system(size: 14, weight: .heavy))
-                .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
-            }
-            .padding(16)
         }
         .background(palette.surface)
         .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.card, style: .continuous))
@@ -296,14 +268,168 @@ private struct SeatLayerPickerConfirmationCard: View {
         .accessibilityIdentifier("seatlayer-confirmation")
     }
 
+    private func confirmationContent(
+        palette: SeatLayerPickerPalette,
+        categoryColor: Color,
+        categoryLabel: String,
+        fallbackCurrency: String
+    ) -> some View {
+        VStack(spacing: 0) {
+            identityRow(palette: palette)
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(categoryColor)
+                    .frame(width: 13, height: 13)
+                    .overlay { Circle().stroke(palette.text.opacity(0.28), lineWidth: 1) }
+                Text(categoryLabel)
+                    .seatLayerPickerFont(size: 15, weight: .heavy)
+                    .foregroundColor(palette.text)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                Spacer()
+                if let quote = selectedQuote {
+                    Text(seatLayerPickerMoney(
+                        quote.amount,
+                        currency: quote.currency ?? fallbackCurrency,
+                        style: style
+                    ))
+                    .seatLayerPickerFont(size: 18, weight: .heavy)
+                    .foregroundColor(palette.text)
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 52)
+            .background(categoryColor.opacity(0.10))
+            .overlay(alignment: .top) { Rectangle().fill(palette.divider).frame(height: 1) }
+            .overlay(alignment: .bottom) { Rectangle().fill(palette.divider).frame(height: 1) }
+
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(.vertical, showsIndicators: true) {
+                    confirmationDetails(palette: palette, fallbackCurrency: fallbackCurrency)
+                        .padding(16)
+                }
+                confirmationActions(palette: palette)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+                    .padding(.top, 8)
+                    .background(palette.surface)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    confirmationDetails(palette: palette, fallbackCurrency: fallbackCurrency)
+                    confirmationActions(palette: palette)
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func confirmationDetails(
+        palette: SeatLayerPickerPalette,
+        fallbackCurrency: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let tiers = seat.tiers, tiers.count > 1 {
+                Text(style.strings.text(.ticketType))
+                    .seatLayerPickerFont(size: 12, weight: .bold)
+                    .foregroundColor(palette.mutedText)
+                SeatLayerPickerTicketTierChoices(
+                    tiers: tiers,
+                    fallbackCurrency: seat.currency ?? fallbackCurrency,
+                    selection: tierSelection,
+                    enabled: !localBusy && !presentation.actionInFlight
+                )
+            } else if let tier = seat.tiers?.first,
+                      let guidance = SeatLayerPickerTiering.guidance(
+                          for: tier,
+                          companionFallback: style.strings.text(.tierCompanionGuidance)
+                      ) {
+                Text(guidance)
+                    .seatLayerPickerFont(size: 12, weight: .semibold)
+                    .foregroundColor(palette.mutedText)
+            }
+
+            if seat.commercial?.restrictedView == true || seat.commercial?.obstructedView == true {
+                notice(
+                    symbol: "eye.slash.fill",
+                    title: style.strings.text(.viewInformation),
+                    message: seat.commercial?.note ?? style.strings.text(.limitedViewNotice),
+                    color: palette.warning,
+                    palette: palette
+                )
+            }
+            if seat.wheelchairSpaceType != nil ||
+                seat.accessibility?.contains(where: { $0.lowercased().contains("wheelchair") }) == true {
+                notice(
+                    symbol: "figure.roll",
+                    title: style.strings.text(.accessiblePlace),
+                    message: seat.wheelchairSpaceType == "no-seat"
+                        ? style.strings.text(.wheelchairSpaceNoFixedChair)
+                        : style.strings.text(.wheelchairAccessibleSeating),
+                    color: palette.accent,
+                    palette: palette
+                )
+            }
+
+            inspectionActions(palette: palette)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func confirmationActions(palette: SeatLayerPickerPalette) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                Task { @MainActor in
+                    localBusy = true
+                    let cancelled = await presentation.cancelPending()
+                    localBusy = false
+                    if cancelled { onAction?(.cancel, seat) }
+                }
+            } label: {
+                Text(style.strings.text(.cancel))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .foregroundColor(palette.text)
+            .background(palette.background)
+            .disabled(localBusy || presentation.actionInFlight)
+            .accessibilityLabel(style.strings.text(.cancel))
+            .accessibilityIdentifier("seatlayer-confirm-cancel")
+
+            Button {
+                Task { @MainActor in await confirm() }
+            } label: {
+                HStack(spacing: 7) {
+                    if localBusy { ProgressView().tint(palette.onAccent) }
+                    Image(systemName: "checkmark")
+                    Text(style.strings.text(.select))
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .foregroundColor(palette.onAccent)
+            .background(palette.accent)
+            .disabled(localBusy || presentation.actionInFlight)
+            .accessibilityLabel(style.strings.text(.select))
+            .accessibilityIdentifier("seatlayer-confirm-select")
+        }
+        .seatLayerPickerFont(size: 14, weight: .heavy)
+        .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+    }
+
     private var selectedQuote: SeatLayerPickerTierQuote? {
         SeatLayerPickerTiering.quote(
             for: seat,
-            preferred: tierId,
+            preferred: presentation.pendingTierId,
             fallbackCurrency: controller.snapshot?.currency
         )
     }
 
+    private var tierSelection: Binding<String?> {
+        Binding(
+            get: { presentation.pendingTierId },
+            set: { presentation.choosePendingTier($0) }
+        )
+    }
+
+    @ViewBuilder
     private func identityRow(palette: SeatLayerPickerPalette) -> some View {
         let values: [(String, String)] = [
             (style.strings.text(.section), seat.sectionLabel ?? ""),
@@ -316,30 +442,52 @@ private struct SeatLayerPickerConfirmationCard: View {
             ),
         ].filter { !$0.1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-        return HStack(spacing: 0) {
-            ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                VStack(spacing: 2) {
-                    Text(value.0.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(palette.mutedText)
-                    Text(value.1)
-                        .font(.system(size: 14, weight: .heavy))
-                        .foregroundColor(palette.text)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: SeatLayerPickerSizeTokens.confirmIdentityHeight)
-                if index != values.count - 1 {
-                    Rectangle()
-                        .fill(palette.divider)
-                        .frame(
-                            width: 1,
-                            height: SeatLayerPickerSizeTokens.confirmIdentityHeight
-                        )
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 0) {
+                ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(value.0.uppercased())
+                            .seatLayerPickerFont(size: 9, weight: .bold)
+                            .foregroundColor(palette.mutedText)
+                        Spacer(minLength: 8)
+                        Text(value.1)
+                            .seatLayerPickerFont(size: 14, weight: .heavy)
+                            .foregroundColor(palette.text)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+                    if index != values.count - 1 {
+                        Rectangle().fill(palette.divider).frame(height: 1)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(values.enumerated()), id: \.offset) { index, value in
+                    VStack(spacing: 2) {
+                        Text(value.0.uppercased())
+                            .seatLayerPickerFont(size: 9, weight: .bold)
+                            .foregroundColor(palette.mutedText)
+                        Text(value.1)
+                            .seatLayerPickerFont(size: 14, weight: .heavy)
+                            .foregroundColor(palette.text)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: SeatLayerPickerSizeTokens.confirmIdentityHeight)
+                    if index != values.count - 1 {
+                        Rectangle()
+                            .fill(palette.divider)
+                            .frame(
+                                width: 1,
+                                height: SeatLayerPickerSizeTokens.confirmIdentityHeight
+                            )
+                    }
+                }
+            }
+            .frame(minHeight: SeatLayerPickerSizeTokens.confirmIdentityHeight)
         }
-        .frame(height: SeatLayerPickerSizeTokens.confirmIdentityHeight)
     }
 
     @ViewBuilder
@@ -359,6 +507,7 @@ private struct SeatLayerPickerConfirmationCard: View {
                         palette: palette
                     ) {
                         _ = try await controller.openSeatView(seat.id)
+                        presentation.recordSeatViewOpened(seat)
                         onAction?(.seatView, seat)
                     }
                 }
@@ -369,6 +518,7 @@ private struct SeatLayerPickerConfirmationCard: View {
                         palette: palette
                     ) {
                         _ = try await controller.setBuyerView("venue3d", flyToSeatId: seat.id)
+                        presentation.recordSeatViewOpened(seat)
                         onAction?(.venue3D, seat)
                     }
                 }
@@ -392,8 +542,11 @@ private struct SeatLayerPickerConfirmationCard: View {
             }
         } label: {
             Label(title, systemImage: symbol)
-                .font(.system(size: 12, weight: .bold))
-                .frame(maxWidth: .infinity, minHeight: 42)
+                .seatLayerPickerFont(size: 12, weight: .bold)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: SeatLayerPickerSizeTokens.minimumHitTarget
+                )
                 .background(palette.background)
                 .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
         }
@@ -412,8 +565,8 @@ private struct SeatLayerPickerConfirmationCard: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: symbol).foregroundColor(color)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 12, weight: .bold))
-                Text(message).font(.system(size: 12)).foregroundColor(palette.mutedText)
+                Text(title).seatLayerPickerFont(size: 12, weight: .bold)
+                Text(message).seatLayerPickerFont(size: 12).foregroundColor(palette.mutedText)
             }
             Spacer(minLength: 0)
         }
@@ -427,6 +580,7 @@ private struct SeatLayerPickerConfirmationCard: View {
     private func confirm() async {
         localBusy = true
         defer { localBusy = false }
+        let tierId = presentation.pendingTierId
         guard await presentation.confirmPending(tierId: tierId) else { return }
         var confirmed = seat
         let quote = SeatLayerPickerTiering.quote(
@@ -465,17 +619,20 @@ public struct SeatLayerPickerCartSheet: View {
             SeatLayerPickerCartPeek(onCheckout: onCheckout)
             if presentation.cartSheetExpanded {
                 if presentation.confirmedCartLines.isEmpty {
+                    if presentation.removalUndo != nil {
+                        SeatLayerPickerCartUndoView()
+                    }
                     VStack(spacing: 10) {
                         Image(systemName: "ticket")
-                            .font(.system(size: 22, weight: .semibold))
+                            .seatLayerPickerFont(size: 22, weight: .semibold)
                             .foregroundColor(palette.mutedText)
                         Text(style.strings.text(.emptyTrayHint))
-                            .font(.system(size: 13, weight: .semibold))
+                            .seatLayerPickerFont(size: 13, weight: .semibold)
                             .foregroundColor(palette.mutedText)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: SeatLayerPickerSizeTokens.emptyTrayMaxHeight)
+                    .frame(minHeight: SeatLayerPickerSizeTokens.emptyTrayMaxHeight)
                     .padding(.horizontal, 22)
                     SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
                         .padding(.horizontal, 12)
@@ -533,7 +690,7 @@ public struct SeatLayerPickerCartPeek: View {
                     presentation.cartSheetExpanded.toggle()
                 } label: {
                     Text(summary)
-                        .font(.system(size: 13, weight: .heavy))
+                        .seatLayerPickerFont(size: 13, weight: .heavy)
                         .foregroundColor(palette.text)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -554,10 +711,13 @@ public struct SeatLayerPickerCartPeek: View {
                     presentation.cartSheetExpanded.toggle()
                 } label: {
                     Image(systemName: "chevron.up")
-                        .font(.system(size: 14, weight: .bold))
+                        .seatLayerPickerFont(size: 14, weight: .bold)
                         .foregroundColor(palette.mutedText)
                         .rotationEffect(.degrees(presentation.cartSheetExpanded ? 180 : 0))
-                        .frame(width: 32, height: 44)
+                        .frame(
+                            width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                            height: SeatLayerPickerSizeTokens.minimumHitTarget
+                        )
                 }
                 .buttonStyle(.plain)
                 .accessibilityHidden(true)
@@ -567,7 +727,7 @@ public struct SeatLayerPickerCartPeek: View {
             .padding(.top, 6)
             .accessibilityElement(children: .contain)
         }
-        .frame(height: SeatLayerPickerSizeTokens.peekHeight)
+        .frame(minHeight: SeatLayerPickerSizeTokens.peekHeight)
     }
 
     private var summary: String {
@@ -578,29 +738,32 @@ public struct SeatLayerPickerCartPeek: View {
                 .min()
             guard let cheapest else { return style.strings.text(.chooseTickets) }
             return style.strings.fromPrice(
-                seatLayerMoney(cheapest, currency: controller.snapshot?.currency ?? "USD")
+                seatLayerPickerMoney(
+                    cheapest,
+                    currency: controller.snapshot?.currency ?? "USD",
+                    style: style
+                )
             )
         }
         if presentation.cartSheetExpanded {
             return style.strings.ticketCount(presentation.confirmedTicketCount)
         }
-        return "\(style.strings.ticketCount(presentation.confirmedTicketCount)) · \(seatLayerMoney(presentation.confirmedCartTotal, currency: controller.snapshot?.currency ?? "USD"))"
+        let totals = presentation.confirmedCartTotals
+        guard !totals.hasMixedCurrencies, let currency = totals.currency else {
+            return style.strings.ticketCount(totals.quantity)
+        }
+        return "\(style.strings.ticketCount(totals.quantity)) · \(seatLayerPickerMoney(totals.total, currency: currency, style: style))"
     }
 
     private func compactContinue(palette: SeatLayerPickerPalette) -> some View {
         Button {
             beginCheckout()
         } label: {
-            Text(style.strings.continueWithTotal(
-                seatLayerMoney(
-                    presentation.confirmedCartTotal,
-                    currency: controller.snapshot?.currency ?? "USD"
-                )
-            ))
-            .font(.system(size: 13, weight: .heavy))
+            Text(checkoutTitle)
+            .seatLayerPickerFont(size: 13, weight: .heavy)
             .foregroundColor(palette.onAccent)
             .padding(.horizontal, 12)
-            .frame(height: 34)
+            .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
             .background(palette.accent)
             .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
         }
@@ -614,6 +777,16 @@ public struct SeatLayerPickerCartPeek: View {
     private func beginCheckout() {
         Task { @MainActor in _ = try? await presentation.checkout(using: onCheckout) }
     }
+
+    private var checkoutTitle: String {
+        let totals = presentation.confirmedCartTotals
+        guard !totals.hasMixedCurrencies, let currency = totals.currency else {
+            return style.strings.text(.continueWord)
+        }
+        return style.strings.continueWithTotal(
+            seatLayerPickerMoney(totals.total, currency: currency, style: style)
+        )
+    }
 }
 
 public struct SeatLayerPickerCartList: View {
@@ -625,15 +798,20 @@ public struct SeatLayerPickerCartList: View {
     public init() {}
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(denseRuns, id: \.id) { run in
-                    if run.isGroup {
-                        SeatLayerPickerCartRunView(run: run)
-                    } else if let line = run.members.first?.item {
-                        SeatLayerPickerCartLineView(line: line)
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(denseRuns, id: \.id) { run in
+                        if run.isGroup {
+                            SeatLayerPickerCartRunView(run: run)
+                        } else if let line = run.members.first?.item {
+                            SeatLayerPickerCartLineView(line: line)
+                        }
                     }
                 }
+            }
+            if presentation.removalUndo != nil {
+                SeatLayerPickerCartUndoView()
             }
         }
         .background(resolveSeatLayerPickerPalette(
@@ -650,8 +828,12 @@ public struct SeatLayerPickerCartList: View {
                 line,
                 selection: controller.snapshot?.selection ?? [],
                 display: .init(
-                    categoryLabel: category?.label,
-                    amountText: seatLayerMoney(line.total, currency: line.currency)
+                    categoryLabel: line.tierName ?? category?.label,
+                    amountText: seatLayerPickerMoney(
+                        line.total,
+                        currency: line.currency,
+                        style: style
+                    )
                 ),
                 held: controller.snapshot?.hold.active == true
             )
@@ -665,6 +847,8 @@ private struct SeatLayerPickerCartRunView: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var expanded = false
     let run: SeatLayerPickerDenseRun
 
     var body: some View {
@@ -673,43 +857,147 @@ private struct SeatLayerPickerCartRunView: View {
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
-        let ordered = SeatLayerPickerProjections.membersInSeatOrder(run)
-        HStack(spacing: 9) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(run.members.first?.section ?? "") · \(run.members.first?.rowLabel ?? "")")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(palette.text)
-                    .lineLimit(1)
-                Text("\(style.strings.ticketCount(run.quantity)) · \(run.seatsLabel)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(palette.mutedText)
-                    .lineLimit(1)
+        VStack(spacing: 0) {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 4) {
+                        expandButton(palette: palette)
+                        HStack(spacing: 8) {
+                            runAmount(palette: palette)
+                            Spacer(minLength: 4)
+                            removeButton(palette: palette)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 9) {
+                        expandButton(palette: palette)
+                        Spacer(minLength: 4)
+                        runAmount(palette: palette)
+                        removeButton(palette: palette)
+                    }
+                }
             }
-            Spacer(minLength: 4)
-            Text(seatLayerMoney(
-                run.total,
-                currency: run.members.first?.item.currency ?? controller.snapshot?.currency ?? "USD"
-            ))
-            .font(.system(size: 12, weight: .bold))
-            .foregroundColor(palette.text)
+            .padding(.horizontal, 12)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 4 : 0)
+            .frame(minHeight: SeatLayerPickerSizeTokens.denseLineHeight)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(palette.divider).frame(height: 1).padding(.leading, 30)
+            }
+            if expanded {
+                ForEach(orderedMembers, id: \.item.lineKey) { line in
+                    SeatLayerPickerCartLineView(line: line.item)
+                }
+            }
+        }
+    }
+
+    private var orderedMembers: [SeatLayerPickerDenseLine] {
+        SeatLayerPickerProjections.membersInSeatOrder(run)
+    }
+
+    private func expandButton(palette: SeatLayerPickerPalette) -> some View {
+        Button { expanded.toggle() } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "chevron.right")
+                    .seatLayerPickerFont(size: 11, weight: .bold)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(runHeading)
+                        .seatLayerPickerFont(size: 13, weight: .semibold)
+                        .foregroundColor(palette.text)
+                    Text(runSummary)
+                        .seatLayerPickerFont(size: 10, weight: .medium)
+                        .foregroundColor(palette.mutedText)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: SeatLayerPickerSizeTokens.minimumHitTarget, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(palette.mutedText)
+        .accessibilityLabel([runHeading, runSummary].filter { !$0.isEmpty }.joined(separator: ", "))
+        .accessibilityValue(expanded ? style.strings.text(.showLess) : style.strings.text(.moreTickets))
+    }
+
+    private func runAmount(palette: SeatLayerPickerPalette) -> some View {
+        Text(seatLayerPickerMoney(
+            run.total,
+            currency: run.members.first?.item.currency ?? controller.snapshot?.currency ?? "USD",
+            style: style
+        ))
+        .seatLayerPickerFont(size: 12, weight: .bold)
+        .foregroundColor(palette.text)
+    }
+
+    @ViewBuilder
+    private func removeButton(palette: SeatLayerPickerPalette) -> some View {
+        if presentation.canMutateCart, let first = orderedMembers.first {
             Button {
-                let labels = ordered.compactMap(\.identity.removalLabel)
-                runPickerAction(controller) { _ = try await controller.deselectObjects(labels) }
+                runPickerAction(controller) {
+                    try await presentation.removeCartLine(first.item.label)
+                }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(width: 36, height: 40)
+                    .seatLayerPickerFont(size: 12, weight: .bold)
+                    .frame(
+                        width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                        height: SeatLayerPickerSizeTokens.minimumHitTarget
+                    )
             }
             .buttonStyle(.plain)
             .foregroundColor(palette.mutedText)
-            .disabled(presentation.actionInFlight)
             .accessibilityLabel(style.strings.text(.removeSeat))
         }
-        .padding(.horizontal, 12)
-        .frame(minHeight: SeatLayerPickerSizeTokens.denseLineHeight)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(palette.divider).frame(height: 1).padding(.leading, 30)
+    }
+
+    private var runHeading: String {
+        [run.members.first?.section, run.members.first?.rowLabel]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private var runSummary: String {
+        [
+            style.strings.ticketCount(run.quantity),
+            run.seatsLabel,
+            run.members.first?.categoryLabel ?? "",
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: " · ")
+    }
+}
+
+private struct SeatLayerPickerCartUndoView: View {
+    @EnvironmentObject private var controller: SeatLayerPickerController
+    @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: controller.snapshot
+        )
+        HStack(spacing: 10) {
+            Text(style.strings.text(.seatRemoved))
+                .seatLayerPickerFont(size: 13, weight: .semibold)
+                .foregroundColor(palette.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(style.strings.text(.undo)) {
+                runPickerAction(controller) { _ = try await presentation.undoRemoval() }
+            }
+            .seatLayerPickerFont(size: 13, weight: .bold)
+            .foregroundColor(palette.accent)
+            .frame(minWidth: SeatLayerPickerSizeTokens.minimumHitTarget)
+            .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+            .disabled(!presentation.canUndoRemoval)
         }
+        .padding(.horizontal, 12)
+        .background(palette.surface)
+        .overlay(alignment: .top) { Rectangle().fill(palette.divider).frame(height: 1) }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("seatlayer-cart-undo")
     }
 }
 
@@ -718,6 +1006,7 @@ private struct SeatLayerPickerCartLineView: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let line: SeatLayerPickerCartLine
 
     var body: some View {
@@ -726,54 +1015,95 @@ private struct SeatLayerPickerCartLineView: View {
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    identity(palette: palette)
+                    HStack(spacing: 6) {
+                        tableQuantityControls(palette: palette)
+                        Spacer(minLength: 4)
+                        amount(palette: palette)
+                        removeButton(palette: palette)
+                    }
+                }
+            } else {
+                HStack(spacing: 9) {
+                    identity(palette: palette)
+                    Spacer(minLength: 4)
+                    tableQuantityControls(palette: palette)
+                    amount(palette: palette)
+                    removeButton(palette: palette)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 4 : 0)
+        .frame(minHeight: SeatLayerPickerSizeTokens.denseLineHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(palette.divider).frame(height: 1).padding(.leading, 30)
+        }
+    }
+
+    private func identity(palette: SeatLayerPickerPalette) -> some View {
         HStack(spacing: 9) {
             Circle()
                 .fill(categoryColor(fallback: palette.accent))
                 .frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 1) {
                 Text(line.displayLabel ?? line.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .seatLayerPickerFont(size: 13, weight: .semibold)
                     .foregroundColor(palette.text)
-                    .lineLimit(1)
-                let detail = [line.sectionLabel, line.rowLabel, line.seatNumber]
+                let detail = [ticketTypeLabel, line.sectionLabel, line.rowLabel, line.seatNumber]
                     .compactMap { $0 }
                     .filter { !$0.isEmpty }
                     .joined(separator: " · ")
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(.system(size: 10, weight: .medium))
+                        .seatLayerPickerFont(size: 10, weight: .medium)
                         .foregroundColor(palette.mutedText)
-                        .lineLimit(1)
                 }
             }
-            Spacer(minLength: 4)
-            if line.objectType == "table" {
+        }
+    }
+
+    @ViewBuilder
+    private func tableQuantityControls(palette: SeatLayerPickerPalette) -> some View {
+        if line.objectType == "table" {
+            if presentation.canMutateCart {
                 quantityButton("minus", delta: -1, palette: palette)
-                Text("\(line.quantity)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(palette.text)
-                    .frame(minWidth: 20)
+            }
+            Text("\(line.quantity)")
+                .seatLayerPickerFont(size: 12, weight: .bold)
+                .foregroundColor(palette.text)
+                .frame(minWidth: 20)
+            if presentation.canMutateCart {
                 quantityButton("plus", delta: 1, palette: palette)
             }
-            Text(seatLayerMoney(line.total, currency: line.currency))
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(palette.text)
+        }
+    }
+
+    private func amount(palette: SeatLayerPickerPalette) -> some View {
+        Text(seatLayerPickerMoney(line.total, currency: line.currency, style: style))
+            .seatLayerPickerFont(size: 12, weight: .bold)
+            .foregroundColor(palette.text)
+    }
+
+    @ViewBuilder
+    private func removeButton(palette: SeatLayerPickerPalette) -> some View {
+        if presentation.canMutateCart {
             Button {
-                runPickerAction(controller) { _ = try await controller.removeCartLine(label: line.label) }
+                runPickerAction(controller) { try await presentation.removeCartLine(line.label) }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .frame(width: 36, height: 40)
+                    .seatLayerPickerFont(size: 12, weight: .bold)
+                    .frame(
+                        width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                        height: SeatLayerPickerSizeTokens.minimumHitTarget
+                    )
             }
             .buttonStyle(.plain)
             .foregroundColor(palette.mutedText)
-            .disabled(presentation.actionInFlight)
             .accessibilityLabel(style.strings.text(.removeSeat))
-        }
-        .padding(.horizontal, 12)
-        .frame(minHeight: SeatLayerPickerSizeTokens.denseLineHeight)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(palette.divider).frame(height: 1).padding(.leading, 30)
         }
     }
 
@@ -786,12 +1116,15 @@ private struct SeatLayerPickerCartLineView: View {
             let next = line.quantity + delta
             guard next > 0 else { return }
             runPickerAction(controller) {
-                _ = try await controller.setTableQuantity(label: line.label, quantity: next)
+                _ = try await presentation.setTableQuantity(label: line.label, quantity: next)
             }
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 10, weight: .bold))
-                .frame(width: 28, height: 36)
+                .seatLayerPickerFont(size: 10, weight: .bold)
+                .frame(
+                    width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                    height: SeatLayerPickerSizeTokens.minimumHitTarget
+                )
         }
         .buttonStyle(.plain)
         .foregroundColor(palette.text)
@@ -803,6 +1136,11 @@ private struct SeatLayerPickerCartLineView: View {
             .first(where: { $0.key == line.categoryKey })?.color,
               let color = UIColor(slHex: raw) else { return fallback }
         return Color(uiColor: color)
+    }
+
+    private var ticketTypeLabel: String? {
+        line.tierName ?? controller.snapshot?.categories
+            .first(where: { $0.key == line.categoryKey })?.label
     }
 }
 
@@ -828,14 +1166,9 @@ public struct SeatLayerPickerCheckoutButton: View {
         } label: {
             HStack(spacing: 8) {
                 if presentation.actionInFlight { ProgressView().tint(palette.onAccent) }
-                Text(style.strings.continueWithTotal(
-                    seatLayerMoney(
-                        presentation.confirmedCartTotal,
-                        currency: controller.snapshot?.currency ?? "USD"
-                    )
-                ))
+                Text(checkoutTitle)
             }
-            .font(.system(size: 15, weight: .heavy))
+            .seatLayerPickerFont(size: 15, weight: .heavy)
             .foregroundColor(palette.onAccent)
             .frame(maxWidth: .infinity, minHeight: 48)
             .background(palette.accent)
@@ -844,6 +1177,16 @@ public struct SeatLayerPickerCheckoutButton: View {
         .buttonStyle(.plain)
         .disabled(!presentation.canCheckout)
         .accessibilityIdentifier("seatlayer-checkout")
+    }
+
+    private var checkoutTitle: String {
+        let totals = presentation.confirmedCartTotals
+        guard !totals.hasMixedCurrencies, let currency = totals.currency else {
+            return style.strings.text(.continueWord)
+        }
+        return style.strings.continueWithTotal(
+            seatLayerPickerMoney(totals.total, currency: currency, style: style)
+        )
     }
 }
 
@@ -864,13 +1207,16 @@ public struct SeatLayerPickerActionError: View {
             )
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.circle.fill")
-                Text(error.errorDescription ?? error.code)
-                    .font(.system(size: 12, weight: .semibold))
+                Text(seatLayerPickerBuyerErrorText(error, strings: style.strings))
+                    .seatLayerPickerFont(size: 12, weight: .semibold)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button {
                     presentation.dismissActionError()
                 } label: {
-                    Image(systemName: "xmark").frame(width: 32, height: 32)
+                    Image(systemName: "xmark").frame(
+                        width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                        height: SeatLayerPickerSizeTokens.minimumHitTarget
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(style.strings.text(.dismiss))

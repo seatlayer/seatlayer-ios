@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import SeatLayer
 
@@ -24,6 +25,40 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.canCheckout)
     }
 
+    func testSalesClosureDisablesCheckoutPromptsAndNewInventoryMutation() async {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.bestAvailable", "picker.setTableQuantity"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["A-1"],
+            salesClosed: true
+        ))
+
+        XCTAssertEqual(presentation.confirmedCartLines.map(\.label), ["A-1"])
+        XCTAssertFalse(presentation.canCheckout)
+        XCTAssertFalse(presentation.canUseBestAvailable)
+        controller.accept(generalAdmissionCandidate: GAArea(id: "ga-1", label: "Standing"))
+        XCTAssertNil(presentation.activePrompt)
+        do {
+            _ = try await presentation.setTableQuantity(label: "Table 1", quantity: 4)
+            XCTFail("sales-closed table mutation should fail")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "sales_closed")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        let calls = await transport.recordedCalls()
+        XCTAssertTrue(calls.isEmpty)
+    }
+
     func testTierMutationPrecedesLocalConfirmationAndUpdatesCartTruth() async throws {
         let tiers: [JSONValue] = [
             ["id": "adult", "name": "Adult", "price": 100, "currency": "EUR"],
@@ -32,7 +67,7 @@ final class PickerPresentationTests: XCTestCase {
         let transport = PresentationTransportSpy(
             responses: [
                 "picker.setSeatTier": ["snapshot": snapshot(
-                    revision: 2,
+                    revision: 3,
                     labels: ["G-1"],
                     seatPrice: 60,
                     tierId: "child",
@@ -45,6 +80,8 @@ final class PickerPresentationTests: XCTestCase {
             commands: ["picker.setSeatTier"]
         )
         let presentation = SeatLayerPickerPresentationModel(controller: controller)
+        var selected: [SelectedSeat] = []
+        let selectionCancellable = presentation.seatSelections.sink { selected.append($0) }
         controller.accept(snapshot: snapshot(
             revision: 1,
             labels: ["G-1"],
@@ -54,13 +91,33 @@ final class PickerPresentationTests: XCTestCase {
         ))
 
         XCTAssertEqual(presentation.pendingSeat?.tierId, "adult")
-        let confirmed = await presentation.confirmPending(tierId: "child")
+        XCTAssertEqual(presentation.pendingTierId, "adult")
+        presentation.choosePendingTier("child")
+        // Panorama/3D state can advance the authoritative snapshot while the
+        // unanswered confirmation view is temporarily absent. The local tier
+        // decision must survive that renderer-owned inspection round trip.
+        controller.accept(snapshot: snapshot(
+            revision: 2,
+            labels: ["G-1"],
+            buyerView: "venue3d",
+            seatPrice: 100,
+            tierId: "adult",
+            tiers: tiers
+        ))
+        XCTAssertEqual(presentation.pendingTierId, "child")
+        let callsBeforeConfirmation = await transport.recordedCalls()
+        XCTAssertTrue(callsBeforeConfirmation.isEmpty)
+
+        let confirmed = await presentation.confirmPending(tierId: nil)
         XCTAssertTrue(confirmed)
         XCTAssertNil(presentation.pendingSeat)
         XCTAssertEqual(presentation.confirmedCartLines.first?.tierId, "child")
         XCTAssertEqual(presentation.confirmedCartLines.first?.unitPrice, 60)
         XCTAssertEqual(presentation.selectionFlight?.seatId, "seat-1")
         XCTAssertEqual(presentation.selectionFlight?.label, "G-1")
+        XCTAssertEqual(selected.first?.tierId, "child")
+        XCTAssertEqual(selected.first?.price, 60)
+        _ = selectionCancellable
 
         let calls = await transport.recordedCalls()
         XCTAssertEqual(calls.map(\.name), ["picker.setSeatTier"])
@@ -81,6 +138,8 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.canCheckout)
 
         var callbackCount = 0
+        var continued: [SeatLayerPickerCheckoutHandoff] = []
+        let continueCancellable = presentation.checkoutContinuations.sink { continued.append($0) }
         let handler: SeatLayerPickerCheckoutHandler = { _ in
             callbackCount += 1
             try await Task.sleep(nanoseconds: 20_000_000)
@@ -92,9 +151,178 @@ final class PickerPresentationTests: XCTestCase {
 
         XCTAssertEqual(handoffs.map(\.holdId), ["opaque-test-hold", "opaque-test-hold"])
         XCTAssertEqual(callbackCount, 1)
+        XCTAssertEqual(continued.map(\.holdId), ["opaque-test-hold"])
         XCTAssertEqual(calls.map(\.name), ["picker.continue"])
         XCTAssertEqual(presentation.checkoutHandoff?.holdId, "opaque-test-hold")
         XCTAssertFalse(presentation.canCheckout)
+        _ = continueCancellable
+    }
+
+    func testRemovalInspectionAndClosePublishOnlyAcceptedNativeActions() async throws {
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.removeCartLine": ["snapshot": snapshot(revision: 2, labels: [])],
+                "picker.abort": [:],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.removeCartLine", "picker.abort"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        let seat = try XCTUnwrap(controller.snapshot?.selection.first)
+        var removals: [String] = []
+        var inspections: [SelectedSeat] = []
+        var closures: [SeatLayerPickerCloseReason] = []
+        var cancellables: Set<AnyCancellable> = []
+        presentation.seatRemovals.sink { removals.append($0) }.store(in: &cancellables)
+        presentation.seatViewOpenings.sink { inspections.append($0) }.store(in: &cancellables)
+        presentation.closures.sink { closures.append($0) }.store(in: &cancellables)
+
+        try await presentation.removeCartLine("A-1")
+        presentation.recordSeatViewOpened(seat)
+        var hostCloseCount = 0
+        await presentation.close(using: { hostCloseCount += 1 }, reason: .systemBack)
+        await presentation.close(using: { hostCloseCount += 1 }, reason: .programmatic)
+
+        XCTAssertEqual(removals, ["A-1"])
+        XCTAssertEqual(inspections.map(\.label), ["A-1"])
+        XCTAssertEqual(closures, [.systemBack])
+        XCTAssertEqual(hostCloseCount, 1)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), [
+            "picker.removeCartLine", "picker.abort",
+        ])
+    }
+
+    func testSuccessfulRemovalOffersExactSameSessionUndo() async throws {
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.removeCartLine": ["snapshot": snapshot(revision: 2, labels: [])],
+                "picker.selectObjects": ["snapshot": snapshot(revision: 3, labels: ["A-1"])],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.removeCartLine", "picker.selectObjects"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        controller.record(.bridge(.init(code: "sold_out", message: "stale attempt")))
+        XCTAssertEqual(presentation.lastActionError?.code, "sold_out")
+
+        try await presentation.removeCartLine("A-1")
+        XCTAssertNil(presentation.lastActionError)
+        XCTAssertEqual(presentation.removalUndo?.sessionId, "session-test")
+        XCTAssertEqual(presentation.removalUndo?.labels, ["A-1"])
+        XCTAssertTrue(presentation.canUndoRemoval)
+
+        let didUndo = try await presentation.undoRemoval()
+        XCTAssertTrue(didUndo)
+        XCTAssertNil(presentation.removalUndo)
+        XCTAssertEqual(controller.snapshot?.cartLines.map(\.label), ["A-1"])
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.removeCartLine", "picker.selectObjects"])
+        XCTAssertEqual(calls.last?.payload, ["objects": ["A-1"]])
+    }
+
+    func testUndoRestoresTheRuntimeAcceptedTicketTierBeforeClearingUndo() async throws {
+        let tiers: [JSONValue] = [
+            ["id": "adult", "name": "Adult", "price": 100, "currency": "EUR"],
+            ["id": "child", "name": "Child", "price": 60, "currency": "EUR"],
+        ]
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.removeCartLine": ["snapshot": snapshot(revision: 2, labels: [])],
+                "picker.selectObjects": ["snapshot": snapshot(
+                    revision: 3,
+                    labels: ["A-1"],
+                    seatPrice: 100,
+                    tierId: "adult",
+                    tiers: tiers
+                )],
+                "picker.setSeatTier": ["snapshot": snapshot(
+                    revision: 4,
+                    labels: ["A-1"],
+                    seatPrice: 60,
+                    tierId: "child",
+                    tiers: tiers
+                )],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.removeCartLine", "picker.selectObjects", "picker.setSeatTier"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["A-1"],
+            seatPrice: 60,
+            tierId: "child",
+            tiers: tiers
+        ))
+
+        try await presentation.removeCartLine("A-1")
+        let didUndo = try await presentation.undoRemoval()
+        XCTAssertTrue(didUndo)
+        XCTAssertNil(presentation.removalUndo)
+        XCTAssertEqual(controller.snapshot?.cartLines.first?.tierId, "child")
+        XCTAssertEqual(controller.snapshot?.cartLines.first?.unitPrice, 60)
+
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), [
+            "picker.removeCartLine", "picker.selectObjects", "picker.setSeatTier",
+        ])
+        XCTAssertEqual(calls.last?.payload, ["seatId": "seat-1", "tierId": "child"])
+    }
+
+    func testReadOnlyAndHostOwnedCartsRejectNativeMutationBeforeTransport() async {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: ["picker.removeCartLine"])
+        let readOnly = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(readOnly: true, confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        XCTAssertFalse(readOnly.canMutateCart)
+        do {
+            try await readOnly.removeCartLine("A-1")
+            XCTFail("read-only mutation should fail")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "read_only")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+
+        var hostOwnedRaw = snapshot(revision: 2, labels: ["A-1"]).objectValue ?? [:]
+        hostOwnedRaw["hold"] = ["active": true, "ownership": "host"]
+        controller.accept(snapshot: .object(hostOwnedRaw))
+        let hostOwned = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        XCTAssertFalse(hostOwned.canMutateCart)
+        do {
+            try await hostOwned.removeCartLine("A-1")
+            XCTFail("host-owned mutation should fail")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "hold_owned_by_host")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        let calls = await transport.recordedCalls()
+        XCTAssertTrue(calls.isEmpty)
     }
 
     func testHostRejectionReleasesTheExactHandoffAndDoesNotRetainIt() async {
@@ -113,6 +341,8 @@ final class PickerPresentationTests: XCTestCase {
             options: .init(confirmSelection: false)
         )
         controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        var continued: [SeatLayerPickerCheckoutHandoff] = []
+        let continueCancellable = presentation.checkoutContinuations.sink { continued.append($0) }
 
         do {
             _ = try await presentation.checkout { _ in throw HostDeclinedCheckout.example }
@@ -125,9 +355,11 @@ final class PickerPresentationTests: XCTestCase {
 
         XCTAssertNil(presentation.checkoutHandoff)
         XCTAssertFalse(presentation.actionInFlight)
+        XCTAssertEqual(continued.map(\.holdId), ["opaque-test-hold"])
         let calls = await transport.recordedCalls()
         XCTAssertEqual(calls.map(\.name), ["picker.continue", "picker.rejectHandoff"])
         XCTAssertEqual(calls.last?.payload, ["holdId": "opaque-test-hold"])
+        _ = continueCancellable
     }
 
     func testBackConsumesPromptCartConfirmation3DTargetOverviewThenHost() async {
@@ -278,7 +510,8 @@ final class PickerPresentationTests: XCTestCase {
         mapAdditions: [String: JSONValue] = [:],
         seatPrice: Int = 25,
         tierId: String? = nil,
-        tiers: [JSONValue]? = nil
+        tiers: [JSONValue]? = nil,
+        salesClosed: Bool = false
     ) -> JSONValue {
         let seats: [JSONValue] = labels.enumerated().map { index, label in
             var seat: [String: JSONValue] = [
@@ -323,6 +556,7 @@ final class PickerPresentationTests: XCTestCase {
                 "name": "Opening Night",
                 "mode": "test",
                 "currency": "EUR",
+                "salesClosed": .bool(salesClosed),
             ],
             "features": ["venue3d": true],
             "map": .object(map),

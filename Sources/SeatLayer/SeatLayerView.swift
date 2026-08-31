@@ -38,12 +38,13 @@ public final class SeatLayerView: UIView {
     private var client: BridgeClient!
     private var configuration: SeatLayerConfiguration?
     private var channel: WebViewChannel?
-    private var readyContinuations: [CheckedContinuation<ReadyInfo, Error>] = []
+    private var readyContinuations: [UUID: CheckedContinuation<ReadyInfo, Error>] = [:]
     private var handshakeTimeoutTask: Task<Void, Never>?
     private var hasFinished = false
     private var allowedPageURL: URL?
     private let bridgeProfile: SeatLayerBridgeProfile
     private weak var pickerController: SeatLayerPickerController?
+    private var runtimeOwner: UUID?
     private var canConsumePrewarmedPage = false
 
     // MARK: - Init
@@ -51,6 +52,7 @@ public final class SeatLayerView: UIView {
     public override init(frame: CGRect) {
         bridgeProfile = .raw
         pickerController = nil
+        runtimeOwner = nil
         super.init(frame: frame)
         setUp()
     }
@@ -58,6 +60,7 @@ public final class SeatLayerView: UIView {
     public required init?(coder: NSCoder) {
         bridgeProfile = .raw
         pickerController = nil
+        runtimeOwner = nil
         super.init(coder: coder)
         setUp()
     }
@@ -70,6 +73,7 @@ public final class SeatLayerView: UIView {
     ) {
         self.bridgeProfile = bridgeProfile
         self.pickerController = pickerController
+        self.runtimeOwner = nil
         super.init(frame: frame)
         canConsumePrewarmedPage = prewarmedHost != nil
         setUp(prewarmedHost: prewarmedHost)
@@ -126,12 +130,23 @@ public final class SeatLayerView: UIView {
     /// reports ready, and `.bridge` when the chart fails to render.
     @discardableResult
     public func load(_ configuration: SeatLayerConfiguration) async throws -> ReadyInfo {
+        handshakeTimeoutTask?.cancel()
+        handshakeTimeoutTask = nil
+        if !readyContinuations.isEmpty {
+            let superseded = Array(readyContinuations.values)
+            readyContinuations.removeAll(keepingCapacity: false)
+            for continuation in superseded {
+                continuation.resume(throwing: CancellationError())
+            }
+        }
         self.configuration = configuration
         self.hasFinished = false
         self.readyInfo = nil
         self.protocolRevision = nil
         self.bundleInfo = nil
-        pickerController?.beginLoading()
+        let runtimeOwner = bridgeProfile.isPicker ? UUID() : nil
+        self.runtimeOwner = runtimeOwner
+        pickerController?.beginLoading(owner: runtimeOwner)
 
         // Rebuild the client so a reload does not inherit stale correlations or
         // event sequence watermarks from the previous chart.
@@ -143,20 +158,30 @@ public final class SeatLayerView: UIView {
         allowedPageURL = pageURL
 
         await client.onSignal { [weak self] signal in
-            Task { @MainActor [weak self] in self?.handle(signal) }
+            Task { @MainActor [weak self] in self?.handle(signal, owner: runtimeOwner) }
         }
 
-        startHandshakeTimeout(configuration.handshakeTimeout)
-        return try await withCheckedThrowingContinuation { continuation in
-            readyContinuations.append(continuation)
-            let prewarmedState = webHost.navigationState == .loading
-                || webHost.navigationState == .finished
-            let consume = canConsumePrewarmedPage
-                && webHost.requestedPageURL == pageURL
-                && prewarmedState
-            canConsumePrewarmedPage = false
-            webHost.armMessageDelivery()
-            if !consume { webHost.load(pageURL) }
+        let timeout = BridgeClient.normalizedTimeout(configuration.handshakeTimeout)
+        startHandshakeTimeout(timeout, owner: runtimeOwner)
+        let waiter = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                readyContinuations[waiter] = continuation
+                let prewarmedState = webHost.navigationState == .loading
+                    || webHost.navigationState == .finished
+                let consume = canConsumePrewarmedPage
+                    && webHost.requestedPageURL == pageURL
+                    && prewarmedState
+                canConsumePrewarmedPage = false
+                webHost.armMessageDelivery()
+                if !consume { webHost.load(pageURL) }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancelReadyWaiter(waiter) }
         }
     }
 
@@ -174,24 +199,31 @@ public final class SeatLayerView: UIView {
         return page
     }
 
-    private func startHandshakeTimeout(_ seconds: TimeInterval) {
+    private func startHandshakeTimeout(_ seconds: TimeInterval, owner: UUID?) {
         handshakeTimeoutTask?.cancel()
         handshakeTimeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
             guard !Task.isCancelled else { return }
             // The task inherits this view's main-actor isolation, so the hop is
             // already made.
-            self?.finishHandshake(.failure(.handshakeTimeout(seconds: seconds)))
+            self?.finishHandshake(
+                .failure(.handshakeTimeout(seconds: seconds)),
+                owner: owner
+            )
         }
     }
 
-    private func finishHandshake(_ result: Result<ReadyInfo, SeatLayerError>) {
+    private func finishHandshake(
+        _ result: Result<ReadyInfo, SeatLayerError>,
+        owner: UUID?
+    ) {
+        if bridgeProfile.isPicker, runtimeOwner != owner { return }
         guard !hasFinished else {
             // A failure AFTER ready (a late sys.error) is a delegate callback,
             // not a load result.
             if case .failure(let error) = result {
                 if bridgeProfile.isPicker {
-                    pickerController?.fail(error)
+                    pickerController?.fail(error, owner: runtimeOwner)
                 } else {
                     delegate?.seatLayerView(self, didFailWith: error)
                 }
@@ -202,7 +234,7 @@ public final class SeatLayerView: UIView {
         handshakeTimeoutTask?.cancel()
         handshakeTimeoutTask = nil
 
-        let waiting = readyContinuations
+        let waiting = Array(readyContinuations.values)
         readyContinuations.removeAll()
 
         switch result {
@@ -212,10 +244,14 @@ public final class SeatLayerView: UIView {
             for continuation in waiting { continuation.resume(returning: info) }
             delegate?.seatLayerViewDidBecomeReady(self, info: info)
         case .failure(let error):
-            pickerController?.fail(error)
+            pickerController?.fail(error, owner: runtimeOwner)
             for continuation in waiting { continuation.resume(throwing: error) }
             delegate?.seatLayerView(self, didFailWith: error)
         }
+    }
+
+    private func cancelReadyWaiter(_ id: UUID) {
+        readyContinuations.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 
     // MARK: - Inbound
@@ -247,12 +283,13 @@ public final class SeatLayerView: UIView {
         return origin.port == 0 || origin.port == defaultPort
     }
 
-    private func handle(_ signal: BridgeSignal) {
+    private func handle(_ signal: BridgeSignal, owner: UUID?) {
+        if bridgeProfile.isPicker, runtimeOwner != owner { return }
         switch signal {
         case .hello(let payload):
-            handleHello(payload)
+            handleHello(payload, owner: owner)
         case .event(let name, let payload, _):
-            handleEvent(name: name, payload: payload)
+            handleEvent(name: name, payload: payload, owner: owner)
         case .unhandled(let envelope):
             if !bridgeProfile.isPicker {
                 delegate?.seatLayerView(self, didReceiveUnknownEvent: envelope.type, payload: envelope.payload)
@@ -260,7 +297,7 @@ public final class SeatLayerView: UIView {
         }
     }
 
-    private func handleHello(_ payload: JSONValue?) {
+    private func handleHello(_ payload: JSONValue?, owner: UUID?) {
         let info = BundleInfo(payload)
         bundleInfo = info
 
@@ -271,15 +308,19 @@ public final class SeatLayerView: UIView {
             try bridgeProfile.validate(info)
             guard let configuration else { return }
             if bridgeProfile.isPicker, let client {
-                pickerController?.connect(transport: client, bundleInfo: info)
+                pickerController?.connect(
+                    transport: client,
+                    bundleInfo: info,
+                    owner: runtimeOwner
+                )
             }
             if configuration.usesPrivateAccess,
                !info.supports(capability: "native-access-provider") {
-                finishHandshake(.failure(.incompatible(
-                    native: bridgeProfile.protocolRange,
-                    web: info.protocolRange,
-                    reason: "the bundle does not support private buyer access"
-                )))
+                    finishHandshake(.failure(.incompatible(
+                        native: bridgeProfile.protocolRange,
+                        web: info.protocolRange,
+                        reason: "the bundle does not support private buyer access"
+                    )), owner: owner)
                 return
             }
             if configuration.usesSelectionPolicy,
@@ -289,7 +330,7 @@ public final class SeatLayerView: UIView {
                     native: bridgeProfile.protocolRange,
                     web: info.protocolRange,
                     reason: "the bundle does not support the configured selection policy"
-                )))
+                )), owner: owner)
                 return
             }
             Task { [client] in
@@ -298,13 +339,16 @@ public final class SeatLayerView: UIView {
                 )
             }
         } catch let error as SeatLayerError {
-            finishHandshake(.failure(error))
+            finishHandshake(.failure(error), owner: owner)
         } catch {
-            finishHandshake(.failure(.transport("bridge profile validation failed")))
+            finishHandshake(
+                .failure(.transport("bridge profile validation failed")),
+                owner: owner
+            )
         }
     }
 
-    private func handleEvent(name: String, payload: JSONValue?) {
+    private func handleEvent(name: String, payload: JSONValue?, owner: UUID?) {
         switch name {
         case "sys.ready":
             let info = ReadyInfo(payload)
@@ -316,11 +360,11 @@ public final class SeatLayerView: UIView {
                         max: info.protocolRevision
                     ),
                     reason: "the picker runtime did not confirm protocol revision 2"
-                )))
+                )), owner: owner)
                 return
             }
-            pickerController?.markReady(info, payload: payload)
-            finishHandshake(.success(info))
+            pickerController?.markReady(info, payload: payload, owner: runtimeOwner)
+            finishHandshake(.success(info), owner: owner)
 
         case "sys.incompatible":
             let web = ProtocolRange.from(payload?["web"]) ?? bridgeProfile.protocolRange
@@ -331,19 +375,25 @@ public final class SeatLayerView: UIView {
                 native: bridgeProfile.protocolRange,
                 web: web,
                 reason: reason
-            )))
+            )), owner: owner)
 
         case "sys.error":
-            finishHandshake(.failure(.bridge(BridgeErrorPayload(payload))))
+            finishHandshake(
+                .failure(.bridge(BridgeErrorPayload(payload))),
+                owner: owner
+            )
 
         case "picker.snapshot" where bridgeProfile.isPicker:
-            pickerController?.accept(snapshot: payload?["snapshot"] ?? payload)
+            pickerController?.accept(
+                snapshot: payload?["snapshot"] ?? payload,
+                owner: runtimeOwner
+            )
 
         case "seatView.changed" where bridgeProfile.isPicker:
-            pickerController?.accept(seatView: payload?["seatView"])
+            pickerController?.accept(seatView: payload?["seatView"], owner: runtimeOwner)
 
         case "telemetry.chartLoad" where bridgeProfile.isPicker:
-            pickerController?.accept(chartLoad: payload)
+            pickerController?.accept(chartLoad: payload, owner: runtimeOwner)
 
         case "selection.changed":
             let seats = decodeList(payload?["seats"], as: SelectedSeat.self)
@@ -351,6 +401,12 @@ public final class SeatLayerView: UIView {
 
         case "selection.validity.changed":
             if let validity = try? payload?["validity"]?.decode(SelectionValidity.self) {
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(
+                        selectionValidity: validity,
+                        owner: runtimeOwner
+                    )
+                }
                 delegate?.seatLayerView(self, selectionValidityDidChange: validity)
             }
 
@@ -375,16 +431,28 @@ public final class SeatLayerView: UIView {
 
         case "access.expired":
             if let event = try? payload?.decode(BuyerAccessExpiredEvent.self) {
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(accessExpired: event, owner: runtimeOwner)
+                }
                 delegate?.seatLayerView(self, buyerAccessDidExpire: event)
             }
 
         case "access.unavailable":
             if let event = try? payload?.decode(BuyerAccessUnavailableEvent.self) {
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(accessUnavailable: event, owner: runtimeOwner)
+                }
                 delegate?.seatLayerView(self, buyerAccessBecameUnavailable: event)
             }
 
         case "selection.unavailable":
             if let event = try? payload?.decode(SelectedObjectUnavailableEvent.self) {
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(
+                        selectedObjectsUnavailable: event,
+                        owner: runtimeOwner
+                    )
+                }
                 delegate?.seatLayerView(self, selectedObjectsBecameUnavailable: event)
             }
 
@@ -400,14 +468,17 @@ public final class SeatLayerView: UIView {
 
         case "hold.expired":
             if bridgeProfile.isPicker {
-                pickerController?.acceptHoldExpired()
+                pickerController?.acceptHoldExpired(owner: runtimeOwner)
             }
             delegate?.seatLayerViewHoldDidExpire(self)
 
         case "ga.click":
             if let area = try? payload?["area"]?.decode(GAArea.self) {
                 if bridgeProfile.isPicker {
-                    pickerController?.accept(generalAdmissionCandidate: area)
+                    pickerController?.accept(
+                        generalAdmissionCandidate: area,
+                        owner: runtimeOwner
+                    )
                 } else {
                     delegate?.seatLayerView(self, didTapGAArea: area)
                 }
@@ -419,7 +490,7 @@ public final class SeatLayerView: UIView {
         case "error":
             let error = SeatLayerError.bridge(BridgeErrorPayload(payload))
             if bridgeProfile.isPicker {
-                pickerController?.record(error)
+                pickerController?.record(error, owner: runtimeOwner)
             } else {
                 delegate?.seatLayerView(self, didFailWith: error)
             }
@@ -681,6 +752,10 @@ public final class SeatLayerView: UIView {
         readyInfo = nil
         protocolRevision = nil
         bundleInfo = nil
+        if !readyContinuations.isEmpty {
+            finishHandshake(.failure(.destroyed), owner: runtimeOwner)
+        }
+        pickerController?.markDestroyed(owner: runtimeOwner)
     }
 
     private func optional<T: Decodable>(_ value: JSONValue?, as type: T.Type) throws -> T? {
@@ -693,11 +768,14 @@ public final class SeatLayerView: UIView {
     }
 
     func webHostDidFail(_ message: String) {
-        finishHandshake(.failure(.transport(message)))
+        finishHandshake(.failure(.transport(message)), owner: runtimeOwner)
     }
 
     func webHostContentProcessDidTerminate() {
-        finishHandshake(.failure(.transport("the web content process terminated")))
+        finishHandshake(
+            .failure(.transport("the web content process terminated")),
+            owner: runtimeOwner
+        )
     }
 }
 

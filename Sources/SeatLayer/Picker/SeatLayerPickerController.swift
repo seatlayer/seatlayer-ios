@@ -42,6 +42,24 @@ public final class SeatLayerPickerController: ObservableObject {
         holdExpirationSubject.eraseToAnyPublisher()
     }
 
+    /// De-duplicated validity values from either the optional event or the
+    /// next authoritative snapshot, whichever arrives first.
+    public var selectionValidityChanges: AnyPublisher<SelectionValidity, Never> {
+        selectionValiditySubject.eraseToAnyPublisher()
+    }
+
+    public var accessExpirations: AnyPublisher<BuyerAccessExpiredEvent, Never> {
+        accessExpirationSubject.eraseToAnyPublisher()
+    }
+
+    public var accessUnavailability: AnyPublisher<BuyerAccessUnavailableEvent, Never> {
+        accessUnavailableSubject.eraseToAnyPublisher()
+    }
+
+    public var selectedObjectUnavailability: AnyPublisher<SelectedObjectUnavailableEvent, Never> {
+        selectedObjectUnavailableSubject.eraseToAnyPublisher()
+    }
+
     public private(set) var bundleInfo: BundleInfo?
 
     public var isReady: Bool {
@@ -90,9 +108,16 @@ public final class SeatLayerPickerController: ObservableObject {
     private var chartLoadReady: ReadyInfo?
     private var pendingSuccessfulChartLoads: [SeatLayerChartLoadTrace] = []
     private let holdExpirationSubject = PassthroughSubject<Void, Never>()
+    private let selectionValiditySubject = PassthroughSubject<SelectionValidity, Never>()
+    private let accessExpirationSubject = PassthroughSubject<BuyerAccessExpiredEvent, Never>()
+    private let accessUnavailableSubject = PassthroughSubject<BuyerAccessUnavailableEvent, Never>()
+    private let selectedObjectUnavailableSubject = PassthroughSubject<SelectedObjectUnavailableEvent, Never>()
+    private var lastPublishedSelectionValidity: SelectionValidity?
     private var hapticPolicy = SeatLayerPickerHaptics.initialState
     private var hapticsEnabled = false
     private var hapticAdapter: (any SeatLayerPickerHapticAdapter)?
+    private var runtimeOwner: UUID?
+    private var runtimeGeneration: UInt64 = 0
 
     public init() {
         revisionWaitNanoseconds = 2_000_000_000
@@ -130,6 +155,11 @@ public final class SeatLayerPickerController: ObservableObject {
     ) {
         hapticsEnabled = enabled
         hapticAdapter = adapter
+    }
+
+    /// Dismiss the current inline command error without changing picker state.
+    public func dismissError() {
+        lastError = nil
     }
 
     // MARK: - Snapshot and selection
@@ -488,13 +518,17 @@ public final class SeatLayerPickerController: ObservableObject {
         let id = UUID()
         let task = Task { @MainActor [weak self] in
             guard let self else { throw SeatLayerError.destroyed }
-            return try await self.enqueue {
+            return try await self.enqueue { generation in
                 let result = try await self.send(
                     "picker.continue",
                     .object(compacting: ["ttlMs": ttlMs.map(JSONValue.int)])
                 )
-                _ = try await self.applyMutationResult(result)
-                guard let handoff = decodeSeatLayerPickerCheckoutHandoff(result["handoff"]) else {
+                let updated = try await self.applyMutationResult(result, generation: generation)
+                let categories = updated?.categories ?? self.snapshot?.categories ?? []
+                guard let handoff = decodeSeatLayerPickerCheckoutHandoff(
+                    result["handoff"],
+                    categories: categories
+                ) else {
                     throw SeatLayerError.decoding("picker.continue returned no checkout handoff")
                 }
                 return handoff
@@ -522,16 +556,47 @@ public final class SeatLayerPickerController: ObservableObject {
     /// outcome carried by a foreground reply.
     public func lifecycle(_ state: String) async throws -> SeatLayerPickerLifecycleResult? {
         try validateNonEmpty(state, named: "state")
-        let foreground = state == "resumed" || state == "foreground"
+        let resolved: String
+        switch state {
+        case "resumed", "foreground":
+            resolved = "foreground"
+        case "paused", "background":
+            resolved = "background"
+        default:
+            throw badPayload("SeatLayer lifecycle state must be foreground or background.")
+        }
         return try await lifecycleMutation(
             "picker.lifecycle",
-            ["state": .string(foreground ? "foreground" : "background")]
+            ["state": .string(resolved)]
         )
     }
 
     @discardableResult
     public func setLifecycle(_ state: String) async throws -> SeatLayerPickerSnapshot? {
         try await lifecycle(state)?.snapshot ?? snapshot
+    }
+
+    /// Shared ready-picker lifecycle policy. SwiftUI calls this from
+    /// `scenePhase`; the UIKit convenience host calls it from application
+    /// notifications because an embedded hosting controller does not always
+    /// receive scene-phase changes.
+    func reconcileApplicationLifecycle(
+        foreground: Bool,
+        refreshOnResume: Bool
+    ) async {
+        guard isReady else { return }
+        do {
+            let lifecycle = try await lifecycle(foreground ? "foreground" : "background")
+            guard foreground else { return }
+            if refreshOnResume, lifecycle?.outcome == nil {
+                _ = await refreshAvailability()
+            }
+            _ = try? await synchronize()
+        } catch let error as SeatLayerError {
+            record(error)
+        } catch {
+            record(.transport(error.localizedDescription))
+        }
     }
 
     /// Re-read live availability. Unsupported runtimes and housekeeping
@@ -577,13 +642,18 @@ public final class SeatLayerPickerController: ObservableObject {
 
     public func destroy() async throws {
         guard phase != .destroyed else { return }
-        _ = try? await enqueue { try await self.send("picker.destroy") }
+        _ = try? await enqueue { _ in try await self.send("picker.destroy") }
         markDestroyed()
     }
 
     // MARK: - Runtime integration
 
-    func beginLoading(startedAtMilliseconds: Double? = nil) {
+    func beginLoading(
+        startedAtMilliseconds: Double? = nil,
+        owner: UUID? = nil
+    ) {
+        runtimeOwner = owner
+        runtimeGeneration &+= 1
         actionTail?.cancel()
         actionTail = nil
         checkoutFlight?.task.cancel()
@@ -602,6 +672,7 @@ public final class SeatLayerPickerController: ObservableObject {
         chartLoadTapToReadyMs = nil
         chartLoadReady = nil
         pendingSuccessfulChartLoads.removeAll(keepingCapacity: false)
+        lastPublishedSelectionValidity = nil
         bundleInfo = nil
         transport = nil
         phase = .loading
@@ -609,8 +680,10 @@ public final class SeatLayerPickerController: ObservableObject {
 
     func connect(
         transport: any SeatLayerPickerCommandTransport,
-        bundleInfo: BundleInfo
+        bundleInfo: BundleInfo,
+        owner: UUID? = nil
     ) {
+        guard acceptsRuntimeOwner(owner) else { return }
         self.transport = transport
         self.bundleInfo = bundleInfo
     }
@@ -618,10 +691,12 @@ public final class SeatLayerPickerController: ObservableObject {
     func markReady(
         _ info: ReadyInfo,
         payload: JSONValue?,
-        readyAtMilliseconds: Double? = nil
+        readyAtMilliseconds: Double? = nil,
+        owner: UUID? = nil
     ) {
+        guard acceptsRuntimeOwner(owner) else { return }
         if let candidate = decodeSeatLayerPickerSnapshot(payload?["snapshot"] ?? payload) {
-            accept(snapshot: candidate)
+            accept(snapshot: candidate, owner: owner)
         }
         phase = .ready(info)
         if chartLoadReady == nil, let started = chartLoadStartedAtMs {
@@ -638,24 +713,29 @@ public final class SeatLayerPickerController: ObservableObject {
         }
     }
 
-    func accept(snapshot value: JSONValue?) {
+    func accept(snapshot value: JSONValue?, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard let decoded = decodeSeatLayerPickerSnapshot(value) else { return }
-        accept(snapshot: decoded)
+        accept(snapshot: decoded, owner: owner)
     }
 
-    func accept(snapshot candidate: SeatLayerPickerSnapshot) {
+    func accept(snapshot candidate: SeatLayerPickerSnapshot, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard snapshots.apply(candidate) else { return }
         snapshot = candidate
+        publishSelectionValidity(candidate.selectionValidity)
         if candidate.hold.active { holdLapse = nil }
         applyHaptics(for: SeatLayerPickerHapticSnapshot(candidate))
     }
 
-    func accept(seatView value: JSONValue?) {
+    func accept(seatView value: JSONValue?, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard supportsNativeSeatViewChrome else { return }
         seatView = decodeSeatLayerSeatView(value)
     }
 
-    func accept(chartLoad payload: JSONValue?) {
+    func accept(chartLoad payload: JSONValue?, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard supports(capability: "chart-load-trace-v1"),
               supports(event: "telemetry.chartLoad"),
               let trace = decodeSeatLayerChartLoadEvent(payload) else { return }
@@ -680,12 +760,37 @@ public final class SeatLayerPickerController: ObservableObject {
         ))
     }
 
-    func acceptHoldExpired() {
+    func acceptHoldExpired(owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard supports(event: "hold.expired") else { return }
         reportHoldExpired()
     }
 
-    func accept(generalAdmissionCandidate area: GAArea) {
+    func accept(selectionValidity value: SelectionValidity, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        publishSelectionValidity(value)
+    }
+
+    func accept(accessExpired event: BuyerAccessExpiredEvent, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        accessExpirationSubject.send(event)
+    }
+
+    func accept(accessUnavailable event: BuyerAccessUnavailableEvent, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        accessUnavailableSubject.send(event)
+    }
+
+    func accept(
+        selectedObjectsUnavailable event: SelectedObjectUnavailableEvent,
+        owner: UUID? = nil
+    ) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        selectedObjectUnavailableSubject.send(event)
+    }
+
+    func accept(generalAdmissionCandidate area: GAArea, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         guard isReady else { return }
         generalAdmissionCandidate = area
     }
@@ -694,12 +799,14 @@ public final class SeatLayerPickerController: ObservableObject {
         generalAdmissionCandidate = nil
     }
 
-    func fail(_ error: SeatLayerError) {
+    func fail(_ error: SeatLayerError, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         lastError = error
         phase = .failed(error)
     }
 
-    func record(_ error: SeatLayerError) {
+    func record(_ error: SeatLayerError, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
         lastError = error
     }
 
@@ -707,7 +814,10 @@ public final class SeatLayerPickerController: ObservableObject {
         ProcessInfo.processInfo.systemUptime * 1_000
     }
 
-    func markDestroyed() {
+    func markDestroyed(owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        runtimeGeneration &+= 1
+        runtimeOwner = nil
         actionTail?.cancel()
         actionTail = nil
         checkoutFlight?.task.cancel()
@@ -720,6 +830,7 @@ public final class SeatLayerPickerController: ObservableObject {
         holdLapse = nil
         generalAdmissionCandidate = nil
         hapticPolicy = SeatLayerPickerHaptics.initialState
+        lastPublishedSelectionValidity = nil
         phase = .destroyed
     }
 
@@ -756,22 +867,25 @@ public final class SeatLayerPickerController: ObservableObject {
         _ command: String,
         _ payload: JSONValue? = nil
     ) async throws -> SeatLayerPickerSnapshot? {
-        try await enqueue {
-            try await self.applyMutationResult(try await self.send(command, payload))
+        try await enqueue { generation in
+            try await self.applyMutationResult(
+                try await self.send(command, payload),
+                generation: generation
+            )
         }
     }
 
     private func presentation(_ command: String, _ payload: JSONValue? = nil) async throws {
-        try await enqueue { _ = try await self.send(command, payload) }
+        try await enqueue { _ in _ = try await self.send(command, payload) }
     }
 
     private func lifecycleMutation(
         _ command: String,
         _ payload: JSONValue? = nil
     ) async throws -> SeatLayerPickerLifecycleResult? {
-        try await enqueue {
+        try await enqueue { generation in
             let raw = try await self.send(command, payload)
-            let updated = try await self.applyMutationResult(raw)
+            let updated = try await self.applyMutationResult(raw, generation: generation)
             let outcome = decodeSeatLayerPickerAvailabilityOutcome(
                 raw["outcome"] ?? raw["result"] ?? raw
             )
@@ -789,7 +903,7 @@ public final class SeatLayerPickerController: ObservableObject {
             recoverableLabels: outcome.recoverableLabels,
             heldForMs: outcome.heldForMs
         )
-        if holdLapse == nil || candidate.lapsedLabels.count > holdLapse!.lapsedLabels.count {
+        if holdLapse.map({ candidate.lapsedLabels.count > $0.lapsedLabels.count }) ?? true {
             holdLapse = candidate
         }
         reportHoldExpired()
@@ -816,7 +930,13 @@ public final class SeatLayerPickerController: ObservableObject {
         }
     }
 
-    private func applyMutationResult(_ result: JSONValue) async throws -> SeatLayerPickerSnapshot? {
+    private func applyMutationResult(
+        _ result: JSONValue,
+        generation: UInt64
+    ) async throws -> SeatLayerPickerSnapshot? {
+        guard runtimeGeneration == generation, phase != .destroyed else {
+            throw SeatLayerError.destroyed
+        }
         if let decoded = decodeSeatLayerPickerSnapshot(result["snapshot"] ?? result) {
             accept(snapshot: decoded)
         }
@@ -828,12 +948,19 @@ public final class SeatLayerPickerController: ObservableObject {
 
         let started = DispatchTime.now().uptimeNanoseconds
         while (snapshot?.revision ?? -1) < targetRevision,
+              runtimeGeneration == generation,
               DispatchTime.now().uptimeNanoseconds - started < revisionWaitNanoseconds {
             try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        guard runtimeGeneration == generation, phase != .destroyed else {
+            throw SeatLayerError.destroyed
         }
         if (snapshot?.revision ?? -1) >= targetRevision { return snapshot }
 
         let refreshed = try await send("picker.getSnapshot")
+        guard runtimeGeneration == generation, phase != .destroyed else {
+            throw SeatLayerError.destroyed
+        }
         if let decoded = decodeSeatLayerPickerSnapshot(refreshed["snapshot"] ?? refreshed) {
             accept(snapshot: decoded)
         }
@@ -846,14 +973,24 @@ public final class SeatLayerPickerController: ObservableObject {
     }
 
     private func enqueue<T>(
-        _ operation: @escaping @MainActor () async throws -> T
+        _ operation: @escaping @MainActor (UInt64) async throws -> T
     ) async throws -> T {
         guard phase != .destroyed else { throw SeatLayerError.destroyed }
+        let generation = runtimeGeneration
         let previous = actionTail
         let task = Task<T, Error> { @MainActor in
             if let previous { _ = await previous.result }
-            guard self.phase != .destroyed else { throw SeatLayerError.destroyed }
-            return try await operation()
+            guard self.phase != .destroyed,
+                  self.runtimeGeneration == generation else {
+                throw SeatLayerError.destroyed
+            }
+            let result = try await operation(generation)
+            guard self.phase != .destroyed,
+                  self.runtimeGeneration == generation else {
+                throw SeatLayerError.destroyed
+            }
+            self.lastError = nil
+            return result
         }
         actionTail = Task { _ = try? await task.value }
         return try await task.value
@@ -889,6 +1026,17 @@ public final class SeatLayerPickerController: ObservableObject {
 
     private func badPayload(_ message: String) -> SeatLayerError {
         .bridge(.init(code: BridgeErrorCode.badPayload, message: message))
+    }
+
+    private func acceptsRuntimeOwner(_ owner: UUID?) -> Bool {
+        guard let owner else { return true }
+        return runtimeOwner == owner
+    }
+
+    private func publishSelectionValidity(_ value: SelectionValidity?) {
+        guard let value, value != lastPublishedSelectionValidity else { return }
+        lastPublishedSelectionValidity = value
+        selectionValiditySubject.send(value)
     }
 
     private func exactRevision(_ value: JSONValue?) -> Int? {

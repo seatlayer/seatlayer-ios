@@ -93,7 +93,9 @@ public struct SeatLayerPickerPartContext {
     public let defaultContent: AnyView
 }
 
-public typealias SeatLayerPickerPartBuilder = @MainActor (SeatLayerPickerPartContext) -> AnyView
+public typealias SeatLayerPickerPartBuilder = @MainActor (
+    SeatLayerPickerPartContext
+) throws -> AnyView
 
 /// Optional replacements for the canonical 25 public picker parts.
 public struct SeatLayerPickerBuilders {
@@ -244,8 +246,14 @@ struct SeatLayerPickerPartHost<DefaultContent: View>: View {
 
     var body: some View {
         let child = AnyView(defaultContent())
-        let rendered = builders[part]?(
-            SeatLayerPickerPartContext(
+        let rendered = render(defaultContent: child)
+        rendered.modifier(SeatLayerPickerPartStyleModifier(style: styles[part]))
+    }
+
+    private func render(defaultContent: AnyView) -> AnyView {
+        guard let builder = builders[part] else { return defaultContent }
+        do {
+            return try builder(SeatLayerPickerPartContext(
                 part: part,
                 snapshot: controller.snapshot,
                 controller: controller,
@@ -255,10 +263,12 @@ struct SeatLayerPickerPartHost<DefaultContent: View>: View {
                 strings: pickerStyle.strings,
                 options: pickerStyle.options,
                 style: styles[part],
-                defaultContent: child
-            )
-        ) ?? child
-        rendered.modifier(SeatLayerPickerPartStyleModifier(style: styles[part]))
+                defaultContent: defaultContent
+            ))
+        } catch {
+            // Host rendering code cannot take down required picker content.
+            return defaultContent
+        }
     }
 }
 

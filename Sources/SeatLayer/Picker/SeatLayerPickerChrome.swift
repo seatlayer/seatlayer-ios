@@ -20,10 +20,12 @@ public struct SeatLayerPickerHeader: View {
         )
         HStack(spacing: 10) {
             SeatLayerPickerLogo()
-            Text(controller.snapshot?.event.name ?? style.strings.text(.chooseSeats))
-                .font(.system(size: 16, weight: .heavy))
-                .foregroundColor(palette.text)
-                .lineLimit(1)
+            if !style.options.hideEventDetails {
+                Text(controller.snapshot?.event.name ?? style.strings.text(.chooseSeats))
+                    .seatLayerPickerFont(size: 16, weight: .heavy)
+                    .foregroundColor(palette.text)
+                    .lineLimit(1)
+            }
             Spacer(minLength: 8)
             if style.options.chrome.holdPill,
                let expiry = controller.snapshot?.hold.expiresAt,
@@ -36,7 +38,7 @@ public struct SeatLayerPickerHeader: View {
             if let onClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
+                        .seatLayerPickerFont(size: 15, weight: .bold)
                         .frame(
                             width: SeatLayerPickerSizeTokens.minimumHitTarget,
                             height: SeatLayerPickerSizeTokens.minimumHitTarget
@@ -48,7 +50,7 @@ public struct SeatLayerPickerHeader: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: SeatLayerPickerSizeTokens.headerHeight)
+        .frame(minHeight: SeatLayerPickerSizeTokens.headerHeight)
         .background(palette.surface)
         .overlay(alignment: .bottom) {
             Rectangle().fill(palette.divider).frame(height: 1)
@@ -79,7 +81,7 @@ public struct SeatLayerPickerLogo: View {
                 }
             } else {
                 Image(systemName: "chair.lounge.fill")
-                    .font(.system(size: 15, weight: .bold))
+                    .seatLayerPickerFont(size: 15, weight: .bold)
                     .foregroundColor(palette.onAccent)
             }
         }
@@ -116,12 +118,13 @@ public struct SeatLayerPickerHoldCountdown: View {
                 Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
                     .monospacedDigit()
             }
-            .font(.system(size: 12, weight: .bold))
+            .seatLayerPickerFont(size: 12, weight: .bold)
             .foregroundColor(palette.text)
             .padding(.horizontal, 10)
-            .frame(height: 28)
+            .frame(minHeight: 28)
             .background(palette.background)
             .clipShape(Capsule())
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(style.strings.text(
                 .heldFor,
                 replacing: ["clock": String(format: "%d:%02d", remaining / 60, remaining % 60)]
@@ -171,10 +174,10 @@ public struct SeatLayerPickerPriceLegend: View {
                                 Text(priceLabel(category, currency: snapshot?.currency ?? "USD"))
                                     .lineLimit(1)
                             }
-                            .font(.system(size: 11, weight: .heavy))
+                            .seatLayerPickerFont(size: 11, weight: .heavy)
                             .foregroundColor(selected ? palette.onAccent : palette.text)
                             .padding(.horizontal, 10)
-                            .frame(height: 36)
+                            .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                             .background(selected ? palette.accent : palette.surface)
                             .overlay {
                                 Capsule().stroke(selected ? palette.accent : palette.divider, lineWidth: 1)
@@ -197,9 +200,11 @@ public struct SeatLayerPickerPriceLegend: View {
     private func priceLabel(_ category: SeatLayerPickerCategory, currency: String) -> String {
         let amount = category.priceMin
         if category.priceMax > amount {
-            return style.strings.fromPrice(seatLayerMoney(amount, currency: currency))
+            return style.strings.fromPrice(
+                seatLayerPickerMoney(amount, currency: currency, style: style)
+            )
         }
-        return seatLayerMoney(amount, currency: currency)
+        return seatLayerPickerMoney(amount, currency: currency, style: style)
     }
 }
 
@@ -247,10 +252,10 @@ public struct SeatLayerPickerBuyerViewControl: View {
         )
         return Button(action: action) {
             Text(label)
-                .font(.system(size: 12, weight: .heavy))
+                .seatLayerPickerFont(size: 12, weight: .heavy)
                 .foregroundColor(selected ? palette.onAccent : palette.text)
                 .padding(.horizontal, 12)
-                .frame(height: 36)
+                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                 .background(selected ? palette.accent : Color.clear)
         }
         .buttonStyle(.plain)
@@ -274,11 +279,11 @@ public struct SeatLayerPickerTestModeIndicator: View {
                 snapshot: controller.snapshot
             )
             Text(style.strings.text(.testMode))
-                .font(.system(size: 12, weight: .heavy))
                 .tracking(1.1)
+                .seatLayerPickerFont(size: 12, weight: .heavy)
                 .foregroundColor(palette.warning)
                 .padding(.horizontal, 12)
-                .frame(height: 34)
+                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                 .seatLayerPickerTranslucentBackground(palette.background, opacity: 0.92)
                 .overlay { Capsule().stroke(palette.warning, lineWidth: 1.5) }
                 .clipShape(Capsule())
@@ -298,6 +303,7 @@ public struct SeatLayerPickerMapControls: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     private let topInset: Double
     private let bottomInset: Double
     private let edgeInset: Double
@@ -335,14 +341,14 @@ public struct SeatLayerPickerMapControls: View {
                     HStack {
                         Spacer()
                         VStack(alignment: .trailing, spacing: 8) {
-                            if style.options.chrome.overview,
+                            if style.options.chrome.showsOverview(wide: usesWideLayout),
                                snapshot?.map.rung == "seats",
                                snapshot?.map.focusedSectionId != nil {
                                 control("square.grid.2x2", label: style.strings.text(.overview)) {
                                     _ = try await controller.overview()
                                 }
                             }
-                            if style.options.chrome.zoom {
+                            if style.options.chrome.showsZoom(wide: usesWideLayout) {
                                 control("plus", label: style.strings.text(.zoomIn), enabled: snapshot?.map.canZoomIn != false) {
                                     try await controller.zoomIn()
                                 }
@@ -353,6 +359,21 @@ public struct SeatLayerPickerMapControls: View {
                             if style.options.chrome.fit {
                                 control("viewfinder", label: style.strings.text(.fitVenue)) {
                                     try await controller.zoomToFit()
+                                }
+                            }
+                            if style.options.chrome.showsColorblind(wide: usesWideLayout),
+                               SeatLayerPickerAccessibility.availability(
+                                   snapshot: snapshot,
+                                   bundle: controller.bundleInfo
+                               ).colorblind {
+                                control(
+                                    "eye",
+                                    label: style.strings.text(.colorblindSafe),
+                                    selected: snapshot?.map.colorblindSafe == true
+                                ) {
+                                    _ = try await controller.setColorblindSafe(
+                                        snapshot?.map.colorblindSafe != true
+                                    )
                                 }
                             }
                         }
@@ -369,6 +390,7 @@ public struct SeatLayerPickerMapControls: View {
         _ symbol: String,
         label: String,
         enabled: Bool = true,
+        selected: Bool = false,
         action: @escaping @MainActor () async throws -> Void
     ) -> some View {
         let palette = resolveSeatLayerPickerPalette(
@@ -380,7 +402,7 @@ public struct SeatLayerPickerMapControls: View {
             runPickerAction(controller, action)
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold))
+                .seatLayerPickerFont(size: 15, weight: .bold)
                 .foregroundColor(palette.text)
                 .frame(
                     width: SeatLayerPickerSizeTokens.minimumHitTarget,
@@ -395,6 +417,53 @@ public struct SeatLayerPickerMapControls: View {
         .buttonStyle(.plain)
         .disabled(!controller.isReady || !enabled)
         .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var usesWideLayout: Bool {
+        switch style.options.layout {
+        case .wide: return true
+        case .phone: return false
+        case .adaptive: return horizontalSizeClass == .regular
+        }
+    }
+}
+
+/// Standalone colourblind-safe control for custom SwiftUI compositions.
+public struct SeatLayerPickerColorblindButton: View {
+    @EnvironmentObject private var controller: SeatLayerPickerController
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
+
+    public init() {}
+
+    public var body: some View {
+        let selected = controller.snapshot?.map.colorblindSafe == true
+        let available = SeatLayerPickerAccessibility.availability(
+            snapshot: controller.snapshot,
+            bundle: controller.bundleInfo
+        ).colorblind
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: controller.snapshot
+        )
+        Button {
+            runPickerAction(controller) {
+                _ = try await controller.setColorblindSafe(!selected)
+            }
+        } label: {
+            Label(style.strings.text(.colorblindSafe), systemImage: "eye")
+                .seatLayerPickerFont(size: 13, weight: .bold)
+                .foregroundColor(selected ? palette.onAccent : palette.text)
+                .padding(.horizontal, 12)
+                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+                .background(selected ? palette.accent : palette.surface)
+                .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+        }
+        .buttonStyle(.plain)
+        .disabled(!controller.isReady || !available)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
@@ -424,7 +493,7 @@ public struct SeatLayerPickerAccessibilityButton: View {
             )
             Button { showingFilters = true } label: {
                 Image(systemName: "figure.roll")
-                    .font(.system(size: 18, weight: .bold))
+                    .seatLayerPickerFont(size: 18, weight: .bold)
                     .foregroundColor(activeCount > 0 ? palette.accent : palette.text)
                     .frame(
                         width: SeatLayerPickerSizeTokens.minimumHitTarget,
@@ -436,7 +505,7 @@ public struct SeatLayerPickerAccessibilityButton: View {
                     .overlay(alignment: .topTrailing) {
                         if activeCount > 0 {
                             Text(String(activeCount))
-                                .font(.system(size: 9, weight: .heavy))
+                                .seatLayerPickerFont(size: 9, weight: .heavy)
                                 .foregroundColor(palette.onAccent)
                                 .frame(minWidth: 16, minHeight: 16)
                                 .background(palette.accent)
@@ -454,6 +523,11 @@ public struct SeatLayerPickerAccessibilityButton: View {
                 }
                 .environmentObject(controller)
                 .environment(\.seatLayerPickerStyle, style)
+                // SwiftUI sheets otherwise resolve their system Form surface
+                // independently from an explicitly light/dark picker. Keep
+                // native controls and the picker palette on the same side of
+                // the contrast boundary.
+                .preferredColorScheme(palette.dark ? .dark : .light)
             }
         }
     }
@@ -518,7 +592,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                                 Spacer()
                                 if busy { ProgressView().tint(palette.onAccent) }
                                 Text(style.strings.text(.applyFilters))
-                                    .font(.system(size: 15, weight: .heavy))
+                                    .seatLayerPickerFont(size: 15, weight: .heavy)
                                 Spacer()
                             }
                             .frame(minHeight: 44)
@@ -536,7 +610,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                     }
                     ToolbarItem(placement: .principal) {
                         Text(style.strings.text(.accessibilityTitle))
-                            .font(.system(size: 16, weight: .bold))
+                            .seatLayerPickerFont(size: 16, weight: .bold)
                             .lineLimit(1)
                             .minimumScaleFactor(0.72)
                     }
@@ -564,7 +638,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                     .foregroundColor(selected ? palette.accent : palette.mutedText)
                 Text(style.strings.accessNeed(
                     need.key,
-                    count: need.count > 0 ? need.count : nil
+                    count: need.count
                 ))
                 Spacer()
             }
@@ -652,10 +726,10 @@ public struct SeatLayerPickerFloorStrip: View {
             runPickerAction(controller) { _ = try await controller.setFloor(id) }
         } label: {
             Text(label)
-                .font(.system(size: 12, weight: .bold))
+                .seatLayerPickerFont(size: 12, weight: .bold)
                 .foregroundColor(selected ? palette.onAccent : palette.text)
                 .padding(.horizontal, 12)
-                .frame(height: 34)
+                .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
                 .background(selected ? palette.accent : palette.surface)
                 .clipShape(Capsule())
         }
@@ -686,11 +760,11 @@ public struct SeatLayerPickerDockBar: View {
                     .fill(sectionColor(section, fallback: palette.accent))
                     .frame(width: 10, height: 10)
                 Text(section.displayLabel ?? section.label)
-                    .font(.system(size: 14, weight: .heavy))
+                    .seatLayerPickerFont(size: 14, weight: .heavy)
                     .lineLimit(1)
                 if let count = section.seatsLeft {
                     Text("· \(style.strings.seatsLeft(count))")
-                        .font(.system(size: 13, weight: .semibold))
+                        .seatLayerPickerFont(size: 13, weight: .semibold)
                         .foregroundColor(palette.mutedText)
                         .lineLimit(1)
                 }
@@ -704,14 +778,14 @@ public struct SeatLayerPickerDockBar: View {
                         Image(systemName: "chevron.left")
                         Text(style.strings.text(.overview))
                     }
-                    .font(.system(size: 13, weight: .heavy))
+                    .seatLayerPickerFont(size: 13, weight: .heavy)
                     .frame(minWidth: 44, minHeight: 44)
                 }
                 .buttonStyle(.plain)
             }
             .foregroundColor(palette.text)
             .padding(.horizontal, 12)
-            .frame(height: SeatLayerPickerSizeTokens.dockBarHeight)
+            .frame(minHeight: SeatLayerPickerSizeTokens.dockBarHeight)
             .background(palette.surface)
             .overlay(alignment: .top) { Rectangle().fill(palette.divider).frame(height: 1) }
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -742,8 +816,11 @@ public struct SeatLayerPickerDockBar: View {
             runPickerAction(controller) { _ = try await controller.focusSection(section.id) }
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .bold))
-                .frame(width: 36, height: 44)
+                .seatLayerPickerFont(size: 15, weight: .bold)
+                .frame(
+                    width: SeatLayerPickerSizeTokens.minimumHitTarget,
+                    height: SeatLayerPickerSizeTokens.minimumHitTarget
+                )
         }
         .buttonStyle(.plain)
         .disabled(section == nil)
@@ -769,7 +846,8 @@ public struct SeatLayerPickerAttribution: View {
     public init() {}
 
     public var body: some View {
-        if controller.snapshot?.branding.attributionRequired != false {
+        if controller.snapshot?.branding.attributionRequired != false
+            || style.options.chrome.attribution {
             let palette = resolveSeatLayerPickerPalette(
                 style: style,
                 colorScheme: colorScheme,
@@ -778,10 +856,13 @@ public struct SeatLayerPickerAttribution: View {
             HStack(spacing: 4) {
                 Image(systemName: "chair.lounge.fill")
                 Text(style.strings.text(.poweredBy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
-            .font(.system(size: 9, weight: .semibold))
+            .seatLayerPickerFont(size: 9, weight: .semibold)
             .foregroundColor(palette.mutedText)
-            .frame(height: SeatLayerPickerSizeTokens.attributionHeight)
+            .frame(minHeight: SeatLayerPickerSizeTokens.attributionHeight)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(style.strings.text(.poweredBy))
         }
     }
@@ -798,7 +879,7 @@ public struct SeatLayerPickerLoadingView: View {
         VStack(spacing: 12) {
             ProgressView().tint(palette.accent)
             Text(style.strings.text(.loading))
-                .font(.system(size: 14, weight: .semibold))
+                .seatLayerPickerFont(size: 14, weight: .semibold)
                 .foregroundColor(palette.mutedText)
         }
         .padding(24)
@@ -826,24 +907,26 @@ public struct SeatLayerPickerErrorView: View {
         )
         VStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 26))
+                .seatLayerPickerFont(size: 26)
                 .foregroundColor(palette.error)
             Text(style.strings.text(.errorMessage))
-                .font(.system(size: 15, weight: .bold))
+                .seatLayerPickerFont(size: 15, weight: .bold)
                 .foregroundColor(palette.text)
             if let error = controller.lastError {
-                Text(error.errorDescription ?? error.code)
-                    .font(.system(size: 12))
+                Text(seatLayerPickerBuyerErrorText(error, strings: style.strings))
+                    .seatLayerPickerFont(size: 12)
                     .foregroundColor(palette.mutedText)
                     .multilineTextAlignment(.center)
             }
-            Button(style.strings.text(.retry), action: retry)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(palette.onAccent)
-                .padding(.horizontal, 18)
-                .frame(height: 42)
-                .background(palette.accent)
-                .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+            if controller.lastError?.isRetryable != false {
+                Button(style.strings.text(.retry), action: retry)
+                    .seatLayerPickerFont(size: 14, weight: .bold)
+                    .foregroundColor(palette.onAccent)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+                    .background(palette.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+            }
         }
         .padding(24)
         .background(palette.surface)

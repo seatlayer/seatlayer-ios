@@ -2,6 +2,9 @@
 
 ## 0.3.0
 
+- Preserves the `0.2.x` one-argument `onHoldChanged` callback, Boolean
+  overview/zoom/colorblind chrome properties, and presentation close/back
+  overloads while adding richer hold-transition and close-reason APIs.
 - Adds a complete native picker for SwiftUI and UIKit around one headless
   protocol-2 renderer session, while preserving the protocol-1 raw chart API.
 - Adds public native confirmation, GA/table, cart, checkout, accessibility,
@@ -16,8 +19,9 @@
 - Adds one-part builders and styles for the canonical 25-part matrix, plus
   scoped custom composition with a public controller and presentation model.
 - Adds deterministic back handling, exact pending-seat projection, per-line
-  cart removal, checkout single-flight, typed handoff rejection, hold ownership,
-  foreground availability reconciliation, and in-place theme updates.
+  cart removal with exact undo (including the last line), checkout
+  single-flight, typed handoff rejection, hold ownership, foreground
+  availability reconciliation, and in-place theme updates.
 - Ships the canonical 37-locale catalog and design-token locks shared with the
   Flutter and React Native SDKs; supplemental iOS-only strings remain
   host-overridable English fallbacks until the shared catalog expands.
@@ -29,6 +33,10 @@
   presentation behavior.
 - Adds portable protocol/schema/concept/behavior/helper fixtures, contract
   tests, a hosted UIKit demo, and redacted end-to-end validation evidence.
+- Hardens command cancellation/timeouts, session-generation ownership,
+  superseded loads, WebView teardown, prewarm mismatch/TTL cleanup, and
+  retryable/fatal error recovery without adding production logging or
+  persistent credential state.
 
 ## 0.2.0
 

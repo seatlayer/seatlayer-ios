@@ -81,7 +81,22 @@ final class PickerAccessibilityTests: XCTestCase {
         )
         let strings = SeatLayerPickerStrings(localeIdentifier: "en")
         XCTAssertEqual(strings.accessNeed("step-free", count: 12), "Step-free · 12")
-        XCTAssertEqual(strings.accessNeed("future-need"), "future-need")
+        XCTAssertEqual(strings.accessNeed("step_free", count: 25), "Step-free · 25")
+        XCTAssertEqual(strings.accessNeed("wheelchair", count: 0), "Wheelchair · 0")
+        XCTAssertEqual(strings.accessNeed("future-need"), "Future need")
+    }
+
+    func testSoldOutAuthoredNeedIsVisibleButDroppedFromActiveDraft() throws {
+        var raw = try XCTUnwrap(makeSnapshot().raw.objectValue)
+        var map = try XCTUnwrap(raw["map"]?.objectValue)
+        map["accessibilityFilter"] = .array(["wheelchair", "step-free"])
+        raw["map"] = .object(map)
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
+
+        XCTAssertEqual(
+            SeatLayerPickerAccessibility.draft(from: snapshot).types,
+            ["step-free"]
+        )
     }
 
     private func makeSnapshot(

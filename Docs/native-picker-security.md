@@ -15,7 +15,9 @@ order, charges through the chosen payment provider, and books idempotently.
   `UserDefaults`, cookies, files, screenshots, or crash metadata.
 - The SDK uses a nonpersistent `WKWebsiteDataStore`, accepts bridge messages
   only from the configured main-frame origin, rejects unrelated navigation,
-  and blanks/destroys the WebView on teardown.
+  and blanks/destroys the WebView on teardown. Teardown also cancels pending
+  commands, navigation waiters, lifecycle work, and any transferred-host load
+  so a late reply cannot reanimate an old session.
 - HTTPS pages with no explicit port are normalized only to the scheme default
   (443 for HTTPS, 80 for HTTP); another port never passes origin validation.
 
@@ -37,7 +39,9 @@ in memory.
 Page mismatch does not transfer the host. TTL expiry, explicit cancellation,
 memory pressure, app termination, navigation failure, or content-process
 termination releases it. A prewarm pool must never become credential or hold
-recovery across journeys or process death.
+recovery across journeys or process death. Invalid/non-finite TTLs fail; the
+finite detached-host lifetime is capped at 24 hours even when a host requests
+more.
 
 ## Selection and hold lifecycle
 

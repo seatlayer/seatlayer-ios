@@ -41,8 +41,33 @@ public struct SeatLayerPickerCategory: Sendable, Equatable {
     public let priceMin: Double
     public let priceMax: Double
     public let available: Int
+    /// Whether the runtime actually reported `available`. A missing future or
+    /// legacy field must not be mistaken for positive sold-out evidence.
+    public let availabilityReported: Bool
     public let notForSale: Bool
     public let tiers: [CategoryTier]
+
+    init(
+        key: String,
+        label: String,
+        color: String,
+        priceMin: Double,
+        priceMax: Double,
+        available: Int,
+        availabilityReported: Bool = true,
+        notForSale: Bool,
+        tiers: [CategoryTier]
+    ) {
+        self.key = key
+        self.label = label
+        self.color = color
+        self.priceMin = priceMin
+        self.priceMax = priceMax
+        self.available = available
+        self.availabilityReported = availabilityReported
+        self.notForSale = notForSale
+        self.tiers = tiers
+    }
 }
 
 public struct SeatLayerPickerZone: Sendable, Equatable {
@@ -74,6 +99,9 @@ public struct SeatLayerPickerCartLine: Sendable, Equatable {
     public let objectType: String
     public let categoryKey: String
     public let tierId: String?
+    /// Runtime-authored ticket tier name, resolved from the authoritative
+    /// category catalog when an older protocol payload omits it.
+    public let tierName: String?
     public let unitPrice: Double
     public let currency: String
     public let quantity: Int

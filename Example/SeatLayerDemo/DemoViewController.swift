@@ -19,16 +19,30 @@ final class DemoViewController: UIViewController {
             ProcessInfo.processInfo.environment["SEATLAYER_API_BASE"]
                 ?? "https://api.seatlayer.io"
         }
+
+        static var locale: String {
+            ProcessInfo.processInfo.environment["SEATLAYER_DEMO_LOCALE"] ?? "en"
+        }
     }
 
     private var pickerHost: SeatLayerPickerViewController?
     private var checkoutInvocationCount = 0
     private var didFlipTheme = false
+    private var didCreateExplicitHold = false
+
+    override var childForStatusBarStyle: UIViewController? { pickerHost }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
-        overrideUserInterfaceStyle = .dark
+        let themeMode = demoThemeMode
+        view.backgroundColor = themeMode == .light
+            ? UIColor(red: 0.965, green: 0.973, blue: 0.988, alpha: 1)
+            : UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
+        switch themeMode {
+        case .light: overrideUserInterfaceStyle = .light
+        case .dark: overrideUserInterfaceStyle = .dark
+        case .auto: overrideUserInterfaceStyle = .unspecified
+        }
         if ProcessInfo.processInfo.environment["SEATLAYER_PREWARM"] == "1" {
             let indicator = installPrewarmIndicator()
             Task { @MainActor in
@@ -71,15 +85,25 @@ final class DemoViewController: UIViewController {
         var configuration = SeatLayerConfiguration(
             event: Fixture.eventKey,
             apiBase: Fixture.apiBase,
-            locale: "en",
+            locale: Fixture.locale,
             currency: "EUR"
         )
         if ProcessInfo.processInfo.environment["SEATLAYER_CLOSURE_FIXTURE"] == "1" {
             guard let fixtureURL = Bundle.main.url(
                 forResource: "picker-closure-fixture",
                 withExtension: "html"
-            ) else { fatalError("Missing picker closure fixture resource.") }
-            configuration.pageURL = fixtureURL
+            ) else {
+                showConfigurationFailure("The picker closure fixture is missing from this demo build.")
+                return
+            }
+            if let state = ProcessInfo.processInfo.environment["SEATLAYER_CLOSURE_STATE"],
+               !state.isEmpty,
+               var components = URLComponents(url: fixtureURL, resolvingAgainstBaseURL: false) {
+                components.queryItems = [URLQueryItem(name: "state", value: state)]
+                configuration.pageURL = components.url ?? fixtureURL
+            } else {
+                configuration.pageURL = fixtureURL
+            }
             NSLog("[SeatLayerDemo] E2E closure fixture=true")
         }
         configuration.hostInfo = [
@@ -97,6 +121,15 @@ final class DemoViewController: UIViewController {
             refreshOnResume: true,
             announceHoldLapse: true
         )
+        var strings = SeatLayerPickerStrings(localeIdentifier: Fixture.locale)
+        if ProcessInfo.processInfo.environment["SEATLAYER_DEMO_LONG_TEXT"] == "1" {
+            strings.overrides[SeatLayerPickerStringKey.accessibilityTitle.rawValue] =
+                "Accessibility, visibility, and colour-assistance preferences"
+            strings.overrides[SeatLayerPickerStringKey.emptyTrayHint.rawValue] =
+                "Choose a place on the seating map, or ask us to find the best available option for your whole party."
+            strings.overrides[SeatLayerPickerStringKey.testModeDescription.rawValue] =
+                "This is a controlled demonstration event. No real reservation, payment, or booking will be created."
+        }
         weak var appearanceHost: SeatLayerPickerViewController?
         let callbacks = SeatLayerPickerCallbacks(
             onReady: { info in
@@ -136,37 +169,85 @@ final class DemoViewController: UIViewController {
                       ProcessInfo.processInfo.environment["SEATLAYER_VALIDATE_THEME_FLIP"] == "1"
                 else { return }
                 self.didFlipTheme = true
-                appearanceHost?.updateAppearance(themeMode: .light)
-                NSLog("[SeatLayerDemo] E2E theme flip=light selectionPreserved=%d", seats.count)
+                Task { @MainActor [weak self] in
+                    // A fixture snapshot can arrive while the hosting
+                    // controller is still being constructed. Yield until the
+                    // local weak reference below has been assigned so this
+                    // validation log can never claim a skipped update.
+                    await Task.yield()
+                    guard let appearanceHost else {
+                        self?.didFlipTheme = false
+                        return
+                    }
+                    appearanceHost.updateAppearance(themeMode: .light)
+                    NSLog(
+                        "[SeatLayerDemo] E2E theme flip=light selectionPreserved=%d",
+                        seats.count
+                    )
+                }
             },
-            onHoldChanged: { hold in
+            onHoldTransition: { hold, _ in
                 NSLog(
                     "[SeatLayerDemo] E2E hold active=%@ owner=%@",
-                    hold.active.description,
-                    hold.owner ?? "-"
+                    (hold?.active ?? false).description,
+                    hold?.owner ?? "-"
                 )
             },
             onError: { error in
                 NSLog(
-                    "[SeatLayerDemo] E2E error code=%@ message=%@",
+                    "[SeatLayerDemo] E2E error code=%@ retryable=%@",
                     error.code,
-                    error.errorDescription ?? "-"
+                    error.isRetryable.description
                 )
+            },
+            onSeatSelected: { [weak self] seat in
+                NSLog(
+                    "[SeatLayerDemo] E2E confirmation label=%@ tier=%@ price=%.2f currency=%@",
+                    seat.label,
+                    seat.tierId ?? "-",
+                    seat.price ?? 0,
+                    seat.currency ?? "-"
+                )
+                guard let self,
+                      !self.didCreateExplicitHold,
+                      ProcessInfo.processInfo.environment["SEATLAYER_DEMO_HOLD_AFTER_CONFIRM"] == "1",
+                      let host = appearanceHost
+                else { return }
+                self.didCreateExplicitHold = true
+                Task { @MainActor in
+                    do {
+                        _ = try await host.pickerController.holdSelection(
+                            ttlMs: 15 * 60 * 1_000
+                        )
+                        NSLog("[SeatLayerDemo] E2E explicit picker hold=true")
+                    } catch let error as SeatLayerError {
+                        NSLog(
+                            "[SeatLayerDemo] E2E explicit picker hold=false code=%@",
+                            error.code
+                        )
+                    } catch {
+                        NSLog("[SeatLayerDemo] E2E explicit picker hold=false")
+                    }
+                }
             }
         )
 
         let host = SeatLayerPickerViewController(
             configuration: configuration,
             options: options,
-            themeMode: .dark,
+            themeMode: demoThemeMode,
+            strings: strings,
             callbacks: callbacks,
             onCheckout: { [weak self] handoff in
                 guard let self else { return }
                 checkoutInvocationCount += 1
+                let quantity = handoff.lineItems.reduce(0) { $0 + $1.quantity }
                 NSLog(
-                    "[SeatLayerDemo] E2E checkout callback=%d holdTransferred=true lines=%d total=%.2f",
+                    "[SeatLayerDemo] E2E checkout callback=%d holdTransferred=true lines=%d quantity=%d currency=%@ total=%.2f",
                     checkoutInvocationCount,
                     handoff.lineItems.count,
+                    quantity,
+                    handoff.currency,
                     handoff.total
                 )
                 showCheckoutReceipt(handoff)
@@ -191,6 +272,39 @@ final class DemoViewController: UIViewController {
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         host.didMove(toParent: self)
+    }
+
+    private var demoThemeMode: SeatLayerPickerThemeMode {
+        switch ProcessInfo.processInfo.environment["SEATLAYER_DEMO_THEME"]?.lowercased() {
+        case "light": return .light
+        case "auto": return .auto
+        default: return .dark
+        }
+    }
+
+    private func showConfigurationFailure(_ message: String) {
+        let label = UILabel()
+        label.text = message
+        label.font = .preferredFont(forTextStyle: .body)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.adjustsFontForContentSizeCategory = true
+        label.accessibilityIdentifier = "seatlayer-demo-configuration-error"
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(
+                greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor,
+                constant: 24
+            ),
+            label.trailingAnchor.constraint(
+                lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor,
+                constant: -24
+            ),
+            label.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
+        ])
     }
 
     private func showCheckoutReceipt(_ handoff: SeatLayerPickerCheckoutHandoff) {
@@ -240,6 +354,7 @@ private final class CheckoutReceiptViewController: UIViewController {
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = UIColor(red: 0.059, green: 0.082, blue: 0.133, alpha: 1)
         view.accessibilityIdentifier = "seatlayer-demo-checkout-receipt"
+        view.accessibilityViewIsModal = true
 
         let success = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
         success.tintColor = UIColor(red: 0.608, green: 0.541, blue: 0.984, alpha: 1)
@@ -248,14 +363,16 @@ private final class CheckoutReceiptViewController: UIViewController {
 
         let title = UILabel()
         title.text = "Checkout handoff received"
-        title.font = .systemFont(ofSize: 24, weight: .bold)
+        title.font = .preferredFont(forTextStyle: .title2)
+        title.adjustsFontForContentSizeCategory = true
         title.textColor = .white
         title.textAlignment = .center
         title.accessibilityIdentifier = "seatlayer-demo-checkout-title"
 
         let subtitle = UILabel()
         subtitle.text = "The native host owns this hold now.\nThe picker callback ran exactly \(callbackCount) time."
-        subtitle.font = .systemFont(ofSize: 15, weight: .regular)
+        subtitle.font = .preferredFont(forTextStyle: .body)
+        subtitle.adjustsFontForContentSizeCategory = true
         subtitle.textColor = UIColor(white: 0.72, alpha: 1)
         subtitle.numberOfLines = 0
         subtitle.textAlignment = .center
@@ -264,20 +381,28 @@ private final class CheckoutReceiptViewController: UIViewController {
         total.text = handoff.total.formatted(
             .currency(code: handoff.currency).precision(.fractionLength(0...2))
         )
-        total.font = .systemFont(ofSize: 34, weight: .heavy)
+        total.font = .preferredFont(forTextStyle: .largeTitle)
+        total.adjustsFontForContentSizeCategory = true
         total.textColor = .white
         total.textAlignment = .center
         total.accessibilityIdentifier = "seatlayer-demo-checkout-total"
 
         let details = UILabel()
         let lines = handoff.lineItems.map { line in
-            "\(line.quantity)× \(line.displayLabel ?? line.label)"
+            let type = line.tierName ?? line.tierId ?? line.categoryKey
+            let price = line.unitPrice.formatted(
+                .currency(code: line.currency).precision(.fractionLength(0...2))
+            )
+            return "\(line.quantity)× \(line.displayLabel ?? line.label) · \(type) · \(price)"
         }
         details.text = ([
             "Hold: transferred to native host",
             "Items: \(handoff.lineItems.count)",
         ] + lines).joined(separator: "\n")
-        details.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
+        details.font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
+            for: .monospacedSystemFont(ofSize: 13, weight: .regular)
+        )
+        details.adjustsFontForContentSizeCategory = true
         details.textColor = UIColor(white: 0.8, alpha: 1)
         details.numberOfLines = 0
         details.textAlignment = .center

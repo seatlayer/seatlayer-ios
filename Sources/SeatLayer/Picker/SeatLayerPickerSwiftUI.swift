@@ -23,6 +23,7 @@ public struct SeatLayerPickerScope<Content: View>: View {
         @ViewBuilder content: @escaping (SeatLayerPickerController) -> Content
     ) {
         let resolved = presentation?.controller ?? controller ?? SeatLayerPickerController()
+        presentation?.update(options: options)
         resolved.configureHaptics(
             enabled: options.haptics,
             adapter: options.haptics
@@ -54,6 +55,11 @@ public struct SeatLayerPickerScope<Content: View>: View {
             .environment(\.seatLayerPickerStyle, style)
             .environment(\.seatLayerPickerStyles, styles)
             .environment(\.seatLayerPickerBuilders, builders)
+            .environment(\.locale, style.strings.resolvedLocale)
+            .environment(
+                \.layoutDirection,
+                style.strings.usesRightToLeftLayout ? .rightToLeft : .leftToRight
+            )
     }
 }
 

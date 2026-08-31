@@ -80,6 +80,34 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.currency, "EUR")
     }
 
+    func testMissingAvailabilityNeverInventsSoldOutState() throws {
+        let snapshot = try inventorySnapshot(categoryAvailability: nil)
+
+        XCTAssertFalse(try XCTUnwrap(snapshot.categories.first).availabilityReported)
+        XCTAssertEqual(seatLayerPickerInventoryStatus(snapshot), .availableOrUnknown)
+    }
+
+    func testExplicitZeroAvailabilityProvesSoldOutOnlyWithoutBuyerWork() throws {
+        let soldOut = try inventorySnapshot(categoryAvailability: .int(0))
+        let withCart = try inventorySnapshot(categoryAvailability: .int(0), retainBuyerWork: true)
+
+        XCTAssertTrue(try XCTUnwrap(soldOut.categories.first).availabilityReported)
+        XCTAssertEqual(seatLayerPickerInventoryStatus(soldOut), .soldOut)
+        XCTAssertEqual(seatLayerPickerInventoryStatus(withCart), .availableOrUnknown)
+    }
+
+    func testSalesClosedIsDistinctAndDoesNotCoverAnExistingCart() throws {
+        let closed = try inventorySnapshot(categoryAvailability: .int(12), salesClosed: true)
+        let withCart = try inventorySnapshot(
+            categoryAvailability: .int(12),
+            salesClosed: true,
+            retainBuyerWork: true
+        )
+
+        XCTAssertEqual(seatLayerPickerInventoryStatus(closed), .salesClosed)
+        XCTAssertEqual(seatLayerPickerInventoryStatus(withCart), .availableOrUnknown)
+    }
+
     func testDecodesExplicit3DTargetNeighboursAndFocusedSection() throws {
         var raw = try XCTUnwrap(pickerSnapshot().objectValue)
         var map = try XCTUnwrap(raw["map"]?.objectValue)
@@ -155,17 +183,35 @@ final class PickerSnapshotTests: XCTestCase {
     }
 
     func testCheckoutHandoffIsTheOnlyTypedSurfaceWithAHoldId() throws {
+        let categories = [SeatLayerPickerCategory(
+            key: "standard",
+            label: "Standard",
+            color: "#112233",
+            priceMin: 30,
+            priceMax: 30,
+            available: 1,
+            notForSale: false,
+            tiers: [CategoryTier(id: "child", name: "Child", price: 30, currency: "EUR")]
+        )]
         let handoff = try XCTUnwrap(decodeSeatLayerPickerCheckoutHandoff([
             "holdId": "hold-secret",
             "expiresAt": 1_800_000_000_000,
-            "lineItems": .array([
-                ["label": "A-1", "unitPrice": 30, "currency": "EUR", "quantity": 2],
-            ]),
-        ]))
+            "lineItems": .array([[
+                "label": "A-1",
+                "categoryKey": "standard",
+                "tierId": "child",
+                "unitPrice": 30,
+                "currency": "EUR",
+                "quantity": 2,
+            ]]),
+        ], categories: categories))
 
         XCTAssertEqual(handoff.holdId, "hold-secret")
         XCTAssertEqual(handoff.currency, "EUR")
         XCTAssertEqual(handoff.total, 60)
+        XCTAssertEqual(handoff.lineItems.first?.tierId, "child")
+        XCTAssertEqual(handoff.lineItems.first?.tierName, "Child")
+        XCTAssertEqual(handoff.lineItems.first?.unitPrice, 30)
         XCTAssertFalse(Mirror(reflecting: SeatLayerPickerHold(active: true, expiresAt: nil, owner: "picker"))
             .children.contains { $0.label == "holdId" })
     }
@@ -292,5 +338,28 @@ final class PickerSnapshotTests: XCTestCase {
         ]
         root.merge(additions) { _, addition in addition }
         return .object(root)
+    }
+
+    private func inventorySnapshot(
+        categoryAvailability: JSONValue?,
+        salesClosed: Bool = false,
+        retainBuyerWork: Bool = false
+    ) throws -> SeatLayerPickerSnapshot {
+        var root = try XCTUnwrap(pickerSnapshot().objectValue)
+        var event = try XCTUnwrap(root["event"]?.objectValue)
+        event["salesClosed"] = .bool(salesClosed)
+        root["event"] = .object(event)
+
+        var catalog = try XCTUnwrap(root["catalog"]?.objectValue)
+        var category = try XCTUnwrap(catalog["categories"]?.arrayValue?.first?.objectValue)
+        category["available"] = categoryAvailability
+        catalog["categories"] = .array([.object(category)])
+        root["catalog"] = .object(catalog)
+
+        if !retainBuyerWork {
+            root["selection"] = ["seats": .array([])]
+            root["cart"] = ["items": .array([])]
+        }
+        return try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(root)))
     }
 }

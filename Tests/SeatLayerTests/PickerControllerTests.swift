@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import SeatLayer
 
@@ -209,6 +210,82 @@ final class PickerControllerTests: XCTestCase {
         ])
     }
 
+    func testLifecycleNormalizesForegroundAndKeepsTheReturnedLapseOutcome() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.lifecycle": [
+                "outcome": [
+                    "refreshed": true,
+                    "holdLapsed": true,
+                    "lapsedLabels": .array(["A-1"]),
+                    "recoverableLabels": .array(["A-1"]),
+                ],
+            ],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.lifecycle"]
+        )
+
+        let result = try await controller.lifecycle("resumed")
+
+        XCTAssertEqual(result?.outcome?.lapsedLabels, ["A-1"])
+        XCTAssertEqual(controller.holdLapse?.recovery, .all)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls, [
+            .init(name: "picker.lifecycle", payload: ["state": "foreground"]),
+        ])
+    }
+
+    func testLifecycleRejectsAnUnknownStateBeforeTransport() async {
+        let transport = PickerTransportSpy()
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.lifecycle"]
+        )
+
+        do {
+            _ = try await controller.lifecycle("inactive")
+            XCTFail("expected bad payload")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, BridgeErrorCode.badPayload)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        let calls = await transport.recordedCalls()
+        XCTAssertTrue(calls.isEmpty)
+    }
+
+    func testReadyHostLifecyclePolicyReconcilesForegroundAfterTheLifecycleReply() async {
+        let transport = PickerTransportSpy(responses: [
+            "picker.lifecycle": [
+                "outcome": [
+                    "refreshed": true,
+                    "holdLapsed": true,
+                    "lapsedLabels": .array(["A-1"]),
+                    "recoverableLabels": .array(["A-1"]),
+                ],
+            ],
+            "picker.getSnapshot": ["snapshot": pickerSnapshot(revision: 2)],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.lifecycle", "picker.getSnapshot"]
+        )
+
+        await controller.reconcileApplicationLifecycle(
+            foreground: true,
+            refreshOnResume: true
+        )
+
+        XCTAssertEqual(controller.holdLapse?.lapsedLabels, ["A-1"])
+        XCTAssertEqual(controller.snapshot?.revision, 2)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls, [
+            .init(name: "picker.lifecycle", payload: ["state": "foreground"]),
+            .init(name: "picker.getSnapshot", payload: nil),
+        ])
+    }
+
     func testAccessibilityDraftSendsIndependentChangesThenFocusesSeats() async throws {
         let transport = PickerTransportSpy()
         let controller = readyController(
@@ -262,6 +339,96 @@ final class PickerControllerTests: XCTestCase {
             .init(name: "picker.setColorblindSafe", payload: ["on": true]),
             .init(name: "picker.setRung", payload: ["rung": "seats"]),
         ])
+    }
+
+    func testSupersededRuntimeCannotPublishOrDestroyTheCurrentSession() {
+        let controller = SeatLayerPickerController()
+        let firstOwner = UUID()
+        let secondOwner = UUID()
+        let transport = PickerTransportSpy()
+        let bundle = BundleInfo([
+            "bundle": "0.71.5",
+            "protocol": ["min": 2, "max": 2],
+            "capabilities": .array([]),
+            "commands": .array([]),
+            "events": .array(["picker.snapshot"]),
+        ])
+        let ready = ReadyInfo([
+            "protocol": 2,
+            "mode": "live",
+            "transport": "ios",
+            "chart": ["event": "ev_picker"],
+        ])
+
+        controller.beginLoading(owner: firstOwner)
+        controller.connect(transport: transport, bundleInfo: bundle, owner: firstOwner)
+        controller.markReady(ready, payload: nil, owner: firstOwner)
+
+        controller.beginLoading(owner: secondOwner)
+        controller.connect(transport: transport, bundleInfo: bundle, owner: secondOwner)
+        controller.markReady(ready, payload: nil, owner: secondOwner)
+        controller.accept(
+            snapshot: pickerSnapshot(sessionId: "session-current", revision: 1),
+            owner: secondOwner
+        )
+
+        controller.accept(
+            snapshot: pickerSnapshot(sessionId: "session-stale", revision: 99),
+            owner: firstOwner
+        )
+        controller.markDestroyed(owner: firstOwner)
+
+        XCTAssertTrue(controller.isReady)
+        XCTAssertEqual(controller.snapshot?.sessionId, "session-current")
+        XCTAssertEqual(controller.snapshot?.revision, 1)
+    }
+
+    func testTypedObservationStreamsDedupeValidityAndPublishAccessEvents() {
+        let controller = readyController(transport: PickerTransportSpy(), commands: [])
+        let validity = SelectionValidity(
+            isValid: true,
+            count: 1,
+            required: 1,
+            remaining: 0,
+            seats: [],
+            violations: []
+        )
+        let expired = BuyerAccessExpiredEvent(
+            reason: .expired,
+            code: "access_expired",
+            refreshed: false
+        )
+        let unavailable = BuyerAccessUnavailableEvent(
+            reason: .revoked,
+            code: "access_revoked",
+            status: 403,
+            retryable: false
+        )
+        let lost = SelectedObjectUnavailableEvent(
+            labels: ["A-1"],
+            reason: .taken,
+            code: "seat_taken"
+        )
+        var validityValues: [SelectionValidity] = []
+        var expiredValues: [BuyerAccessExpiredEvent] = []
+        var unavailableValues: [BuyerAccessUnavailableEvent] = []
+        var lostValues: [SelectedObjectUnavailableEvent] = []
+        var cancellables: Set<AnyCancellable> = []
+        controller.selectionValidityChanges.sink { validityValues.append($0) }.store(in: &cancellables)
+        controller.accessExpirations.sink { expiredValues.append($0) }.store(in: &cancellables)
+        controller.accessUnavailability.sink { unavailableValues.append($0) }.store(in: &cancellables)
+        controller.selectedObjectUnavailability.sink { lostValues.append($0) }.store(in: &cancellables)
+
+        controller.accept(selectionValidity: validity)
+        controller.accept(selectionValidity: validity)
+        controller.accept(accessExpired: expired)
+        controller.accept(accessUnavailable: unavailable)
+        controller.accept(selectedObjectsUnavailable: lost)
+
+        XCTAssertEqual(validityValues, [validity])
+        XCTAssertEqual(expiredValues, [expired])
+        XCTAssertEqual(unavailableValues, [unavailable])
+        XCTAssertEqual(lostValues, [lost])
     }
 
     private func readyController(

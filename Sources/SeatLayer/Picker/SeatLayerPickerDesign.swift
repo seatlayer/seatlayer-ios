@@ -210,6 +210,40 @@ func seatLayerPickerAnimation(
         duration: Double(resolved.durationMilliseconds) / 1_000
     )
 }
+
+/// Scales explicit design-token point sizes with the buyer's Dynamic Type
+/// setting while retaining the picker typography weights and rounded numerals.
+/// A shared modifier keeps custom component implementations from silently
+/// falling back to fixed-size text.
+struct SeatLayerPickerScaledFontModifier: ViewModifier {
+    @ScaledMetric(relativeTo: .body) private var scaledSize: CGFloat = 17
+    let weight: Font.Weight
+    let design: Font.Design
+
+    init(size: CGFloat, weight: Font.Weight, design: Font.Design) {
+        _scaledSize = ScaledMetric(wrappedValue: size, relativeTo: .body)
+        self.weight = weight
+        self.design = design
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: scaledSize, weight: weight, design: design))
+    }
+}
+
+extension View {
+    func seatLayerPickerFont(
+        size: CGFloat,
+        weight: Font.Weight = .regular,
+        design: Font.Design = .default
+    ) -> some View {
+        modifier(SeatLayerPickerScaledFontModifier(
+            size: size,
+            weight: weight,
+            design: design
+        ))
+    }
+}
 #endif
 
 public enum SeatLayerPickerElevationTokens {
@@ -285,8 +319,11 @@ public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
     case select
     case selectTicketTier
     case seatsLeft
+    case showLess
     case row
+    case salesClosed
     case seat
+    case seatRemoved
     case section
     case testMode
     case testModeDescription
@@ -298,6 +335,7 @@ public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
     case ticketCount
     case tierCompanionGuidance
     case ticketType
+    case undo
     case venue3D
     case viewFromHere
     case viewFromYourSeat
@@ -326,6 +364,16 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
 
     public static var supportedLocales: [String] { generatedLocales.keys.sorted() }
 
+    var resolvedLocale: Locale {
+        Locale(identifier: requestedLocaleIdentifier)
+    }
+
+    var usesRightToLeftLayout: Bool {
+        let language = requestedLocaleIdentifier.split(separator: "-").first
+            .map { String($0).lowercased() } ?? "en"
+        return ["ar", "fa", "he", "ku"].contains(language)
+    }
+
     public func text(
         _ key: SeatLayerPickerStringKey,
         replacing values: [String: String] = [:]
@@ -347,6 +395,14 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         return count == 1 ? "1 ticket" : "\(count) tickets"
     }
 
+    public func findBestSeats(_ count: Int) -> String {
+        let pluralKey = count == 1 ? "findBestSeats.one" : "findBestSeats.other"
+        let template = overrides[pluralKey]
+            ?? localized[pluralKey]
+            ?? (count == 1 ? "Find {count} best seat" : "Find {count} best seats")
+        return template.replacingOccurrences(of: "{count}", with: String(count))
+    }
+
     public func seatsLeft(_ count: Int) -> String {
         text(.seatsLeft, replacing: ["count": String(count)])
     }
@@ -360,6 +416,7 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
     }
 
     public func accessNeed(_ key: String, count: Int? = nil) -> String {
+        let canonicalKey = key.lowercased().replacingOccurrences(of: "_", with: "-")
         let known: [String: SeatLayerPickerStringKey] = [
             "wheelchair": .accessWheelchair,
             "companion": .accessCompanion,
@@ -374,19 +431,26 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             "plus-size": .accessPlusSize,
             "lift-armrest": .accessLiftArmrest,
         ]
+        let words = key
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = words.isEmpty
+            ? key
+            : String(words.prefix(1)).uppercased(with: resolvedLocale) + words.dropFirst()
         let label = overrides["accessNeeds.\(key)"]
-            ?? known[key].map { text($0) }
-            ?? key
-        guard let count, count > 0 else { return label }
+            ?? overrides["accessNeeds.\(canonicalKey)"]
+            ?? known[canonicalKey].map { text($0) }
+            ?? fallback
+        guard let count else { return label }
         return text(
             .accessNeedWithCount,
-            replacing: ["need": label, "count": String(count)]
+            replacing: ["need": label, "count": String(max(0, count))]
         )
     }
 
     private var localized: [String: String] {
-        let requested = (localeIdentifier ?? Locale.preferredLanguages.first ?? "en")
-            .replacingOccurrences(of: "_", with: "-")
+        let requested = requestedLocaleIdentifier
         if let exact = Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(requested) == .orderedSame
         })?.value { return exact }
@@ -400,6 +464,13 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         return Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(language) == .orderedSame
         })?.value ?? Self.generatedLocales["en"] ?? [:]
+    }
+
+    private var requestedLocaleIdentifier: String {
+        let candidate = (localeIdentifier ?? Locale.preferredLanguages.first ?? "en")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: "-")
+        return candidate.isEmpty ? "en" : candidate
     }
 
     private static let english: [SeatLayerPickerStringKey: String] = [
@@ -467,8 +538,11 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         .select: "Select",
         .selectTicketTier: "Select a ticket type",
         .seatsLeft: "{count} left",
+        .showLess: "Show less",
         .row: "Row",
+        .salesClosed: "Ticket sales for this event have ended.",
         .seat: "Seat",
+        .seatRemoved: "Ticket removed.",
         .section: "Section",
         .testMode: "TEST MODE",
         .testModeDescription: "Test event. No real booking will be made.",
@@ -480,6 +554,7 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         .ticketCount: "{count} tickets",
         .tierCompanionGuidance: "Requires the adjacent wheelchair place.",
         .ticketType: "Ticket type",
+        .undo: "Undo",
         .venue3D: "3D",
         .viewFromHere: "View from here",
         .viewFromYourSeat: "view from your seat",
@@ -489,4 +564,26 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         .zoomIn: "Zoom in",
         .zoomOut: "Zoom out",
     ]
+}
+
+/// Deliberately derives buyer copy from stable error classification, never
+/// from a bridge or host-provided description that could contain private
+/// checkout state. Integrators still receive the complete typed error through
+/// callbacks for their own diagnostics.
+func seatLayerPickerBuyerErrorText(
+    _ error: SeatLayerError,
+    strings: SeatLayerPickerStrings
+) -> String {
+    let unavailableCodes: Set<String> = [
+        "sold_out",
+        "not_enough_together",
+        "hold_unavailable",
+        "event_closed",
+        "sales_closed",
+        "no_inventory",
+    ]
+    if unavailableCodes.contains(error.code) {
+        return strings.text(.noTicketsAvailable)
+    }
+    return error.isRetryable ? strings.text(.retry) : strings.text(.errorMessage)
 }

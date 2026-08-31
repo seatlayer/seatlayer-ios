@@ -31,14 +31,16 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
 - Checkout is single-flight and yields one typed transfer. A throwing host
   callback rejects that exact transfer. Close releases picker-owned inventory
   and preserves host-owned inventory.
-- Back consumes one layer: prompt → cart → confirmation → section → venue →
-  close.
+- Back consumes one native layer: prompt → cart → confirmation → section →
+  venue → close. Renderer-owned immersive depth resolves panorama → target →
+  3D overview → map before the unchanged pending decision is shown again.
 - Empty state requires explicit sales-closed/all-unavailable evidence; absence
   of catalog evidence is still loading/map, never invented sold-out state.
 - Required attribution and test-mode indication cannot be disabled or replaced.
 - The public customization contract is the canonical 25 whole parts, the ten
   builder-context fields, and the default-content fallback rule recorded in
-  `Contracts/picker-public-concepts.v1.json`.
+  `Contracts/picker-public-concepts.v1.json`. Missing and throwing builders
+  both fall back to the safe canonical content.
 - Theme changes update native chrome and renderer semantic roles without a new
   runtime session. Locale lookup is exact BCP-47 → language → English.
 - Foreground availability reconciliation blocks stale action assumptions and
@@ -84,9 +86,38 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
 
 ## API disposition
 
-The concept names and 25 part identifiers are frozen for Android Gate 0 review.
-Platform type names remain candidates until Android API review confirms Kotlin
-idioms, binary compatibility, Java usability, and Compose/View parity. The
-protocol/schema/behavior/helper JSON files are the executable shared contract;
-Swift source is an implementation and evidence source, not the Android API
-template.
+The iOS `0.3.0` surface is additive to protocol-1 `SeatLayerView`. In
+particular, the existing one-argument `onHoldChanged`, Boolean
+overview/zoom/colorblind properties, and one-handler close/back overloads are
+retained; richer transition/reason and compact-phone controls are additions.
+SwiftPM's API-breakage diagnostic against `origin/main` reports no breaking
+changes, and a separate iOS 15 executable imports both the retained and new
+signatures without `@testable` or SDK-private types.
+The concept names and 25 part identifiers are frozen for Android Gate 0
+review. Platform type names remain candidates until Android API review
+confirms Kotlin idioms, binary compatibility, Java usability, and
+Compose/View parity. The protocol/schema/behavior/helper JSON files are the
+executable shared contract; Swift source is an implementation and evidence
+source, not the Android API template.
+
+## Performance Groups and Seasons
+
+These are separate multi-performance products, not ticket tiers. The pinned
+web runtime includes a browser Performance Group picker, but its access and
+recovery model is tied to browser-origin/session behavior and it does not
+publish a versioned protocol-2 native profile. A portable native contract must
+define buyer-session audience/origin, multi-performance descriptor and
+revisioned aggregate snapshot, per-performance allocation commands, atomic
+hold adoption/recovery/release/extend, and exact checkout/inspect/book/cancel
+handoff semantics before any mobile SDK can expose it honestly.
+
+The pinned `0.71.5` runtime also exports a fixed Renewable Season private-beta
+browser surface with an immutable plan, same-seat inclusion, operation
+recovery, renewal intent, and a Season-only checkout handoff. It still has no
+versioned protocol-2 native profile. A mobile contract must separately define
+the native buyer-session audience, plan/occurrence snapshot and revisions,
+same-seat availability and inventory rights, caller-stable operations,
+partial-terminal recovery, hold/release, Season checkout, renewal, and
+cancellation semantics. Neither product is covered by single-event tier
+support, and this SDK does not publish thin native wrappers around browser-only
+contracts.

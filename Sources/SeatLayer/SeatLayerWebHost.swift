@@ -20,7 +20,7 @@ final class SeatLayerWebHost: NSObject {
     private weak var target: SeatLayerView?
     private var messageDeliveryArmed = false
     private var bufferedMessages: [(body: Any, frame: WKFrameInfo)] = []
-    private var navigationWaiters: [CheckedContinuation<Void, Error>] = []
+    private var navigationWaiters: [UUID: CheckedContinuation<Void, Error>] = [:]
     private var allowedPageURL: URL?
     private var clearing = false
     private(set) var requestedPageURL: URL?
@@ -90,20 +90,33 @@ final class SeatLayerWebHost: NSObject {
         case .failed(let message): throw SeatLayerError.transport(message)
         case .cancelled: throw CancellationError()
         case .idle, .loading:
-            try await withCheckedThrowingContinuation { continuation in
-                navigationWaiters.append(continuation)
+            let waiter = UUID()
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<Void, Error>) in
+                    guard !Task.isCancelled else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    navigationWaiters[waiter] = continuation
+                }
+            } onCancel: {
+                Task { @MainActor [weak self] in
+                    self?.cancelNavigationWaiter(waiter)
+                }
             }
         }
     }
 
     func cancelPrewarm() {
-        webView.stopLoading()
-        navigationState = .cancelled
-        finishNavigation(.failure(CancellationError()))
-        bufferedMessages.removeAll(keepingCapacity: false)
+        stopAndClear(error: CancellationError())
     }
 
     func stopAndClear() {
+        stopAndClear(error: SeatLayerError.destroyed)
+    }
+
+    private func stopAndClear(error: Error) {
         webView.stopLoading()
         messageDeliveryArmed = false
         bufferedMessages.removeAll(keepingCapacity: false)
@@ -112,7 +125,7 @@ final class SeatLayerWebHost: NSObject {
         allowedPageURL = nil
         clearing = true
         navigationState = .cancelled
-        finishNavigation(.failure(SeatLayerError.destroyed))
+        finishNavigation(.failure(error))
         webView.loadHTMLString("", baseURL: nil)
     }
 
@@ -134,9 +147,13 @@ final class SeatLayerWebHost: NSObject {
     }
 
     private func finishNavigation(_ result: Result<Void, Error>) {
-        let waiters = navigationWaiters
+        let waiters = Array(navigationWaiters.values)
         navigationWaiters.removeAll(keepingCapacity: false)
         for continuation in waiters { continuation.resume(with: result) }
+    }
+
+    private func cancelNavigationWaiter(_ id: UUID) {
+        navigationWaiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 
     private static let canvasHardening = """

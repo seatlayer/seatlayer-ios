@@ -17,7 +17,9 @@ public final class SeatLayerPickerMapView: UIView {
 
     private var configuration: SeatLayerConfiguration?
     private let chartView: SeatLayerView
-    private var loadTask: Task<ReadyInfo, Error>?
+    private var loadTask: Task<Void, Never>?
+    private var loadWaiters: [UUID: CheckedContinuation<ReadyInfo, Error>] = [:]
+    private var loadedReadyInfo: ReadyInfo?
 
     public init(
         configuration: SeatLayerConfiguration,
@@ -47,6 +49,15 @@ public final class SeatLayerPickerMapView: UIView {
         return nil
     }
 
+    deinit {
+        loadTask?.cancel()
+        let waiters = Array(loadWaiters.values)
+        loadWaiters.removeAll(keepingCapacity: false)
+        for waiter in waiters { waiter.resume(throwing: SeatLayerError.destroyed) }
+        let chartView = chartView
+        Task { @MainActor in try? await chartView.destroy() }
+    }
+
     private func setUp() {
         backgroundColor = .clear
         chartView.translatesAutoresizingMaskIntoConstraints = false
@@ -62,17 +73,28 @@ public final class SeatLayerPickerMapView: UIView {
     /// Start the hosted renderer once and await its protocol-2 handshake.
     @discardableResult
     public func load() async throws -> ReadyInfo {
-        if let loadTask { return try await loadTask.value }
+        if let loadedReadyInfo { return loadedReadyInfo }
         guard let configuration else { throw SeatLayerError.destroyed }
-        let task = Task { @MainActor [configuration, chartView] in
-            try await chartView.load(configuration)
-        }
-        loadTask = task
-        do {
-            return try await task.value
-        } catch {
-            loadTask = nil
-            throw error
+        let waiter = UUID()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                loadWaiters[waiter] = continuation
+                guard loadTask == nil else { return }
+                loadTask = Task { @MainActor [weak self, configuration, chartView] in
+                    do {
+                        let ready = try await chartView.load(configuration)
+                        self?.finishLoad(.success(ready))
+                    } catch {
+                        self?.finishLoad(.failure(error))
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancelLoadWaiter(waiter) }
         }
     }
 
@@ -80,9 +102,22 @@ public final class SeatLayerPickerMapView: UIView {
     public func destroy() async {
         loadTask?.cancel()
         loadTask = nil
+        loadedReadyInfo = nil
+        finishLoad(.failure(SeatLayerError.destroyed))
         configuration = nil
         try? await chartView.destroy()
-        controller.markDestroyed()
+    }
+
+    private func finishLoad(_ result: Result<ReadyInfo, Error>) {
+        loadTask = nil
+        if case .success(let info) = result { loadedReadyInfo = info }
+        let waiters = Array(loadWaiters.values)
+        loadWaiters.removeAll(keepingCapacity: false)
+        for waiter in waiters { waiter.resume(with: result) }
+    }
+
+    private func cancelLoadWaiter(_ id: UUID) {
+        loadWaiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 }
 
@@ -139,6 +174,7 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
     private var pickerStrings: SeatLayerPickerStrings
     private var pickerStyles: SeatLayerPickerStyles
     private var appearanceCancellables: Set<AnyCancellable> = []
+    private var lifecycleTask: Task<Void, Never>?
 
     public init(
         configuration: SeatLayerConfiguration,
@@ -183,16 +219,18 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
             callbacks: callbacks,
             onCheckout: onCheckout,
             onClose: onClose
-        ))
+        ).lifecycleManagedByUIKit())
         bindSystemAppearance()
+        bindApplicationLifecycle()
     }
 
     @available(*, unavailable)
     public required dynamic init?(coder aDecoder: NSCoder) {
-        fatalError("SeatLayerPickerViewController must be created in code.")
+        return nil
     }
 
     public override var preferredStatusBarStyle: UIStatusBarStyle {
+        guard pickerOptions.chrome.systemBars else { return .default }
         let lightForeground = SeatLayerPickerSystemAppearance.prefersLightForeground(
             themeMode: pickerThemeMode,
             systemIsDark: traitCollection.userInterfaceStyle == .dark,
@@ -203,6 +241,15 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
     }
 
     public override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation { .fade }
+
+    public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.hasDifferentColorAppearance(comparedTo: traitCollection) == true
+        else { return }
+        setNeedsStatusBarAppearanceUpdate()
+        parent?.setNeedsStatusBarAppearanceUpdate()
+        navigationController?.setNeedsStatusBarAppearanceUpdate()
+    }
 
     /// Hardware Escape and Command-[ consume the same deterministic layer as
     /// the native header and host navigation integration.
@@ -236,7 +283,7 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
     /// from their back item or interactive-pop coordinator.
     @discardableResult
     public func handleBack() async -> SeatLayerPickerBackStep {
-        await presentationModel.back(using: closeHandler)
+        await presentationModel.back(using: closeHandler, closeReason: .systemBack)
     }
 
     public var nextBackStep: SeatLayerPickerBackStep {
@@ -269,8 +316,9 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
             callbacks: pickerCallbacks,
             onCheckout: checkoutHandler,
             onClose: closeHandler
-        )
+        ).lifecycleManagedByUIKit()
         setNeedsStatusBarAppearanceUpdate()
+        parent?.setNeedsStatusBarAppearanceUpdate()
         navigationController?.setNeedsStatusBarAppearanceUpdate()
     }
 
@@ -283,9 +331,32 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
             .combineLatest(pickerController.$seatView)
             .sink { [weak self] _, _ in
                 self?.setNeedsStatusBarAppearanceUpdate()
+                self?.parent?.setNeedsStatusBarAppearanceUpdate()
                 self?.navigationController?.setNeedsStatusBarAppearanceUpdate()
             }
             .store(in: &appearanceCancellables)
+    }
+
+    private func bindApplicationLifecycle() {
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in self?.enqueueApplicationLifecycle(foreground: false) }
+            .store(in: &appearanceCancellables)
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in self?.enqueueApplicationLifecycle(foreground: true) }
+            .store(in: &appearanceCancellables)
+    }
+
+    private func enqueueApplicationLifecycle(foreground: Bool) {
+        guard pickerController.isReady else { return }
+        let precedingTask = lifecycleTask
+        lifecycleTask = Task { @MainActor [weak self] in
+            await precedingTask?.value
+            guard !Task.isCancelled, let self else { return }
+            await pickerController.reconcileApplicationLifecycle(
+                foreground: foreground,
+                refreshOnResume: pickerOptions.refreshOnResume
+            )
+        }
     }
 }
 #endif

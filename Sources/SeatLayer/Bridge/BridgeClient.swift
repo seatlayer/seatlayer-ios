@@ -77,9 +77,16 @@ public actor BridgeClient {
         commandErrorEvents: Set<String> = BridgeClient.defaultCommandErrorEvents
     ) {
         self.channel = channel
-        self.timeout = timeout
+        self.timeout = Self.normalizedTimeout(timeout)
         self.failableCommands = failableCommands
         self.commandErrorEvents = commandErrorEvents
+    }
+
+    /// Keeps hostile or accidentally invalid host input away from the
+    /// `TimeInterval` to `UInt64` conversion used by `Task.sleep`.
+    static func normalizedTimeout(_ timeout: TimeInterval) -> TimeInterval {
+        guard timeout.isFinite, timeout > 0 else { return defaultTimeout }
+        return min(timeout, 86_400)
     }
 
     public func attach(channel: BridgeChannel) {
@@ -104,14 +111,27 @@ public actor BridgeClient {
 
         // Register the continuation BEFORE sending: a synchronous reply must
         // never arrive to an empty pending table.
-        return try await withCheckedThrowingContinuation { continuation in
-            let timeoutTask = Task { [weak self, timeout] in
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                guard !Task.isCancelled else { return }
-                await self?.expire(id: id)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                let timeoutTask = Task { [weak self, timeout] in
+                    try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                    await self?.expire(id: id)
+                }
+                pending[id] = Pending(
+                    command: name,
+                    order: order,
+                    continuation: continuation,
+                    timeoutTask: timeoutTask
+                )
+                Task { await channel.send(envelope) }
             }
-            pending[id] = Pending(command: name, order: order, continuation: continuation, timeoutTask: timeoutTask)
-            Task { await channel.send(envelope) }
+        } onCancel: {
+            Task { await self.cancel(id: id) }
         }
     }
 
@@ -128,6 +148,12 @@ public actor BridgeClient {
         entry.continuation.resume(
             throwing: SeatLayerError.timeout(command: entry.command, seconds: timeout)
         )
+    }
+
+    private func cancel(id: String) {
+        guard let entry = pending.removeValue(forKey: id) else { return }
+        entry.timeoutTask.cancel()
+        entry.continuation.resume(throwing: CancellationError())
     }
 
     // MARK: - Inbound
@@ -165,10 +191,12 @@ public actor BridgeClient {
             // A missing `n` cannot be ordered; treat it as fresh rather than
             // dropping a real event.
             let sequence = envelope.sequence ?? Int.min
-            if let seen = lastSequence[envelope.type], sequence <= seen {
-                return // stale — a newer snapshot of this event type already applied
+            if let orderedSequence = envelope.sequence {
+                if let seen = lastSequence[envelope.type], orderedSequence <= seen {
+                    return // stale — a newer snapshot of this event type already applied
+                }
+                lastSequence[envelope.type] = orderedSequence
             }
-            lastSequence[envelope.type] = sequence
             signalHandler?(.event(name: envelope.type, payload: envelope.payload, sequence: sequence))
 
         case .hello:

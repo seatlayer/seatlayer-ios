@@ -91,4 +91,21 @@ final class NegotiationTests: XCTestCase {
         XCTAssertFalse(SeatLayerError.timeout(command: "hold", seconds: 15).requiresAppUpdate)
         XCTAssertFalse(SeatLayerError.bridge(BridgeErrorPayload(code: "sold_out", message: "gone")).requiresAppUpdate)
     }
+
+    func testRetryabilitySeparatesTransientFromHostActionFailures() {
+        XCTAssertTrue(SeatLayerError.handshakeTimeout(seconds: 30).isRetryable)
+        XCTAssertTrue(SeatLayerError.transport("offline").isRetryable)
+        XCTAssertTrue(SeatLayerError.bridge(.init(code: "sold_out", message: "gone")).isRetryable)
+        XCTAssertFalse(SeatLayerError.bridge(.init(
+            code: BridgeErrorCode.badPayload,
+            message: "invalid host input"
+        )).isRetryable)
+        XCTAssertFalse(SeatLayerError.destroyed.isRetryable)
+        XCTAssertFalse(SeatLayerError.missingResource("Web").isRetryable)
+        XCTAssertFalse(SeatLayerError.incompatible(
+            native: .init(min: 2, max: 2),
+            web: .init(min: 3, max: 3),
+            reason: "no overlap"
+        ).isRetryable)
+    }
 }

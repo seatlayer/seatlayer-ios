@@ -80,6 +80,23 @@ extension SeatLayerError: LocalizedError {
         return false
     }
 
+    /// Whether reloading the same picker can credibly recover this failure.
+    /// Contract, package, and lifecycle failures require host action instead.
+    public var isRetryable: Bool {
+        switch self {
+        case .timeout, .handshakeTimeout, .transport:
+            return true
+        case .bridge(let payload):
+            return ![
+                BridgeErrorCode.badPayload,
+                BridgeErrorCode.unsupportedCommand,
+                BridgeErrorCode.destroyed,
+            ].contains(payload.code)
+        case .incompatible, .destroyed, .decoding, .missingResource:
+            return false
+        }
+    }
+
     /// The seats an availability failure reported as already taken, when the
     /// error carries them (a `bestAvailable` / `hold` / `holdGA` 409). `nil` for
     /// every other failure. Lets a caller show "A-1, A-2 were just taken"
