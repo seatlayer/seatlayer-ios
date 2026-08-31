@@ -277,11 +277,9 @@ the rail yields to the decision surface. Test Mode remains independent at the
 top (or bottom-left in panorama), so changing white-label entitlement never
 hides test-event truth.
 
-White-label policy is configured server-side and reaches every SDK through
+White-label policy is configured server-side and reaches the SDK through
 `branding.attributionRequired`. Hosts do not infer entitlement from local
-theme, builder, strings, or chrome values. See the
-[final visual correction](native-picker-visual-correction-2026-08-31.md) for
-paired API-required/disabled pixels and hosted compact/3D/cart evidence.
+theme, builder, strings, or chrome values.
 
 ## State ownership
 

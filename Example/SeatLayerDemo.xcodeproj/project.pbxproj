@@ -13,9 +13,6 @@
 		AA0000000000000000000104 /* seatlayer.js in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000004 /* seatlayer.js */; };
 		AA0000000000000000000105 /* SeatLayer in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000701 /* SeatLayer */; };
 		AA0000000000000000000106 /* CustomPickerExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* CustomPickerExample.swift */; };
-		AA0000000000000000000107 /* picker-closure-fixture.html in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000008 /* picker-closure-fixture.html */; };
-		AA0000000000000000000108 /* DesiPassClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000009 /* DesiPassClient.swift */; };
-		AA0000000000000000000109 /* DesiPassDemoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000010 /* DesiPassDemoViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,9 +23,6 @@
 		AA0000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000000000000000000006 /* SeatLayerDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SeatLayerDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000007 /* CustomPickerExample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomPickerExample.swift; sourceTree = "<group>"; };
-		AA0000000000000000000008 /* picker-closure-fixture.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "picker-closure-fixture.html"; sourceTree = "<group>"; };
-		AA0000000000000000000009 /* DesiPassClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesiPassClient.swift; sourceTree = "<group>"; };
-		AA0000000000000000000010 /* DesiPassDemoViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesiPassDemoViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,8 +51,6 @@
 				AA0000000000000000000001 /* AppDelegate.swift */,
 				AA0000000000000000000002 /* DemoViewController.swift */,
 				AA0000000000000000000007 /* CustomPickerExample.swift */,
-				AA0000000000000000000009 /* DesiPassClient.swift */,
-				AA0000000000000000000010 /* DesiPassDemoViewController.swift */,
 				AA0000000000000000000005 /* Info.plist */,
 				AA0000000000000000000304 /* Resources */,
 			);
@@ -77,7 +69,6 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000003 /* demo.html */,
-				AA0000000000000000000008 /* picker-closure-fixture.html */,
 				AA0000000000000000000004 /* seatlayer.js */,
 			);
 			path = Resources;
@@ -148,7 +139,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000000000000000000103 /* demo.html in Resources */,
-				AA0000000000000000000107 /* picker-closure-fixture.html in Resources */,
 				AA0000000000000000000104 /* seatlayer.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -163,8 +153,6 @@
 				AA0000000000000000000101 /* AppDelegate.swift in Sources */,
 				AA0000000000000000000102 /* DemoViewController.swift in Sources */,
 				AA0000000000000000000106 /* CustomPickerExample.swift in Sources */,
-				AA0000000000000000000108 /* DesiPassClient.swift in Sources */,
-				AA0000000000000000000109 /* DesiPassDemoViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

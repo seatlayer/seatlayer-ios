@@ -12,7 +12,7 @@ final class DemoViewController: UIViewController {
     private enum Fixture {
         static var eventKey: String {
             ProcessInfo.processInfo.environment["SEATLAYER_EVENT_KEY"]
-                ?? "ev_ba4c90989806"
+                ?? "ev_your_test_event"
         }
 
         static var apiBase: String {
@@ -27,8 +27,6 @@ final class DemoViewController: UIViewController {
 
     private var pickerHost: SeatLayerPickerViewController?
     private var checkoutInvocationCount = 0
-    private var didFlipTheme = false
-    private var didCreateExplicitHold = false
 
     override var childForStatusBarStyle: UIViewController? { pickerHost }
 
@@ -82,34 +80,12 @@ final class DemoViewController: UIViewController {
     }
 
     private func installPicker() {
-        var configuration = SeatLayerConfiguration(
+        let configuration = SeatLayerConfiguration(
             event: Fixture.eventKey,
             apiBase: Fixture.apiBase,
             locale: Fixture.locale,
             currency: "EUR"
         )
-        if ProcessInfo.processInfo.environment["SEATLAYER_CLOSURE_FIXTURE"] == "1" {
-            guard let fixtureURL = Bundle.main.url(
-                forResource: "picker-closure-fixture",
-                withExtension: "html"
-            ) else {
-                showConfigurationFailure("The picker closure fixture is missing from this demo build.")
-                return
-            }
-            if let state = ProcessInfo.processInfo.environment["SEATLAYER_CLOSURE_STATE"],
-               !state.isEmpty,
-               var components = URLComponents(url: fixtureURL, resolvingAgainstBaseURL: false) {
-                components.queryItems = [URLQueryItem(name: "state", value: state)]
-                configuration.pageURL = components.url ?? fixtureURL
-            } else {
-                configuration.pageURL = fixtureURL
-            }
-            NSLog("[SeatLayerDemo] E2E closure fixture=true")
-        }
-        configuration.hostInfo = [
-            "app": "SeatLayerDemo/1.0",
-            "journey": "native-picker-e2e",
-        ]
 
         let options = SeatLayerPickerOptions(
             layout: ProcessInfo.processInfo.environment["SEATLAYER_DEMO_WIDE"] == "1"
@@ -130,7 +106,6 @@ final class DemoViewController: UIViewController {
             strings.overrides[SeatLayerPickerStringKey.testModeDescription.rawValue] =
                 "This is a controlled demonstration event. No real reservation, payment, or booking will be created."
         }
-        weak var appearanceHost: SeatLayerPickerViewController?
         let callbacks = SeatLayerPickerCallbacks(
             onReady: { info in
                 NSLog(
@@ -157,34 +132,12 @@ final class DemoViewController: UIViewController {
                     trace.bundle ?? "-"
                 )
             },
-            onSelectionChanged: { [weak self] seats in
+            onSelectionChanged: { seats in
                 NSLog(
                     "[SeatLayerDemo] E2E selection count=%d labels=%@",
                     seats.count,
                     seats.map(\.label).joined(separator: ",")
                 )
-                guard let self,
-                      !seats.isEmpty,
-                      !self.didFlipTheme,
-                      ProcessInfo.processInfo.environment["SEATLAYER_VALIDATE_THEME_FLIP"] == "1"
-                else { return }
-                self.didFlipTheme = true
-                Task { @MainActor [weak self] in
-                    // A fixture snapshot can arrive while the hosting
-                    // controller is still being constructed. Yield until the
-                    // local weak reference below has been assigned so this
-                    // validation log can never claim a skipped update.
-                    await Task.yield()
-                    guard let appearanceHost else {
-                        self?.didFlipTheme = false
-                        return
-                    }
-                    appearanceHost.updateAppearance(themeMode: .light)
-                    NSLog(
-                        "[SeatLayerDemo] E2E theme flip=light selectionPreserved=%d",
-                        seats.count
-                    )
-                }
             },
             onHoldTransition: { hold, _ in
                 NSLog(
@@ -200,7 +153,7 @@ final class DemoViewController: UIViewController {
                     error.isRetryable.description
                 )
             },
-            onSeatSelected: { [weak self] seat in
+            onSeatSelected: { seat in
                 NSLog(
                     "[SeatLayerDemo] E2E confirmation label=%@ tier=%@ price=%.2f currency=%@",
                     seat.label,
@@ -208,27 +161,6 @@ final class DemoViewController: UIViewController {
                     seat.price ?? 0,
                     seat.currency ?? "-"
                 )
-                guard let self,
-                      !self.didCreateExplicitHold,
-                      ProcessInfo.processInfo.environment["SEATLAYER_DEMO_HOLD_AFTER_CONFIRM"] == "1",
-                      let host = appearanceHost
-                else { return }
-                self.didCreateExplicitHold = true
-                Task { @MainActor in
-                    do {
-                        _ = try await host.pickerController.holdSelection(
-                            ttlMs: 15 * 60 * 1_000
-                        )
-                        NSLog("[SeatLayerDemo] E2E explicit picker hold=true")
-                    } catch let error as SeatLayerError {
-                        NSLog(
-                            "[SeatLayerDemo] E2E explicit picker hold=false code=%@",
-                            error.code
-                        )
-                    } catch {
-                        NSLog("[SeatLayerDemo] E2E explicit picker hold=false")
-                    }
-                }
             }
         )
 
@@ -258,7 +190,6 @@ final class DemoViewController: UIViewController {
                 showClosedState()
             }
         )
-        appearanceHost = host
         pickerHost = host
 
         addChild(host)
@@ -280,31 +211,6 @@ final class DemoViewController: UIViewController {
         case "auto": return .auto
         default: return .dark
         }
-    }
-
-    private func showConfigurationFailure(_ message: String) {
-        let label = UILabel()
-        label.text = message
-        label.font = .preferredFont(forTextStyle: .body)
-        label.textColor = .white
-        label.textAlignment = .center
-        label.numberOfLines = 0
-        label.adjustsFontForContentSizeCategory = true
-        label.accessibilityIdentifier = "seatlayer-demo-configuration-error"
-        label.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(
-                greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor,
-                constant: 24
-            ),
-            label.trailingAnchor.constraint(
-                lessThanOrEqualTo: view.safeAreaLayoutGuide.trailingAnchor,
-                constant: -24
-            ),
-            label.centerXAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
-        ])
     }
 
     private func showCheckoutReceipt(_ handoff: SeatLayerPickerCheckoutHandoff) {

@@ -20,17 +20,13 @@ a typed headless controller.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-![Hosted SeatLayer iOS picker: header, legend, map modes, section and seat interaction, confirmation, active test hold, cart and Continue](Docs/media/desipass-picker-flow.gif)
+![Hosted SeatLayer iOS picker: header, legend, map modes, section and seat interaction, confirmation, active test hold, cart and Continue](Docs/media/picker-flow.gif)
 
-The walkthrough starts directly inside the real hosted SeatLayer picker and
-uses controlled test inventory. It shows the picker-owned header, bounded
-price legend, map/3D control, section and seat interaction, confirmation,
-active hold countdown, expanded cart, and reachable Continue action. Continue
-is intentionally not activated, so the recording contains no host event feed,
-event-detail screen, checkout receipt, payment, or booking. The bundled
-deterministic fixture remains separately labelled supplemental proof for
-multi-tier, authored 3D/panorama, accessibility, and edge-state combinations
-unavailable in the current hosted event.
+The walkthrough starts directly inside the hosted SeatLayer picker with
+controlled test inventory. It shows the picker-owned header, bounded price
+legend, map/3D control, section and seat interaction, confirmation, active
+hold countdown, expanded cart, and reachable Continue action. Continue is not
+activated, so the recording contains no payment, booking, or host-only data.
 
 The compact three-bar “Powered by SeatLayer” mark stays at the safe
 bottom-right edge throughout that flow. Its visibility is runtime/API truth:
@@ -176,12 +172,8 @@ availability request; runtime lifecycle truth is still consumed.
 message to the host. A custom host can call `controller.lifecycle`,
 `controller.refreshAvailability()`, and `controller.synchronize()` directly.
 
-See [Native picker integration](Docs/native-picker.md),
-[security and hold ownership](Docs/native-picker-security.md), and the
-[public API review](Docs/native-picker-api-review.md). The final
-[cross-SDK closure audit](Docs/native-picker-closure-parity-2026-08-30.md)
-separates hosted proof, deterministic protocol proof, and remaining external
-runtime/product gates.
+See [Native picker integration](Docs/native-picker.md) and
+[security and hold ownership](Docs/native-picker-security.md).
 
 ## Customize the picker
 
@@ -505,53 +497,12 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView** —
 ### Simulator
 
 `Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
-picker. Set `DESIPASS_API_KEY` in the scheme's **Run → Arguments → Environment
-Variables** to launch the real DesiPass development flow: events → details →
-Book Now → hosted native picker → hold → typed host checkout handoff. The app
-uses the key only to call DesiPass and mint short-lived, mobile-origin buyer
-access in process memory; it never writes the key, bearer, event key, or hold
-identifier to source, URLs, logs, screenshots, or persistent storage.
-`DESIPASS_GRAPHQL_URL` can override the development GraphQL endpoint. Never
-commit either value to the shared scheme.
-
-Without a DesiPass key, the app retains the direct validation launcher. It uses
-SeatLayer's controlled hosted test event, the pinned CDN document, and the
-production HTTPS API; inventory remains test-only. Set `SEATLAYER_DIRECT_DEMO=1`
-to keep that route even when a DesiPass key is present, or set
-`SEATLAYER_EVENT_KEY` and `SEATLAYER_API_BASE` for another authorized event.
-Set `SEATLAYER_VALIDATE_THEME_FLIP=1` to prove that an in-place dark/light
-change preserves the active selection and renderer session.
-Set `SEATLAYER_PREWARM=1` to transfer a preloaded page into the real picker.
-The validation-only `SEATLAYER_CLOSURE_FIXTURE=1` supplies authored
-Adult/Child, 3D target/neighbour, panorama, floor, and access states that the
-current hosted event lacks. `SEATLAYER_DEMO_WIDE=1` renders the wide
-composition; `SEATLAYER_DEMO_SKIP_CONFIRM=1` exposes its confirmed-cart rail.
-`SEATLAYER_DEMO_HOLD_AFTER_CONFIRM=1` creates an explicit picker-owned hold
-after native confirmation for lifecycle evidence.
-`SEATLAYER_CLOSURE_STATE` can be `loading`, `retryable-error`, `fatal-error`,
-`empty`, `sold-out`, `sales-closed`, `hold-countdown`, or `hold-lapsed`; the
-lapse state is delivered by a background/foreground reconciliation. Visual
-audit launches may also set `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
-and `SEATLAYER_DEMO_LONG_TEXT`.
-
-The current redacted journey evidence and exact runtime checksums are recorded
-in [native-picker validation](Docs/native-picker-validation-2026-08-30.md).
-
-`Docs/simulator-handshake.png` is the historical first successful bridge
-capture, taken against bundle 0.29.0. It is a record of that run, not a
-current-state screenshot — re-capture it when the simulator evidence is next
-refreshed.
-
-### One bug the simulator run caught
-
-The first run rendered the chart correctly but timed out at
-`sl_handshake_timeout` (`Docs/simulator-before-evt-fix.png`). JavaScript has a
-single number type, so `n: 1` reaches `WKScriptMessage` as an `NSNumber` holding
-a **double**; the decoder demanded a strict integer and rejected every `evt` —
-including `sys.ready`. `hello`, `init`, `res` and `err` carry no `n`, which is
-exactly why the handshake got as far as a fully drawn map and no further. The
-decoder now matches the web's `isFiniteInt` (any finite, integral number), with
-a regression test.
+picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
+Environment Variables** to an authorized test event. Optional
+`SEATLAYER_API_BASE`, `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
+`SEATLAYER_DEMO_WIDE`, and `SEATLAYER_PREWARM` values demonstrate the public
+configuration, adaptive layout, theme, locale, and page-only prewarm APIs.
+Never commit credentials or customer event identifiers to the shared scheme.
 
 ## Frequently asked questions
 
@@ -644,9 +595,6 @@ slot; when the API disables it, iOS removes it and reclaims the space.
 - [Use the native picker integration guide](Docs/native-picker.md) for the
   ready SwiftUI/UIKit hosts, customization, public parts, state ownership, and
   prewarming contract.
-- [Review the final visual correction evidence](Docs/native-picker-visual-correction-2026-08-31.md)
-  for compact/wide composition, API-owned attribution, and hosted versus
-  deterministic evidence boundaries.
 - [Connect seat holds to secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
   without exposing booking credentials in the app.
 - [Run the complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)

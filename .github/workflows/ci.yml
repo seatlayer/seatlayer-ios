@@ -11,6 +11,10 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Check public repository hygiene
+        run: bash Scripts/check-public-repository.sh
+      - name: Verify generated picker design inputs
+        run: node Scripts/validate-picker-design.mjs
       - name: Test bridge and payload contracts
         run: swift test
       - name: Build the iOS library
