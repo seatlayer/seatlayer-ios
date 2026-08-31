@@ -7,9 +7,11 @@
 > the new report and evidence pack are authoritative for visible composition.
 
 This is the release-quality evidence record for the local SeatLayer iOS
-`0.3.0` native-picker candidate. The immutable iOS commit/tree/archive hashes
-are recorded in the Android handoff after the local candidate commit is
-created. Nothing was pushed, tagged, or submitted as a pull request.
+native-picker candidate, originally numbered `0.3.0` and now shipping in the
+synchronized four-SDK `0.3.4` release. The immutable iOS commit/tree/archive
+hashes are recorded in the Android handoff after that local candidate commit
+was created. Nothing had been pushed, tagged, or submitted as a pull request
+when this evidence was captured.
 
 No event key, bearer, customer identifier, opaque hold ID, or hold expiry is
 recorded in this document, screenshots, or diagnostic excerpts.

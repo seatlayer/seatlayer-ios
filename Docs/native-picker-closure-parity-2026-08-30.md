@@ -2,8 +2,9 @@
 
 ## Verdict
 
-SeatLayer iOS `0.3.0` now has the complete applicable single-event picker
-surface. The independent pass found and fixed source-compatibility, lifecycle,
+The SeatLayer iOS native-picker candidate, originally audited as `0.3.0` and
+shipping in synchronized release `0.3.4`, has the complete applicable
+single-event picker surface. The independent pass found and fixed source-compatibility, lifecycle,
 cart undo, tier persistence, mixed-currency, truthful empty-state,
 accessibility-label, compact-layout, and large-Dynamic-Type defects. Raw
 `SeatLayerView` remains the protocol-1 API; the native picker is additive and

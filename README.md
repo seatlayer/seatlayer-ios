@@ -92,7 +92,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.3.0")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.3.4")
 ]
 ```
 

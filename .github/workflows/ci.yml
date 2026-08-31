@@ -32,11 +32,11 @@ jobs:
           source=Sources/SeatLayer/SeatLayerConfiguration.swift
           hosted="$(sed -n 's/.*hostedWebVersion = "\(.*\)".*/\1/p' "$source")"
           fixture="$(sed -n 's/.*legacyFixtureWebVersion = "\(.*\)".*/\1/p' "$source")"
-          page="$(sed -n 's/.*mobilePageURL = URL(string: "\(.*\)")!.*/\1/p' "$source")"
+          page_template="$(sed -n 's/^[[:space:]]*string: "\(.*\)"$/\1/p' "$source")"
           test -n "$hosted" || { echo "could not read hostedWebVersion"; exit 1; }
           test -n "$fixture" || { echo "could not read legacyFixtureWebVersion"; exit 1; }
-          test "$page" = "https://cdn.seatlayer.io/seatlayer-js@$hosted/mobile.html" \
-            || { echo "mobilePageURL does not match hostedWebVersion"; exit 1; }
+          test "$page_template" = 'https://cdn.seatlayer.io/seatlayer-js@\(hostedWebVersion)/mobile.html' \
+            || { echo "mobilePageURL does not interpolate hostedWebVersion"; exit 1; }
           test "$fixture" = "0.59.0" \
             || { echo "unexpected legacy fixture version: $fixture"; exit 1; }
           test "$(shasum -a 256 Sources/SeatLayer/Web/seatlayer.js | cut -d' ' -f1)" \

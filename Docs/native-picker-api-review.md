@@ -89,7 +89,7 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
 
 ## API disposition
 
-The iOS `0.3.0` surface is additive to protocol-1 `SeatLayerView`. In
+The iOS `0.3.4` surface is additive to protocol-1 `SeatLayerView`. In
 particular, the existing one-argument `onHoldChanged`, Boolean
 overview/zoom/colorblind properties, and one-handler close/back overloads are
 retained; richer transition/reason and compact-phone controls are additions.

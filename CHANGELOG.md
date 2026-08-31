@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0
+## 0.3.4
 
 - Preserves the `0.2.x` one-argument `onHoldChanged` callback, Boolean
   overview/zoom/colorblind chrome properties, and presentation close/back

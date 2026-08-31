@@ -1,6 +1,6 @@
 # Native picker integration
 
-SeatLayer iOS 0.3.0 exposes three integration levels. All three use the same
+SeatLayer iOS 0.3.4 exposes three integration levels. All three use the same
 protocol-2 runtime state and typed commands; choose based on how much native
 layout the host wants to own.
 
