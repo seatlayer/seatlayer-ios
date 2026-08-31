@@ -36,7 +36,10 @@ from SwiftUI/UIKit mechanics, which Android should translate rather than copy.
   3D overview → map before the unchanged pending decision is shown again.
 - Empty state requires explicit sales-closed/all-unavailable evidence; absence
   of catalog evidence is still loading/map, never invented sold-out state.
-- Required attribution and test-mode indication cannot be disabled or replaced.
+- Test-mode indication cannot be disabled or replaced. Attribution visibility
+  comes only from runtime `branding.attributionRequired`; when required it
+  cannot be disabled or replaced, and when not required native chrome must not
+  invent it. Both truth components remain outside the builder matrix.
 - The public customization contract is the canonical 25 whole parts, the ten
   builder-context fields, and the default-content fallback rule recorded in
   `Contracts/picker-public-concepts.v1.json`. Missing and throwing builders

@@ -32,6 +32,12 @@ deterministic fixture remains separately labelled supplemental proof for
 multi-tier, authored 3D/panorama, accessibility, and edge-state combinations
 unavailable in the current hosted event.
 
+The compact three-bar “Powered by SeatLayer” mark stays at the safe
+bottom-right edge throughout that flow. Its visibility is runtime/API truth:
+the SDK renders it only when the snapshot says
+`branding.attributionRequired == true`. A server-side white-label entitlement
+can turn it off; app chrome options and builders cannot force or suppress it.
+
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
 for origin-bound private buyer sessions; no event key or bearer is put in the
@@ -42,6 +48,37 @@ page URL.
 - Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
 - Raw chart protocol: 1 (unchanged)
 - Native picker protocol: 2 with snapshot contract 1
+
+## Works as a native picker
+
+**Every buyer control is native SwiftUI/UIKit.** SeatLayer's pinned renderer
+draws venue geometry, seats, labels, the 3D scene, and panorama pixels. The SDK
+draws the header, price and floor rails, map controls, decision surfaces, cart,
+hold state, checkout action, loading/error states, and accessibility chrome.
+There is one renderer session, so changing native presentation never creates a
+second map or loses the buyer's camera, selection, or hold.
+
+The three supported integration levels are a ladder. Customization keeps the
+ready flow; composition keeps the controller, runtime truth, and checkout
+contract:
+
+| Level | You want | You write | You keep |
+| --- | --- | --- | --- |
+| **1** | The complete buyer flow | `SeatLayerPicker` or `SeatLayerPickerViewController` | Native layout, states, holds, and checkout |
+| **2** | The flow in your brand and words | Theme, styles, strings, options, or builders | Canonical layout and behavior |
+| **3** | Your own screen | `SeatLayerPickerScope` plus public components | Runtime snapshots, typed actions, holds, and handoff |
+
+```mermaid
+flowchart TD
+  A["SeatLayerConfiguration<br/>event + buyer access"] --> B{"How much<br/>does the app own?"}
+  B -->|"The journey"| C["SeatLayerPicker<br/>SwiftUI or UIKit"]
+  B -->|"The look"| D["theme · styles<br/>strings · options · builders"]
+  B -->|"The screen"| E["SeatLayerPickerScope<br/>+ public components"]
+  C --> F["onCheckout(handoff)"]
+  D --> F
+  E --> F
+  F --> G["Your backend inspects<br/>and books the hold"]
+```
 
 ## Install
 
@@ -127,6 +164,18 @@ navigation. It contains no event or credentials and is consumed once:
 Task { try await SeatLayerPicker.prewarm() }
 ```
 
+**Stay current when the buyer returns.** The ready SwiftUI picker observes
+`scenePhase`; the ready UIKit host observes application notifications. On
+foreground they report lifecycle state to the runtime, consume any hold-lapse
+or lost-inventory outcome, optionally request fresh availability, and then
+synchronize the authoritative snapshot before new buyer actions.
+
+`SeatLayerPickerOptions(refreshOnResume: false)` skips the optional explicit
+availability request; runtime lifecycle truth is still consumed.
+`announceHoldLapse: false` keeps reconciliation but leaves the visible lapse
+message to the host. A custom host can call `controller.lifecycle`,
+`controller.refreshAvailability()`, and `controller.synchronize()` directly.
+
 See [Native picker integration](Docs/native-picker.md),
 [security and hold ownership](Docs/native-picker-security.md), and the
 [public API review](Docs/native-picker-api-review.md). The final
@@ -134,7 +183,85 @@ See [Native picker integration](Docs/native-picker.md),
 separates hosted proof, deterministic protocol proof, and remaining external
 runtime/product gates.
 
-## Compose your own native picker
+## Customize the picker
+
+Four public layers change presentation without rebuilding inventory or hold
+behavior.
+
+**Colors — a semantic theme.** Native chrome and the renderer receive the same
+approved roles, and `.auto` tracks the current iOS color scheme without
+remounting:
+
+```swift
+let theme = SeatLayerPickerTheme(
+    background: "#0F1522",
+    surface: "#1A2234",
+    text: "#EEF1F8",
+    accent: "#FF6584",
+    onAccent: "#111827",
+    map: SeatLayerPickerMapTheme(
+        background: "#0F1522",
+        rowLabelColor: "#D7DEEA",
+        textColor: "#EEF1F8",
+        selectionColor: "#FF6584"
+    )
+)
+```
+
+**One surface — a typed style slot.** A style changes appearance, not ownership
+or inventory truth:
+
+```swift
+var styles = SeatLayerPickerStyles()
+styles[.checkoutBar] = SeatLayerPickerPartStyle(
+    background: "#FF6584",
+    cornerRadius: 18,
+    horizontalPadding: 12,
+    verticalPadding: 8
+)
+```
+
+**Visibility and words — options and strings.** Chrome gates remove optional
+default parts, while the 37 bundled locale dictionaries resolve exact BCP-47,
+then language, then English:
+
+```swift
+let options = SeatLayerPickerOptions(
+    chrome: SeatLayerPickerChromeOptions(floorStrip: false)
+)
+let strings = SeatLayerPickerStrings(
+    overrides: [
+        SeatLayerPickerStringKey.continueWord.rawValue: "Review order"
+    ],
+    localeIdentifier: "fr-FR"
+)
+```
+
+**One whole part — a builder.** Each builder receives the live snapshot,
+controller, presentation state, style, and the canonical `defaultContent`:
+
+```swift
+var builders = SeatLayerPickerBuilders()
+builders.header = { context in
+    AnyView(
+        context.defaultContent
+            .background(.ultraThinMaterial)
+    )
+}
+```
+
+Missing or throwing builders fall back to the canonical component. Test Mode
+and `SeatLayerPickerAttribution` intentionally have no builder slot. Test Mode
+follows runtime event truth. Attribution appears at bottom-right only when
+`snapshot.branding.attributionRequired` is true. The legacy
+`SeatLayerPickerChromeOptions.attribution` property remains for source
+compatibility but is not an authority in either direction.
+
+Pass `theme`, `themeMode`, `styles`, `strings`, `options`, and `builders` to
+`SeatLayerPicker`; UIKit can apply theme/string/style changes in place with
+`updateAppearance(theme:themeMode:strings:styles:)`.
+
+## Build your own native picker
 
 `SeatLayerPickerScope` gives a custom SwiftUI tree one controller, one
 presentation model, and one renderer session. Use `SeatLayerPickerMap` for the
@@ -151,8 +278,17 @@ SeatLayerPickerScope(options: options) { controller in
             controller: controller
         )
         VStack {
+            SeatLayerPickerHeader()
             SeatLayerPickerPriceLegend()
+            HStack {
+                SeatLayerPickerTestModeIndicator()
+                Spacer()
+            }
             Spacer()
+            HStack {
+                Spacer()
+                SeatLayerPickerAttribution()
+            }
             SeatLayerPickerDockBar()
             SeatLayerPickerCartList()
         }
@@ -160,11 +296,12 @@ SeatLayerPickerScope(options: options) { controller in
 }
 ```
 
-For one-part customization, pass `SeatLayerPickerBuilders`; every builder gets
-the live snapshot/controller/presentation/style plus `defaultContent`, so it
-can wrap the canonical component. `SeatLayerPickerStyles` handles visual-only
-changes. If a builder is absent or throws, the canonical default renders.
-Required test-mode and attribution truth cannot be suppressed.
+Callbacks observe rather than own the flow. `SeatLayerPickerCallbacks` covers
+ready/load, selection and validity, holds and expiry, access failures,
+unavailable selected objects, theme, section, seat, seat-view, close/error,
+and Continue. The controller exposes typed semantic actions such as
+`focusSection`, `overview`, `setFloor`, `setCategoryFilter`,
+`refreshAvailability`, and `checkout`; custom UI never sends bridge envelopes.
 
 `SeatLayerPickerChromeOptions` keeps the original Boolean `overview`, `zoom`,
 and `colorblind` master switches. Dense phone layouts keep those actions in
@@ -174,7 +311,53 @@ native sheets by default; enable `phoneOverview`, `phoneZoom`, or
 UIKit apps that own all chrome use `SeatLayerPickerMapView` or
 `SeatLayerPickerMapViewController`, observe `pickerController.snapshot`, and
 call the controller's typed semantic actions. Never create a second map for
-the same scope.
+the same scope. They also own truthful Test Mode presentation and must render
+bottom-right attribution exactly when
+`snapshot.branding.attributionRequired == true`.
+
+## Native component catalogue
+
+Every default component works inside `SeatLayerPickerScope`; the ready picker
+is composed from the same public surface.
+
+| Part | Public default component | Responsibility |
+| --- | --- | --- |
+| `header` | `SeatLayerPickerHeader` | Event identity, active hold, close |
+| `legend` | `SeatLayerPickerPriceLegend` | Runtime price/category filters |
+| `floorSelector` | `SeatLayerPickerFloorSelector` | Wide floor selection |
+| `floorStrip` | `SeatLayerPickerFloorStrip` | Compact floor navigation |
+| `sectionNavigator` | `SeatLayerPickerSectionNavigator` | Section context and stepping |
+| `dockBar` | `SeatLayerPickerDockBar` | Focused section and cart entry |
+| `accessibilityFilters` | `SeatLayerPickerAccessibilityFilters` | Runtime-authored access needs |
+| `map` | `SeatLayerPickerMap` | The single renderer-owned venue surface |
+| `mapControls` | `SeatLayerPickerMapControls` | Fit, overview, zoom, access, Map/3D |
+| `bestAvailable` | `SeatLayerBestSeatsForm` | Quantity/category/zone request |
+| `seatConfirmation` | `SeatLayerPickerSeatConfirmation` | Wide seat/tier decision |
+| `confirmCard` | `SeatLayerConfirmCard` | Compact seat/tier decision |
+| `generalAdmissionPrompt` | `SeatLayerPickerGeneralAdmissionPrompt` | GA quantity decision |
+| `tablePrompt` | `SeatLayerPickerTablePrompt` | Variable-table quantity decision |
+| `cartList` | `SeatLayerPickerCartList` | Confirmed lines and removal |
+| `cartSheet` | `SeatLayerPickerCartSheet` | Expandable compact cart |
+| `venue3D` | `SeatLayerVenue3D` | Runtime-authored 3D navigation chrome |
+| `seatViewChrome` | `SeatLayerSeatViewChrome` | Panorama caption and inspection chrome |
+| `holdCountdown` | `SeatLayerPickerHoldCountdown` | Snapshot-derived expiry |
+| `holdLapse` | `SeatLayerHoldLapseNotice` | Recoverable foreground lapse |
+| `actionError` | `SeatLayerPickerActionError` | In-context retryable action error |
+| `checkoutBar` | `SeatLayerPickerCheckoutBar` | Quantity, total, Continue |
+| `loading` | `SeatLayerPickerLoadingView` | Pre-ready progress |
+| `error` | `SeatLayerPickerErrorView` | Retryable and fatal failures |
+| `empty` | `SeatLayerPickerEmptyView` | Empty, sold-out, sales-closed truth |
+
+`SeatLayerPickerTestModeIndicator` and `SeatLayerPickerAttribution` are public
+truth components outside the 25 replaceable parts. The attribution uses the
+shared three-bar mark and occupies the safe bottom-right location when the API
+requires it; when the API disables it, the adjacent controls reclaim that
+space.
+
+The picker accepts only newer revisions from its active runtime session,
+serializes inventory-changing actions, and joins repeated checkout taps into
+one flight. Private buyer tokens remain in memory and never enter an ordinary
+snapshot.
 
 ## Raw map quick start
 
@@ -221,6 +404,14 @@ The native picker keeps bearer credentials in memory, uses a nonpersistent web
 data store, accepts bridge traffic only from the configured main-frame origin,
 and destroys the session on teardown. If the checkout callback throws, it asks
 the runtime to reject that exact handoff and keeps the buyer in the picker.
+
+Ordinary picker snapshots deliberately omit the opaque `holdId`; only
+`SeatLayerPickerCheckoutHandoff` crosses that capability boundary. Before a
+successful handoff the picker owns the hold and close may release it. After the
+host accepts the handoff, close preserves it and the host owns booking,
+rejection/release, or expiry. `initialHoldId` restores a host-owned hold;
+`readOnly: true` refuses inventory mutation in the controller and runtime, not
+only in hidden UI.
 
 Continue with
 [seat holds and secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
@@ -366,10 +557,11 @@ a regression test.
 
 ### How do I add a seat map to an iOS app?
 
-Add the Swift package, create a `SeatLayerView` with your event key, and set a
-delegate. The quick start above renders a complete interactive seating chart
-with live availability; every buyer action — selection, holds, best available —
-is an `async throws` Swift call.
+Add the Swift package and present `SeatLayerPicker` in SwiftUI or
+`SeatLayerPickerViewController` in UIKit. That is the complete buyer flow:
+live availability, filters, section/floor navigation, confirmation, cart,
+holds, 3D inspection, and a typed checkout handoff. Use `SeatLayerView` only
+when the app deliberately owns every buyer control and hold interaction.
 
 ### Is this a native Swift seat map or a WebView?
 
@@ -385,6 +577,13 @@ Yes. Use `SeatLayerPicker` for the complete native flow,
 `SeatLayerPickerMap` for only the headless renderer. Give the map a definite
 frame and do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
 pinch gestures.
+
+### How does seat booking work in an iOS app?
+
+The app selects inventory and receives a temporary hold; it does not book or
+charge inside the picker. Send only the opaque handoff to your authenticated
+backend, inspect the hold server-side, calculate the charge from trusted hold
+items, process payment, and book with a stable `bookingRef`.
 
 ### How do temporary seat holds work?
 
@@ -410,10 +609,44 @@ and renderer against the bundled offline fixture. Create a free SeatLayer test
 event when you are ready to validate live inventory, holds, expiry, and
 checkout.
 
+### Can I restyle the picker without rebuilding it?
+
+Yes. Use a semantic `SeatLayerPickerTheme`, a per-part
+`SeatLayerPickerPartStyle`, chrome/string options, or a whole-part builder.
+Those layers retain the canonical layout and buyer flow. Theme changes update
+native chrome and renderer roles in place without losing selection or camera
+state.
+
+### Can I build a completely different picker layout?
+
+Yes. `SeatLayerPickerScope` plus the public native components is a supported
+integration level. Keep exactly one scoped `SeatLayerPickerMap`; the controller
+continues to own snapshots, typed actions, holds, and checkout.
+
+### Does the picker support light and dark mode?
+
+Yes. `.auto` follows the live iOS color scheme and updates both native chrome
+and approved renderer color roles without remounting. `.light` and `.dark` pin
+one side explicitly. UIKit can update an already-presented picker with
+`updateAppearance(...)`.
+
+### Can my app hide “Powered by SeatLayer”?
+
+Not with a local view option. Visibility comes from the runtime snapshot's
+`branding.attributionRequired` value, which reflects the API-side branding
+entitlement. Required attribution stays at bottom-right and has no builder
+slot; when the API disables it, iOS removes it and reclaims the space.
+
 ## Continue your iOS integration
 
 - [Follow the mobile seat-map integration guide](https://docs.seatlayer.io/buyer-sdk/mobile/)
   for setup, lifecycle, commands, events, and runtime requirements.
+- [Use the native picker integration guide](Docs/native-picker.md) for the
+  ready SwiftUI/UIKit hosts, customization, public parts, state ownership, and
+  prewarming contract.
+- [Review the final visual correction evidence](Docs/native-picker-visual-correction-2026-08-31.md)
+  for compact/wide composition, API-owned attribution, and hosted versus
+  deterministic evidence boundaries.
 - [Connect seat holds to secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
   without exposing booking credentials in the app.
 - [Run the complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)

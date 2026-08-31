@@ -40,8 +40,8 @@ struct TicketPicker: View {
 The ready picker owns the native header, legend, map controls, floor and
 section navigation, confirmation, exclusive GA/table prompts, cart, hold
 status, availability recovery, checkout, loading/error/empty states, and the
-required test-mode and attribution truth. Phone and wide layouts reuse one
-mounted renderer.
+required test-mode truth. It renders attribution only when the runtime snapshot
+requires it. Phone and wide layouts reuse one mounted renderer.
 
 ## 2. Ready-made UIKit host
 
@@ -102,7 +102,15 @@ SeatLayerPickerScope(
         VStack(spacing: 0) {
             SeatLayerPickerHeader()
             SeatLayerPickerPriceLegend()
+            HStack {
+                SeatLayerPickerTestModeIndicator()
+                Spacer()
+            }
             Spacer()
+            HStack {
+                Spacer()
+                SeatLayerPickerAttribution()
+            }
             SeatLayerPickerDockBar()
             SeatLayerPickerCartSheet(onCheckout: checkout)
         }
@@ -115,6 +123,8 @@ UIKit custom hosts create exactly one `SeatLayerPickerMapView` (or
 compose native UIKit controls around it. UI events call semantic controller
 methods such as `focusSection`, `overview`, `setFloor`, `setCategoryFilter`,
 `deselectObjects`, and `checkout`; they never send bridge envelopes directly.
+The host also presents Test Mode truth and renders bottom-right attribution
+exactly when `pickerController.snapshot?.branding.attributionRequired == true`.
 
 ## Ticket tiers and immersive inspection
 
@@ -135,7 +145,8 @@ overview, it exposes Seat map, rotate/move, and supported camera controls.
 The renderer owns 3D/panorama pixels and gestures. Native owns only the
 capability-gated wording and controls. Ordinary floors, dock, access, and map
 controls stand down while an immersive surface owns navigation; the cart and
-required test/attribution truth remain. While panorama is open, hardware
+required test truth remain, along with attribution when runtime branding
+requires it. While panorama is open, hardware
 Escape and Command-[ are left to the renderer's close surface.
 
 ## Whole-part builders
@@ -205,8 +216,11 @@ The canonical 25 parts are:
 | `error` | `SeatLayerPickerErrorView` |
 | `empty` | `SeatLayerPickerEmptyView` |
 
-`SeatLayerPickerAttribution` and `SeatLayerPickerTestModeIndicator` are required
-truth components and intentionally are not builder points.
+`SeatLayerPickerAttribution` and `SeatLayerPickerTestModeIndicator` are truth
+components and intentionally are not builder points. The ready picker always
+owns their placement. A custom composition must include the test indicator and
+the attribution component in its own chrome; the attribution component itself
+renders nothing when runtime branding says it is not required.
 
 ## Strings and themes
 
@@ -237,12 +251,44 @@ label, text, and selection roles. `auto`, `light`, and `dark` are supported.
 compatibility. Compact layouts place these actions in their native sheets by
 default; `phoneOverview`, `phoneZoom`, and `phoneColorblind` opt an enabled
 master action into direct map chrome. Layout remains `adaptive`, `phone`, or
-`wide` through `SeatLayerPickerLayoutMode`.
+`wide` through `SeatLayerPickerLayoutMode`. The legacy `attribution` Boolean is
+also retained for source compatibility, but it is deliberately
+non-authoritative; setting it cannot force or suppress API-owned branding.
+
+## Branding truth and attribution
+
+The runtime/API snapshot is the single authority:
+
+```swift
+snapshot.branding.attributionRequired == true
+```
+
+- `true` renders the compact three-bar “Powered by SeatLayer” component.
+- `false` renders no attribution and releases the reserved control inset.
+- A valid older snapshot that omits the field decodes to required for backward
+  compatibility.
+- Before the first valid snapshot there is no branding decision to display.
+
+The ready compact picker anchors attribution at the safe bottom-right above the
+current dock/cart. Map, immersive, and accessibility controls are inset only
+while the component exists. A wide overview places it at the bottom-right of
+the native side rail; a wide decision uses the safe bottom-right overlay while
+the rail yields to the decision surface. Test Mode remains independent at the
+top (or bottom-left in panorama), so changing white-label entitlement never
+hides test-event truth.
+
+White-label policy is configured server-side and reaches every SDK through
+`branding.attributionRequired`. Hosts do not infer entitlement from local
+theme, builder, strings, or chrome values. See the
+[final visual correction](native-picker-visual-correction-2026-08-31.md) for
+paired API-required/disabled pixels and hosted compact/3D/cart evidence.
 
 ## State ownership
 
 - `SeatLayerPickerSnapshot` is immutable runtime truth. Only strictly higher
   revisions from the active session are accepted.
+- `snapshot.branding.attributionRequired` alone owns attribution visibility;
+  local presentation state and host chrome options do not participate.
 - `SeatLayerPickerController` owns the runtime session and serialized typed
   commands.
 - `SeatLayerPickerPresentationModel` owns local unanswered confirmation,
@@ -271,6 +317,10 @@ view, and colorblind-safe mutations remain independent; applying one family
 never clears another. Reduce Motion removes generated motion and selection
 flight, Reduce Transparency makes material surfaces opaque, and immersive
 status-bar foreground remains legible.
+
+The attribution's 18-point paint remains noninteractive and does not pretend
+to be a 44-point control. Its surrounding placement never reduces the hit
+target of adjacent map, panorama, dock, or cart actions.
 
 ## Transferable prewarm and load traces
 

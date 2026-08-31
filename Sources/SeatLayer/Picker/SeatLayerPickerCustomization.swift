@@ -3,7 +3,7 @@ import SwiftUI
 #endif
 
 /// Stable ownership points for replacing complete picker parts.
-/// Required attribution and truthful test-mode status are intentionally absent.
+/// API-required attribution and truthful test-mode status are intentionally absent.
 public enum SeatLayerPickerPart: String, CaseIterable, Sendable, Hashable {
     case header
     case legend
