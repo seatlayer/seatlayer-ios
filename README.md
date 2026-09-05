@@ -1,4 +1,4 @@
-# SeatLayer iOS Seat Map SDK for Reserved Seating
+# SeatLayer iOS Seat Map SDK for Swift and SwiftUI
 
 [![CI](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml/badge.svg)](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/seatlayer/seatlayer-ios)](https://github.com/seatlayer/seatlayer-ios/releases/latest)
@@ -6,13 +6,13 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-The official SeatLayer iOS SDK for adding a native buyer picker or a raw
-interactive seating chart to ticketing apps. The venue renderer stays in one
-version-pinned `WKWebView`; headers, filters, confirmation, cart, hold state,
-checkout, errors, and navigation are native SwiftUI/UIKit components backed by
-a typed headless controller.
+The official SeatLayer iOS SDK for Swift and SwiftUI adds a native buyer picker
+or raw interactive seating chart to ticketing apps. The venue renderer stays in
+one version-pinned `WKWebView`; headers, filters, confirmation, cart, hold
+state, checkout, errors, and navigation are native SwiftUI/UIKit components
+backed by a typed headless controller.
 
-[iOS seat-map documentation](https://docs.seatlayer.io/buyer-sdk/mobile/) ·
+[Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
 [Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
 [SeatLayer reserved-seating platform](https://seatlayer.io/) ·
 [SeatLayer Flutter seat map SDK](https://github.com/seatlayer/seatlayer-flutter) ·
@@ -590,7 +590,7 @@ slot; when the API disables it, iOS removes it and reclaims the space.
 
 ## Continue your iOS integration
 
-- [Follow the mobile seat-map integration guide](https://docs.seatlayer.io/buyer-sdk/mobile/)
+- [Follow the Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/)
   for setup, lifecycle, commands, events, and runtime requirements.
 - [Use the native picker integration guide](Docs/native-picker.md) for the
   ready SwiftUI/UIKit hosts, customization, public parts, state ownership, and
