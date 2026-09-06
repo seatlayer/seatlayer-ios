@@ -1,6 +1,33 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 
+/// The palette for chrome that sits ON the map surface.
+///
+/// Identical to the picker's own palette except while the immersive scene is
+/// up, when it is the dark one whichever side the picker is on: white chrome
+/// over a lit venue reads as a mistake, and the rail, the discs and the 3D
+/// chrome all have to cap the same surface.
+func seatLayerPickerMapChromePalette(
+    style: SeatLayerPickerStyleEnvironment,
+    colorScheme: ColorScheme,
+    snapshot: SeatLayerPickerSnapshot?
+) -> SeatLayerPickerPalette {
+    guard snapshot?.map.isVenue3D == true else {
+        return resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: snapshot
+        )
+    }
+    var immersive = style
+    immersive.mode = .dark
+    return resolveSeatLayerPickerPalette(
+        style: immersive,
+        colorScheme: .dark,
+        snapshot: snapshot
+    )
+}
+
 public struct SeatLayerPickerBuyerViewControl: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
