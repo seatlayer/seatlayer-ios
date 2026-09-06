@@ -29,6 +29,13 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
     var isRegularWidth: Bool
     var isAccessibilityTypeSize: Bool
     var phoneCartHeight: Double
+    /// The picker's OWN measured container width, never the device or the
+    /// window. Nil before the first layout pass, where the size class is the
+    /// only reading there is.
+    var containerWidth: Double?
+    /// The bottom safe inset, absorbed once by whichever surface owns the
+    /// bottom edge.
+    var bottomSafeInset: Double
 
     init(
         snapshot: SeatLayerPickerSnapshot?,
@@ -41,7 +48,9 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         hasActivePrompt: Bool,
         isRegularWidth: Bool,
         isAccessibilityTypeSize: Bool,
-        phoneCartHeight: Double
+        phoneCartHeight: Double,
+        containerWidth: Double? = nil,
+        bottomSafeInset: Double = 0
     ) {
         self.snapshot = snapshot
         self.bundle = bundle
@@ -54,6 +63,8 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         self.isRegularWidth = isRegularWidth
         self.isAccessibilityTypeSize = isAccessibilityTypeSize
         self.phoneCartHeight = phoneCartHeight
+        self.containerWidth = containerWidth
+        self.bottomSafeInset = max(0, bottomSafeInset)
     }
 }
 
@@ -85,6 +96,10 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
     let inventoryStatus: SeatLayerPickerInventoryStatus
     let statusOverlayVisible: Bool
     let interactionBlocked: Bool
+    /// Whether a host opted into the section dock AND it is drawn right now.
+    let dockMounted: Bool
+    /// What the map's anchor regions measure against.
+    let anchorPlan: SeatLayerPickerAnchorPlan
 
     init(_ context: SeatLayerPickerLayoutContext) {
         let snapshot = context.snapshot
@@ -109,7 +124,19 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
         switch options.layout {
         case .wide: usesWideLayout = true
         case .phone: usesWideLayout = false
-        case .adaptive: usesWideLayout = context.isRegularWidth
+        case .adaptive:
+            // The PICKER'S OWN container, not the device and not the window: a
+            // picker in a split view, a sheet or an iPad sidebar is exactly as
+            // wide as the box it was given, and a size class describes the
+            // window. Below `phoneBreakpoint` is compact, at or above
+            // `wideBreakpoint` is wide, and between the two the compact
+            // composition holds. The size class only decides before the first
+            // layout pass has measured anything.
+            if let width = context.containerWidth, width > 0 {
+                usesWideLayout = width >= SeatLayerPickerSizeTokens.wideBreakpoint
+            } else {
+                usesWideLayout = context.isRegularWidth
+            }
         }
         wideRailWidth = context.isAccessibilityTypeSize
             ? SeatLayerPickerReadyMetrics.accessibilityWideRailWidth
@@ -154,6 +181,10 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
         }
         topChromeHeight = top
 
+        // ONE surface absorbs the bottom safe inset (§2.5). The cart sheet's
+        // own container carries it where the sheet is drawn; the dock carries
+        // it where a host mounted one; with neither, the bottom anchors sit at
+        // the map's own edge and nothing is reported.
         var bottom = chrome.cartSheet && !usesWideLayout
             ? max(SeatLayerPickerSizeTokens.peekHeight, context.phoneCartHeight)
             : 0
@@ -161,9 +192,12 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
            chrome.dock,
            snapshot?.map.rung == "seats",
            snapshot?.map.focusedSectionId != nil {
-            bottom += context.isAccessibilityTypeSize
+            bottom += (context.isAccessibilityTypeSize
                 ? SeatLayerPickerReadyMetrics.accessibilityDockBarHeight
-                : SeatLayerPickerSizeTokens.dockBarHeight
+                : SeatLayerPickerSizeTokens.dockBarHeight) + context.bottomSafeInset
+            dockMounted = true
+        } else {
+            dockMounted = false
         }
         bottomChromeHeight = bottom
 
@@ -221,5 +255,23 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             statusOverlayVisible = status != .availableOrUnknown
         }
         interactionBlocked = decisionVisible || statusOverlayVisible
+
+        // Only a mounted dock lifts the bottom anchors, and it lifts them by
+        // its own height plus the same safe inset it absorbed. With no dock —
+        // the default at every width — they sit at `mapAnchorInset` from the
+        // map's own bottom edge.
+        anchorPlan = SeatLayerPickerAnchorPlan(
+            bottomLift: dockMounted
+                ? (context.isAccessibilityTypeSize
+                    ? SeatLayerPickerReadyMetrics.accessibilityDockBarHeight
+                    : SeatLayerPickerSizeTokens.dockBarHeight) + context.bottomSafeInset
+                : 0,
+            topTrailingControlHeight: buyerViewControl && !usesWideLayout
+                ? SeatLayerPickerSizeTokens.viewModeControlHeight
+                : 0,
+            backPillHeight: visibility.venue3D && chrome.venue3D
+                ? SeatLayerPickerSizeTokens.immersiveBackPillHeight
+                : 0
+        )
     }
 }
