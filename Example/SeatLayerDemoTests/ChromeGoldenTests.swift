@@ -27,24 +27,67 @@ final class ChromeGoldenTests: XCTestCase {
     }
 
     func testCartSheetCollapsedGolden() throws {
-        let fixture = makeFixture()
-        fixture.presentation.cartSheetExpanded = false
+        let fixture = makeFixture(seatCount: 3)
+        fixture.presentation.sheetDetent = .peek
         try renderBothSchemes(named: "cart-sheet-collapsed", fixture: fixture) {
             VStack {
                 Spacer()
-                SeatLayerPickerCartPeek(onCheckout: { _ in })
+                SeatLayerPickerCartSheet(onCheckout: { _ in })
+            }
+        }
+    }
+
+    func testCartSheetCollapsedEmptyGolden() throws {
+        let fixture = makeFixture(seatCount: 0)
+        fixture.presentation.sheetDetent = .peek
+        try renderBothSchemes(named: "cart-sheet-collapsed-empty", fixture: fixture) {
+            VStack {
+                Spacer()
+                SeatLayerPickerCartSheet(onCheckout: { _ in })
             }
         }
     }
 
     func testCartSheetExpandedGolden() throws {
-        let fixture = makeFixture()
-        fixture.presentation.cartSheetExpanded = true
+        // Four cards against a three-card cap: the fourth is the sliver that
+        // tells the buyer the region scrolls.
+        let fixture = makeFixture(seatCount: 4)
+        fixture.presentation.sheetDetent = .open
         try renderBothSchemes(named: "cart-sheet-expanded", fixture: fixture) {
             VStack {
                 Spacer()
                 SeatLayerPickerCartSheet(onCheckout: { _ in })
             }
+        }
+    }
+
+    func testBestSeatsFormGolden() throws {
+        let fixture = makeFixture(seatCount: 0)
+        try renderBothSchemes(named: "best-seats-form", fixture: fixture) {
+            VStack {
+                Spacer()
+                SeatLayerBestSeatsForm().padding(14)
+            }
+        }
+    }
+
+    func testToastGolden() throws {
+        let fixture = makeFixture(seatCount: 2)
+        let queue = seatLayerPickerToasts(for: fixture.controller)
+        queue.show(
+            SeatLayerPickerToast(
+                fixture.style.strings.text(.seatsJustTaken),
+                tone: .error,
+                actionLabel: fixture.style.strings.text(.reselectSeatsOther),
+                id: UUID(uuidString: "00000000-0000-0000-0000-0000000000C1")!
+            )
+        )
+        try renderBothSchemes(named: "toast", fixture: fixture) {
+            SeatLayerPickerToastBandBody(
+                queue: queue,
+                bottomInset: 0,
+                lifted: false
+            )
         }
     }
 
@@ -83,9 +126,13 @@ final class ChromeGoldenTests: XCTestCase {
         try assertGolden(name: name, colorScheme: .dark, view)
     }
 
-    private func makeFixture(confirmSelection: Bool = false) -> Fixture {
+    private func makeFixture(
+        confirmSelection: Bool = false,
+        seatCount: Int = 2
+    ) -> Fixture {
         var options = SeatLayerPickerOptions()
         options.confirmSelection = confirmSelection
+        options.enableBestAvailable = true
         options.layout = .phone
         // The map control column is otherwise a single disc on a phone.
         options.chrome.phoneOverview = true
@@ -111,6 +158,7 @@ final class ChromeGoldenTests: XCTestCase {
                     "picker.zoomIn",
                     "picker.zoomOut",
                     "picker.zoomToFit",
+                    "picker.bestAvailable",
                 ].map(JSONValue.string)),
                 "events": .array(["picker.snapshot"]),
             ]),
@@ -129,15 +177,15 @@ final class ChromeGoldenTests: XCTestCase {
             controller: controller,
             options: options
         )
-        controller.accept(snapshot: goldenSnapshot())
+        controller.accept(snapshot: goldenSnapshot(seatCount: seatCount))
 
         var style = SeatLayerPickerStyleEnvironment()
         style.options = options
         return Fixture(controller: controller, presentation: presentation, style: style)
     }
 
-    private func goldenSnapshot() -> JSONValue {
-        let labels = ["A-11", "A-12"]
+    private func goldenSnapshot(seatCount: Int = 2) -> JSONValue {
+        let labels = (0..<seatCount).map { "A-\($0 + 11)" }
         let seats: [JSONValue] = labels.enumerated().map { index, label in
             .object([
                 "id": .string("seat-\(index + 1)"),
@@ -163,6 +211,9 @@ final class ChromeGoldenTests: XCTestCase {
                 "currency": "EUR",
                 "quantity": 1,
                 "seatId": .string("seat-\(index + 1)"),
+                "sectionLabel": "Stalls",
+                "rowLabel": "A",
+                "seatNumber": .string("\(index + 11)"),
             ])
         }
         return [
@@ -209,8 +260,8 @@ final class ChromeGoldenTests: XCTestCase {
                 "seats": .array(seats),
                 "validity": [
                     "isValid": true,
-                    "count": 2,
-                    "required": 2,
+                    "count": .int(labels.count),
+                    "required": .int(labels.count),
                     "remaining": 0,
                     "seats": .array(seats),
                     "violations": .array([]),
@@ -218,8 +269,8 @@ final class ChromeGoldenTests: XCTestCase {
             ],
             "cart": [
                 "currency": "EUR",
-                "quantity": 2,
-                "total": 90,
+                "quantity": .int(labels.count),
+                "total": .double(Double(labels.count) * 45),
                 "items": .array(items),
             ],
             "hold": ["active": false],
