@@ -11,12 +11,14 @@ const lock = JSON.parse(read("Design", "source-lock.json"));
 const tokenBytes = read("Design", "tokens.json");
 const localeBytes = read("Design", "locale_strings.json");
 const componentBytes = read("Design", "components.md");
+const specBytes = read("Design", "picker-spec.md");
 
 const failures = [];
 const check = (condition, message) => { if (!condition) failures.push(message); };
 check(sha256(tokenBytes) === lock.tokensSha256, "Design/tokens.json does not match source-lock.json");
 check(sha256(localeBytes) === lock.localeStringsSha256, "Design/locale_strings.json does not match source-lock.json");
 check(sha256(componentBytes) === lock.componentsSha256, "Design/components.md does not match source-lock.json");
+check(sha256(specBytes) === lock.pickerSpecSha256, "Design/picker-spec.md does not match source-lock.json");
 
 const swift = read("Sources", "SeatLayer", "Picker", "SeatLayerPickerDesign.swift").toString();
 check(swift.includes(lock.tokensSha256), "Swift token source hash is stale");

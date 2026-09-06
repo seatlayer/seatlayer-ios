@@ -6,15 +6,15 @@ import SwiftUI
 /// Hash of the canonical cross-platform picker token input used to generate
 /// this file. Flutter and React Native publish the same hash.
 public let seatLayerPickerTokenSourceSHA256 =
-    "0667fdddab037b3f63eaf18b4ba099f477cb630edc93f9ea90f90862609e492f"
+    "27751f1d250d9492c5f38bc93aa5ca1bb0db32ab4732cc20dff918ee5fda85a1"
 
 /// Hash of the canonical locale input used by the native picker strings.
 public let seatLayerPickerLocaleSourceSHA256 =
-    "9401509eb3704d0ec1d61d9ec8a6a4126b0d76ad8f0c3c204c890f24d9a55048"
+    "340645082f4280ce445375fc1675601b78665cb8b0fadb3622bdc8d69561215f"
 
 /// Hash of the platform-neutral picker component catalogue.
 public let seatLayerPickerComponentSourceSHA256 =
-    "c091ace21b09f484dc516748d660f5d24ef4554826f8037ee30231addaa8e190"
+    "0f2a02e63a45c81903adab54b1fb6e5b672b22eb86b2823ef083b0b4926a2951"
 
 public enum SeatLayerPickerSizeTokens {
     public static let phoneBreakpoint = 640.0
