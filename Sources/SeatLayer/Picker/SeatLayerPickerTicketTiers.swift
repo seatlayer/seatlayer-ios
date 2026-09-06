@@ -1,9 +1,17 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 
-/// Compact mutually-exclusive ticket choices used by reserved-seat and
-/// general-admission decisions. Choosing a row updates native price state;
-/// the owning prompt decides when to send the runtime mutation.
+/// Which ticket the seat is being bought as.
+///
+/// A labelled set of rows rather than a dropdown: on a card this small the
+/// prices are the point of the choice, and a closed menu hides them.
+///
+/// The chosen row is marked three ways at once — an accent edge, an accent
+/// wash, and a rail on its leading side — because on a phone the difference
+/// between two rows a few points apart has to survive a glance. There is no
+/// radio disc: the marking IS the state, a screen reader hears the row as
+/// selected, and a disc beside every price is a column of furniture on a card
+/// that has room for none.
 public struct SeatLayerPickerTicketTierChoices: View {
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
@@ -11,17 +19,21 @@ public struct SeatLayerPickerTicketTierChoices: View {
     private let tiers: [CategoryTier]
     private let fallbackCurrency: String
     private let enabled: Bool
+    /// Whether this is the phone card's tighter form.
+    private let compact: Bool
     @Binding private var selection: String?
 
     public init(
         tiers: [CategoryTier],
         fallbackCurrency: String,
         selection: Binding<String?>,
-        enabled: Bool = true
+        enabled: Bool = true,
+        compact: Bool = false
     ) {
         self.tiers = tiers
         self.fallbackCurrency = fallbackCurrency
         self.enabled = enabled
+        self.compact = compact
         _selection = selection
     }
 
@@ -31,7 +43,7 @@ public struct SeatLayerPickerTicketTierChoices: View {
             colorScheme: colorScheme,
             snapshot: nil
         )
-        VStack(spacing: 7) {
+        VStack(spacing: 6) {
             ForEach(tiers, id: \.id) { tier in
                 let selected = selection == tier.id
                 let guidance = SeatLayerPickerTiering.guidance(
@@ -52,16 +64,18 @@ public struct SeatLayerPickerTicketTierChoices: View {
                         quote: quote,
                         palette: palette
                     )
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .background(selected ? palette.accent.opacity(0.10) : Color.clear)
+                    .padding(.horizontal, compact ? 9 : 10)
+                    .padding(.vertical, compact ? 7 : 8)
+                    .frame(maxWidth: .infinity, minHeight: rowHeight, alignment: .leading)
+                    .background(rowGround(selected: selected, palette: palette))
+                    .overlay(alignment: .leading) {
+                        if selected {
+                            Rectangle().fill(palette.accent).frame(width: 3)
+                        }
+                    }
                     .overlay {
                         RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button)
-                            .stroke(
-                                selected ? palette.accent : palette.divider,
-                                lineWidth: selected ? 1.5 : 1
-                            )
+                            .stroke(selected ? palette.accent : palette.divider, lineWidth: 1)
                     }
                     .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
                 }
@@ -77,6 +91,26 @@ public struct SeatLayerPickerTicketTierChoices: View {
         .onChange(of: tierSignature) { _ in normalizeSelection() }
     }
 
+    /// A shade off the surface, so the rows read as choices sitting on the card
+    /// rather than as lines ruled across it.
+    private func rowGround(
+        selected: Bool,
+        palette: SeatLayerPickerPalette
+    ) -> Color {
+        selected
+            ? seatLayerPickerBlend(palette.accent, 0.13, over: palette.surface)
+            : seatLayerPickerBlend(palette.background, 0.72, over: palette.surface)
+    }
+
+    private var rowHeight: Double {
+        if dynamicTypeSize.isAccessibilitySize {
+            return SeatLayerPickerSizeTokens.minimumHitTarget
+        }
+        return compact
+            ? SeatLayerPickerSizeTokens.confirmTierHeight
+            : SeatLayerPickerSizeTokens.confirmActionHeight
+    }
+
     @ViewBuilder
     private func tierLabel(
         _ tier: CategoryTier,
@@ -86,18 +120,15 @@ public struct SeatLayerPickerTicketTierChoices: View {
         palette: SeatLayerPickerPalette
     ) -> some View {
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    tierSelectionImage(selected: selected, palette: palette)
-                    Text(tier.name)
-                        .seatLayerPickerFont(size: 14, weight: .heavy)
-                        .foregroundColor(palette.text)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tier.name)
+                    .seatLayerPickerFont(size: 12.5, weight: .heavy)
+                    .foregroundColor(palette.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 if let guidance {
                     Text(guidance)
-                        .seatLayerPickerFont(size: 11, weight: .semibold)
-                        .foregroundColor(palette.mutedText)
+                        .seatLayerPickerFont(size: 10.5)
+                        .foregroundColor(selected ? palette.text : palette.mutedText)
                         .multilineTextAlignment(.leading)
                 }
                 if let quote {
@@ -106,35 +137,25 @@ public struct SeatLayerPickerTicketTierChoices: View {
                 }
             }
         } else {
-            HStack(spacing: 10) {
-                tierSelectionImage(selected: selected, palette: palette)
+            HStack(spacing: 9) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(tier.name)
-                        .seatLayerPickerFont(size: 14, weight: .heavy)
+                        .seatLayerPickerFont(size: 12.5, weight: .heavy)
                         .foregroundColor(palette.text)
                     if let guidance {
                         Text(guidance)
-                            .seatLayerPickerFont(size: 11, weight: .semibold)
-                            .foregroundColor(palette.mutedText)
+                            .seatLayerPickerFont(size: 10.5)
+                            .lineSpacing(3)
+                            // The note is the reason the row exists once it is
+                            // chosen, so it takes the full ink.
+                            .foregroundColor(selected ? palette.text : palette.mutedText)
                             .multilineTextAlignment(.leading)
                     }
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: 9)
                 if let quote { tierPrice(quote, palette: palette) }
             }
         }
-    }
-
-    private func tierSelectionImage(
-        selected: Bool,
-        palette: SeatLayerPickerPalette
-    ) -> some View {
-        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-            .font(.system(
-                size: dynamicTypeSize.isAccessibilitySize ? 24 : 18,
-                weight: .semibold
-            ))
-            .foregroundColor(selected ? palette.accent : palette.mutedText)
     }
 
     private func tierPrice(
@@ -147,6 +168,7 @@ public struct SeatLayerPickerTicketTierChoices: View {
             style: style
         ))
         .seatLayerPickerFont(size: 13, weight: .heavy)
+        .monospacedDigit()
         .foregroundColor(palette.text)
     }
 
