@@ -127,3 +127,75 @@ public enum SeatLayerPickerAccessPanelReason: String, Sendable, Equatable, CaseI
     /// session there, the organizer has simply stopped selling.
     public var refreshesInPlace: Bool { self != .paused }
 }
+
+/// How loud a lapse is: a recoverable one is a warning, a lost one an error.
+public enum SeatLayerPickerHoldLapseTone: Sendable, Equatable {
+    case warning
+    case error
+}
+
+/// The counted sentence a lapse is told with, and the way forward it offers.
+///
+/// Counted on what the offer would re-take: the still-free shape counts the
+/// seats coming back, the some-taken shape counts the seats that are **gone**,
+/// and the all-taken shape offers nothing, because there is nothing to offer.
+public struct SeatLayerPickerHoldLapseTelling: Sendable, Equatable {
+    public let message: SeatLayerPickerStringKey
+    public let messageCount: Int
+    public let tone: SeatLayerPickerHoldLapseTone
+    public let action: SeatLayerPickerStringKey?
+    public let actionCount: Int
+}
+
+/// The telling for one lapse, from the refresh outcome it was built from.
+public func seatLayerPickerHoldLapseTelling(
+    _ lapse: SeatLayerPickerHoldLapse
+) -> SeatLayerPickerHoldLapseTelling {
+    let recoverable = lapse.recoverableLabels.count
+    switch lapse.recovery {
+    case .all:
+        return SeatLayerPickerHoldLapseTelling(
+            message: SeatLayerPickerPluralKeys.holdLapsedStillFree.form(lapse.lapsedLabels.count),
+            messageCount: lapse.lapsedLabels.count,
+            tone: .warning,
+            action: SeatLayerPickerPluralKeys.reselectSeats.form(recoverable),
+            actionCount: recoverable
+        )
+    case .partial:
+        let gone = lapse.unrecoverableCount
+        return SeatLayerPickerHoldLapseTelling(
+            message: SeatLayerPickerPluralKeys.holdLapsedSomeTaken.form(gone),
+            messageCount: gone,
+            tone: .warning,
+            action: SeatLayerPickerPluralKeys.reselectSeats.form(recoverable),
+            actionCount: recoverable
+        )
+    case .none:
+        return SeatLayerPickerHoldLapseTelling(
+            message: SeatLayerPickerPluralKeys.holdLapsedAllTaken.form(lapse.lapsedLabels.count),
+            messageCount: lapse.lapsedLabels.count,
+            tone: .error,
+            action: nil,
+            actionCount: 0
+        )
+    }
+}
+
+/// Seconds left on a hold, floored at zero, from an epoch the runtime may
+/// report in either seconds or milliseconds.
+public func seatLayerPickerHoldSecondsRemaining(
+    expiresAt: Double,
+    now: Double
+) -> Int {
+    let expiry = expiresAt > 10_000_000_000 ? expiresAt / 1_000 : expiresAt
+    return max(0, Int((expiry - now).rounded(.down)))
+}
+
+/// `m:ss`, the picker's only clock.
+public func seatLayerPickerHoldClock(_ seconds: Int) -> String {
+    let clamped = max(0, seconds)
+    return String(format: "%d:%02d", clamped / 60, clamped % 60)
+}
+
+/// The last minute, when the pill inverts and starts counting out loud.
+public let seatLayerPickerHoldExpiringSeconds = 60
