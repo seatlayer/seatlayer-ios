@@ -166,3 +166,139 @@ public func seatLayerSeatNotes(
         commercial: seat.commercial
     )
 }
+
+// MARK: - What a tone paints
+
+/// The five roles a note band's colours are mixed from.
+///
+/// A separate, platform-free spelling of the picker palette so the tone table
+/// below — and the contrast gate over it — needs neither SwiftUI nor a
+/// simulator. The live chrome fills this in from the resolved palette, which a
+/// host's branding may have changed; the tests fill it in from the generated
+/// light and dark token sets.
+public struct SeatLayerSeatNoteInkPalette: Sendable, Equatable {
+    public let surface: SeatLayerPickerInkColor
+    public let text: SeatLayerPickerInkColor
+    public let mutedText: SeatLayerPickerInkColor
+    public let warning: SeatLayerPickerInkColor
+    public let warnText: SeatLayerPickerInkColor
+    public let premium: SeatLayerPickerInkColor
+    public let premiumText: SeatLayerPickerInkColor
+
+    public init(
+        surface: SeatLayerPickerInkColor,
+        text: SeatLayerPickerInkColor,
+        mutedText: SeatLayerPickerInkColor,
+        warning: SeatLayerPickerInkColor,
+        warnText: SeatLayerPickerInkColor,
+        premium: SeatLayerPickerInkColor,
+        premiumText: SeatLayerPickerInkColor
+    ) {
+        self.surface = surface
+        self.text = text
+        self.mutedText = mutedText
+        self.warning = warning
+        self.warnText = warnText
+        self.premium = premium
+        self.premiumText = premiumText
+    }
+
+    /// The picker's own colours, as the generated token document names them.
+    public static func tokens(dark: Bool) -> SeatLayerSeatNoteInkPalette {
+        func hex(_ light: String, _ darkValue: String) -> SeatLayerPickerInkColor {
+            SeatLayerPickerInkColor(hex: dark ? darkValue : light)
+                ?? SeatLayerPickerInkColor(red: 0, green: 0, blue: 0)
+        }
+        return SeatLayerSeatNoteInkPalette(
+            surface: hex(
+                SeatLayerPickerLightColorTokens.surface,
+                SeatLayerPickerDarkColorTokens.surface
+            ),
+            text: hex(
+                SeatLayerPickerLightColorTokens.text,
+                SeatLayerPickerDarkColorTokens.text
+            ),
+            mutedText: hex(
+                SeatLayerPickerLightColorTokens.mutedText,
+                SeatLayerPickerDarkColorTokens.mutedText
+            ),
+            warning: hex(
+                SeatLayerPickerLightColorTokens.warning,
+                SeatLayerPickerDarkColorTokens.warning
+            ),
+            warnText: hex(
+                SeatLayerPickerLightColorTokens.warnText,
+                SeatLayerPickerDarkColorTokens.warnText
+            ),
+            premium: hex(
+                SeatLayerPickerLightColorTokens.premium,
+                SeatLayerPickerDarkColorTokens.premium
+            ),
+            premiumText: hex(
+                SeatLayerPickerLightColorTokens.premiumText,
+                SeatLayerPickerDarkColorTokens.premiumText
+            )
+        )
+    }
+}
+
+/// A note band's four resolved colours.
+public struct SeatLayerSeatNoteInk: Sendable, Equatable {
+    /// The band's own ground, tinted out of the surface it sits on.
+    public let ground: SeatLayerPickerInkColor
+    /// The title's ink, measured against `ground` rather than against the
+    /// surface the ground is mixed from.
+    public let ink: SeatLayerPickerInkColor
+    /// The organizer's second line, one step quieter than `ink`.
+    public let bodyInk: SeatLayerPickerInkColor
+    /// The glyph's ink.
+    public let iconInk: SeatLayerPickerInkColor
+}
+
+/// What `tone` paints on `palette`.
+///
+/// Pure, so a test can measure the contrast of every pair against the ground it
+/// ACTUALLY paints on, in both themes — rather than against the surface each
+/// tint is mixed from, which is how a 1.8:1 amber shipped.
+public func seatLayerSeatNoteInk(
+    _ palette: SeatLayerSeatNoteInkPalette,
+    _ tone: SeatLayerSeatNoteTone
+) -> SeatLayerSeatNoteInk {
+    let ground: SeatLayerPickerInkColor
+    let ink: SeatLayerPickerInkColor
+    switch tone {
+    case .warn:
+        ground = SeatLayerPickerInk.blend(
+            palette.warning,
+            SeatLayerPickerOpacityTokens.noteToneWash,
+            over: palette.surface
+        )
+        ink = palette.warnText
+    case .premium:
+        ground = SeatLayerPickerInk.blend(
+            palette.premium,
+            SeatLayerPickerOpacityTokens.noteToneWash,
+            over: palette.surface
+        )
+        ink = palette.premiumText
+    case .access, .note:
+        ground = SeatLayerPickerInk.blend(
+            palette.text,
+            SeatLayerPickerOpacityTokens.noteNeutralWash,
+            over: palette.surface
+        )
+        ink = palette.text
+    }
+    return SeatLayerSeatNoteInk(
+        ground: ground,
+        ink: ink,
+        // The organizer's second line is the muted ink walked a quarter of the
+        // way toward the text: bare muted on the tint measures below the bar.
+        bodyInk: SeatLayerPickerInk.lerp(
+            palette.mutedText,
+            palette.text,
+            1 - SeatLayerPickerOpacityTokens.noteBodyInk
+        ),
+        iconInk: tone == .warn || tone == .premium ? ink : palette.mutedText
+    )
+}
