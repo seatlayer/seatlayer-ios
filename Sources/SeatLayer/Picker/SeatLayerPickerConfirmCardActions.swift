@@ -13,14 +13,6 @@ import SwiftUI
 /// is about the buyer's own action, and the ticket was counted before the sweep
 /// started — this is a receipt, not a progress bar.
 
-/// How far the breath's halo reaches, and how deep its colour goes.
-// tokens.json gap: `_inviteHalo` / `_inviteHaloInk` / `_inviteSwell` are
-// file-local constants in Flutter too.
-let seatLayerPickerInviteHalo: Double = 6
-let seatLayerPickerInviteHaloInk = 0.35
-/// How much the button swells at the top of each breath.
-let seatLayerPickerInviteSwell = 0.02
-
 /// The card's quiet answer: no fill, so it never competes with `Add seat`.
 struct SeatLayerPickerCancelButton: View {
     let label: String
@@ -220,69 +212,6 @@ struct SeatLayerPickerAddSeatButton: View {
         guard destructive else { return palette.onAccent }
         return seatLayerPickerBandInk(palette.error)
     }
-}
-
-/// Where in the current breath the button is: 0 at rest, 1 at the top.
-///
-/// Zero before the breathing starts, so the button leaves the invitation at
-/// exactly its resting size. In between it is the web's own two-keyframe
-/// breath: out to the top by the halfway mark and back down again, each half
-/// eased in and out rather than one cosine across the whole cycle — a cosine is
-/// symmetric but not the same curve, and the peak is where the eye reads the
-/// amplitude.
-func seatLayerPickerInviteBreath(elapsedMs: Double?) -> Double {
-    guard let elapsedMs else { return 0 }
-    let since = elapsedMs - Double(SeatLayerPickerMotionDurationTokens.inviteBreatheDelay)
-    guard since > 0 else { return 0 }
-    let span = Double(SeatLayerPickerMotionDurationTokens.inviteBreathe)
-    let phase = (since.truncatingRemainder(dividingBy: span)) / span
-    return phase < 0.5
-        ? seatLayerPickerInviteEase(phase * 2)
-        : 1 - seatLayerPickerInviteEase((phase - 0.5) * 2)
-}
-
-/// How much of the arrival highlight has crossed the button.
-func seatLayerPickerInviteSweep(elapsedMs: Double?) -> Double {
-    guard let elapsedMs else { return 0 }
-    let since = elapsedMs - Double(SeatLayerPickerMotionDurationTokens.inviteDelay)
-    let span = Double(SeatLayerPickerMotionDurationTokens.inviteSweep)
-    guard span > 0 else { return 1 }
-    return min(1, max(0, since / span))
-}
-
-/// The curve each half of a breath travels: the web's `cubic-bezier(.4,0,.6,1)`.
-func seatLayerPickerInviteEase(_ t: Double) -> Double {
-    let clamped = min(1, max(0, t))
-    return seatLayerPickerCubicBezierValue(
-        SeatLayerPickerCubicBezier(x1: 0.4, y1: 0, x2: 0.6, y2: 1),
-        at: clamped
-    )
-}
-
-/// The y of a cubic-Bézier timing curve at progress `t`.
-///
-/// Newton on the x polynomial, then the y polynomial: the curve is authored as
-/// a CSS easing, where the parameter is not the progress.
-func seatLayerPickerCubicBezierValue(
-    _ curve: SeatLayerPickerCubicBezier,
-    at t: Double
-) -> Double {
-    func axis(_ p1: Double, _ p2: Double, _ s: Double) -> Double {
-        let inverse = 1 - s
-        return 3 * inverse * inverse * s * p1 + 3 * inverse * s * s * p2 + s * s * s
-    }
-    var guess = t
-    for _ in 0..<8 {
-        let x = axis(curve.x1, curve.x2, guess) - t
-        if abs(x) < 1e-6 { break }
-        let inverse = 1 - guess
-        let slope = 3 * inverse * inverse * curve.x1
-            + 6 * inverse * guess * (curve.x2 - curve.x1)
-            + 3 * guess * guess * (1 - curve.x2)
-        if abs(slope) < 1e-6 { break }
-        guess -= x / slope
-    }
-    return axis(curve.y1, curve.y2, min(1, max(0, guess)))
 }
 
 /// The tick on `Add seat`, or the cross on `Remove seat`.

@@ -117,53 +117,6 @@ struct SeatLayerPickerIdentityGrid: View {
     }
 }
 
-/// One labelled cell of the identity grid.
-struct SeatLayerPickerIdentityCell: Equatable {
-    let eyebrow: String
-    let value: String
-    let longSection: Bool
-}
-
-/// The cells a seat earns, in reading order.
-///
-/// A cell the runtime reported as present but empty prints an em dash rather
-/// than disappearing: a grid that loses a column between two seats in the same
-/// section is a grid the eye has to re-learn.
-func seatLayerPickerIdentityCells(
-    _ seat: SelectedSeat,
-    strings: SeatLayerPickerStrings,
-    sectionCode: String?
-) -> [SeatLayerPickerIdentityCell] {
-    let section = seat.sectionLabel?.trimmingCharacters(in: .whitespaces) ?? ""
-    let row = seatLayerPickerRowLabel(
-        seat.rowLabel,
-        section: seat.sectionLabel,
-        sectionCode: sectionCode
-    )
-    let seatNumber = seat.seatNumber?.trimmingCharacters(in: .whitespaces) ?? ""
-    var cells: [SeatLayerPickerIdentityCell] = []
-    if seat.sectionLabel != nil {
-        cells.append(SeatLayerPickerIdentityCell(
-            eyebrow: strings.text(.sectionWord),
-            value: section.isEmpty ? "—" : section,
-            longSection: section.count > seatLayerPickerConfirmSectionShortMax
-        ))
-    }
-    if seat.rowLabel != nil {
-        cells.append(SeatLayerPickerIdentityCell(
-            eyebrow: seatLayerPickerRowWord(seat, strings: strings),
-            value: row.isEmpty ? "—" : row,
-            longSection: false
-        ))
-    }
-    cells.append(SeatLayerPickerIdentityCell(
-        eyebrow: seatLayerPickerSeatWord(seat, strings: strings),
-        value: seatNumber.isEmpty ? seat.buyerFacingLabel : seatNumber,
-        longSection: false
-    ))
-    return cells
-}
-
 // MARK: - What it costs
 
 /// The category, in the category's own colour, and what it costs.
@@ -430,16 +383,6 @@ struct SeatLayerPickerSightlinePill: View {
             .padding(.vertical, SeatLayerPickerSizeTokens.confirmSightPadY)
             .background(Capsule().fill(seatLayerPickerPhotoPlate))
     }
-}
-
-/// The metre figure as the runtime rounded it.
-///
-/// The number arrives already rounded, so this only decides whether to print a
-/// decimal point at all: `7` rather than `7.0`, `7.4` unchanged.
-func seatLayerPickerSightlineFigure(_ metres: Double) -> String {
-    metres == metres.rounded()
-        ? String(Int(metres.rounded()))
-        : String(metres)
 }
 
 // MARK: - The ways further in

@@ -249,3 +249,139 @@ public let seatLayerPickerCartChipRise = 0.22
 /// `Box 4` — and stops at the venue phrases that need to wrap.
 public let seatLayerPickerConfirmSectionShortMax =
     SeatLayerPickerSizeTokens.confirmSectionShortMax
+
+// MARK: - What the card prints
+
+/// One labelled cell of the identity grid.
+struct SeatLayerPickerIdentityCell: Equatable {
+    let eyebrow: String
+    let value: String
+    let longSection: Bool
+}
+
+/// The cells a seat earns, in reading order.
+///
+/// A cell the runtime reported as present but empty prints an em dash rather
+/// than disappearing: a grid that loses a column between two seats in the same
+/// section is a grid the eye has to re-learn.
+func seatLayerPickerIdentityCells(
+    _ seat: SelectedSeat,
+    strings: SeatLayerPickerStrings,
+    sectionCode: String?
+) -> [SeatLayerPickerIdentityCell] {
+    let section = seat.sectionLabel?.trimmingCharacters(in: .whitespaces) ?? ""
+    let row = seatLayerPickerRowLabel(
+        seat.rowLabel,
+        section: seat.sectionLabel,
+        sectionCode: sectionCode
+    )
+    let seatNumber = seat.seatNumber?.trimmingCharacters(in: .whitespaces) ?? ""
+    var cells: [SeatLayerPickerIdentityCell] = []
+    if seat.sectionLabel != nil {
+        cells.append(SeatLayerPickerIdentityCell(
+            eyebrow: strings.text(.sectionWord),
+            value: section.isEmpty ? "—" : section,
+            longSection: section.count > seatLayerPickerConfirmSectionShortMax
+        ))
+    }
+    if seat.rowLabel != nil {
+        cells.append(SeatLayerPickerIdentityCell(
+            eyebrow: seatLayerPickerRowWord(seat, strings: strings),
+            value: row.isEmpty ? "—" : row,
+            longSection: false
+        ))
+    }
+    cells.append(SeatLayerPickerIdentityCell(
+        eyebrow: seatLayerPickerSeatWord(seat, strings: strings),
+        value: seatNumber.isEmpty ? seat.buyerFacingLabel : seatNumber,
+        longSection: false
+    ))
+    return cells
+}
+
+
+/// The metre figure as the runtime rounded it.
+///
+/// The number arrives already rounded, so this only decides whether to print a
+/// decimal point at all: `7` rather than `7.0`, `7.4` unchanged.
+func seatLayerPickerSightlineFigure(_ metres: Double) -> String {
+    metres == metres.rounded()
+        ? String(Int(metres.rounded()))
+        : String(metres)
+}
+
+
+// MARK: - The invitation
+
+/// How far the breath's halo reaches, and how deep its colour goes.
+// tokens.json gap: `_inviteHalo` / `_inviteHaloInk` / `_inviteSwell` are
+// file-local constants in Flutter too.
+let seatLayerPickerInviteHalo: Double = 6
+let seatLayerPickerInviteHaloInk = 0.35
+/// How much the button swells at the top of each breath.
+let seatLayerPickerInviteSwell = 0.02
+
+
+/// Where in the current breath the button is: 0 at rest, 1 at the top.
+///
+/// Zero before the breathing starts, so the button leaves the invitation at
+/// exactly its resting size. In between it is the web's own two-keyframe
+/// breath: out to the top by the halfway mark and back down again, each half
+/// eased in and out rather than one cosine across the whole cycle — a cosine is
+/// symmetric but not the same curve, and the peak is where the eye reads the
+/// amplitude.
+func seatLayerPickerInviteBreath(elapsedMs: Double?) -> Double {
+    guard let elapsedMs else { return 0 }
+    let since = elapsedMs - Double(SeatLayerPickerMotionDurationTokens.inviteBreatheDelay)
+    guard since > 0 else { return 0 }
+    let span = Double(SeatLayerPickerMotionDurationTokens.inviteBreathe)
+    let phase = (since.truncatingRemainder(dividingBy: span)) / span
+    return phase < 0.5
+        ? seatLayerPickerInviteEase(phase * 2)
+        : 1 - seatLayerPickerInviteEase((phase - 0.5) * 2)
+}
+
+/// How much of the arrival highlight has crossed the button.
+func seatLayerPickerInviteSweep(elapsedMs: Double?) -> Double {
+    guard let elapsedMs else { return 0 }
+    let since = elapsedMs - Double(SeatLayerPickerMotionDurationTokens.inviteDelay)
+    let span = Double(SeatLayerPickerMotionDurationTokens.inviteSweep)
+    guard span > 0 else { return 1 }
+    return min(1, max(0, since / span))
+}
+
+/// The curve each half of a breath travels: the web's `cubic-bezier(.4,0,.6,1)`.
+func seatLayerPickerInviteEase(_ t: Double) -> Double {
+    let clamped = min(1, max(0, t))
+    return seatLayerPickerCubicBezierValue(
+        SeatLayerPickerCubicBezier(x1: 0.4, y1: 0, x2: 0.6, y2: 1),
+        at: clamped
+    )
+}
+
+/// The y of a cubic-Bézier timing curve at progress `t`.
+///
+/// Newton on the x polynomial, then the y polynomial: the curve is authored as
+/// a CSS easing, where the parameter is not the progress.
+func seatLayerPickerCubicBezierValue(
+    _ curve: SeatLayerPickerCubicBezier,
+    at t: Double
+) -> Double {
+    func axis(_ p1: Double, _ p2: Double, _ s: Double) -> Double {
+        let inverse = 1 - s
+        return 3 * inverse * inverse * s * p1 + 3 * inverse * s * s * p2 + s * s * s
+    }
+    var guess = t
+    for _ in 0..<8 {
+        let x = axis(curve.x1, curve.x2, guess) - t
+        if abs(x) < 1e-6 { break }
+        let inverse = 1 - guess
+        let slope = 3 * inverse * inverse * curve.x1
+            + 6 * inverse * guess * (curve.x2 - curve.x1)
+            + 3 * guess * guess * (1 - curve.x2)
+        if abs(slope) < 1e-6 { break }
+        guess -= x / slope
+    }
+    return axis(curve.y1, curve.y2, min(1, max(0, guess)))
+}
+
