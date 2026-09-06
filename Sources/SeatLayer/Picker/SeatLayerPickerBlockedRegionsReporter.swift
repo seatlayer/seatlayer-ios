@@ -229,7 +229,53 @@ private struct SeatLayerPickerBlockedRegionsModifier: ViewModifier {
     }
 }
 
+private struct SeatLayerPickerContainerWidthKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct SeatLayerPickerBottomInsetKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 extension View {
+    /// Measure the picker's OWN box, which is what the composition is keyed
+    /// off — never the device and never the window.
+    ///
+    /// The bottom safe inset comes from the same reading, because §2.5 hands
+    /// it to exactly one surface and the layout is what knows which.
+    func seatLayerPickerContainerMetrics(
+        width: Binding<Double?>,
+        bottomSafeInset: Binding<Double>
+    ) -> some View {
+        background {
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(
+                        key: SeatLayerPickerContainerWidthKey.self,
+                        value: geometry.size.width
+                    )
+                    .preference(
+                        key: SeatLayerPickerBottomInsetKey.self,
+                        value: geometry.safeAreaInsets.bottom
+                    )
+            }
+            .ignoresSafeArea()
+        }
+        .onPreferenceChange(SeatLayerPickerContainerWidthKey.self) { measured in
+            guard measured > 0 else { return }
+            width.wrappedValue = measured
+        }
+        .onPreferenceChange(SeatLayerPickerBottomInsetKey.self) { measured in
+            bottomSafeInset.wrappedValue = max(0, measured)
+        }
+    }
+
     /// Make this the map surface every `seatLayerPickerMapChromeRegion`
     /// measures against, and keep the runtime told what stands on it.
     ///
