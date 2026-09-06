@@ -6,7 +6,7 @@ import XCTest
 final class UnknownToleranceTests: XCTestCase {
 
     func testHostedAndFixtureVersionsRemainDistinctAndPinned() {
-        XCTAssertEqual(SeatLayer.hostedWebVersion, "0.71.5")
+        XCTAssertEqual(SeatLayer.hostedWebVersion, "0.84.1")
         XCTAssertEqual(SeatLayer.legacyFixtureWebVersion, "0.59.0")
         XCTAssertEqual(
             SeatLayer.mobilePageURL.absoluteString,
@@ -143,7 +143,7 @@ final class UnknownToleranceTests: XCTestCase {
 
     func testBundleInfoAcceptsWebKitDoubleBackedProtocolRange() {
         let payload = JSONValue(foundation: [
-            "bundle": "0.71.5",
+            "bundle": "0.84.1",
             "protocol": ["min": 1.0, "max": 2.0],
             "capabilities": ["picker-session-v2"],
             "events": ["picker.snapshot"],

@@ -100,7 +100,7 @@
       "k": "hello",
       "t": "sys.hello",
       "p": {
-        "bundle": "0.71.5",
+        "bundle": "0.84.1",
         "protocol": {
           "min": 2,
           "max": 2

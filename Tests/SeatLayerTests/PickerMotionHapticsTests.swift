@@ -109,7 +109,7 @@ final class PickerHapticControllerTests: XCTestCase {
         let controller = SeatLayerPickerController(
             transport: PickerHapticTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "capabilities": .array([]),
                 "commands": .array([]),
@@ -157,7 +157,7 @@ final class PickerHapticControllerTests: XCTestCase {
         let controller = SeatLayerPickerController(
             transport: PickerHapticTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "events": .array(["picker.snapshot", "hold.expired"]),
             ])
