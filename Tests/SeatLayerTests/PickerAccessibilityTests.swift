@@ -82,7 +82,7 @@ final class PickerAccessibilityTests: XCTestCase {
         let strings = SeatLayerPickerStrings(localeIdentifier: "en")
         XCTAssertEqual(strings.accessNeed("step-free", count: 12), "Step-free · 12")
         XCTAssertEqual(strings.accessNeed("step_free", count: 25), "Step-free · 25")
-        XCTAssertEqual(strings.accessNeed("wheelchair", count: 0), "Wheelchair · 0")
+        XCTAssertEqual(strings.accessNeed("wheelchair", count: 0), "Wheelchair space · 0")
         XCTAssertEqual(strings.accessNeed("future-need"), "Future need")
     }
 

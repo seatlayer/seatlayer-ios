@@ -89,7 +89,7 @@ final class PickerMotionHapticsTests: XCTestCase {
 
     func testHapticStrengthsMatchTheSharedTokenVocabulary() {
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .selectionAdded), .selection)
-        XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .sectionFocused), .light)
+        XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .sectionFocused), .selection)
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .holdCreated), .medium)
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .holdExpired), .heavy)
     }
@@ -148,7 +148,7 @@ final class PickerHapticControllerTests: XCTestCase {
             hasHold: true
         )))
 
-        XCTAssertEqual(adapter.strengths, [.selection, .light, .medium, .heavy, .medium])
+        XCTAssertEqual(adapter.strengths, [.selection, .selection, .medium, .heavy, .medium])
         XCTAssertEqual(expirations, 1)
     }
 

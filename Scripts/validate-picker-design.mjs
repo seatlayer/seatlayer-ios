@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderLocales } from "./generate-picker-locales.mjs";
+import { generatedTokenFiles } from "./generate-picker-tokens.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts));
@@ -24,6 +25,16 @@ const swift = read("Sources", "SeatLayer", "Picker", "SeatLayerPickerDesign.swif
 check(swift.includes(lock.tokensSha256), "Swift token source hash is stale");
 check(swift.includes(lock.localeStringsSha256), "Swift locale source hash is stale");
 check(swift.includes(lock.componentsSha256), "Swift component source hash is stale");
+check(swift.includes(lock.pickerSpecSha256), "Swift specification source hash is stale");
+
+for (const file of generatedTokenFiles(root)) {
+  const target = path.join(root, "Sources", "SeatLayer", "Picker", file.name);
+  const current = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : "";
+  check(
+    current === file.source,
+    `${file.name} is stale; run node Scripts/generate-picker-tokens.mjs`,
+  );
+}
 
 const localeSource = JSON.parse(localeBytes);
 const generated = read("Sources", "SeatLayer", "Picker", "SeatLayerPickerLocales.g.swift").toString();
