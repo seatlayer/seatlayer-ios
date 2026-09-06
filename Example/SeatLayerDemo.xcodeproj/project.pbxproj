@@ -15,6 +15,7 @@
 		AA0000000000000000000106 /* CustomPickerExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000007 /* CustomPickerExample.swift */; };
 		AA0000000000000000000107 /* GoldenHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000009 /* GoldenHarness.swift */; };
 		AA0000000000000000000108 /* ChromeGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000010 /* ChromeGoldenTests.swift */; };
+		AA0000000000000000000109 /* MapChromeGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* MapChromeGoldenTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 		AA0000000000000000000008 /* SeatLayerDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeatLayerDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000009 /* GoldenHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoldenHarness.swift; sourceTree = "<group>"; };
 		AA0000000000000000000010 /* ChromeGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeGoldenTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000011 /* MapChromeGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapChromeGoldenTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 			children = (
 				AA0000000000000000000009 /* GoldenHarness.swift */,
 				AA0000000000000000000010 /* ChromeGoldenTests.swift */,
+				AA0000000000000000000011 /* MapChromeGoldenTests.swift */,
 			);
 			path = SeatLayerDemoTests;
 			sourceTree = "<group>";
@@ -216,6 +219,7 @@
 			files = (
 				AA0000000000000000000107 /* GoldenHarness.swift in Sources */,
 				AA0000000000000000000108 /* ChromeGoldenTests.swift in Sources */,
+				AA0000000000000000000109 /* MapChromeGoldenTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
