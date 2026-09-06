@@ -80,7 +80,10 @@ extension SeatLayerPickerController {
         if holdLapse.map({ candidate.lapsedLabels.count > $0.lapsedLabels.count }) ?? true {
             holdLapse = candidate
         }
-        reportHoldExpired()
+        // A refresh result is a READING, not something the buyer just did. The
+        // host still learns the hold went, but nothing buzzes in a pocket
+        // because the app came back to the foreground and asked a question.
+        reportHoldExpired(playingCue: false)
     }
 
     func applyHaptics(for snapshot: SeatLayerPickerHapticSnapshot) {
@@ -89,11 +92,13 @@ extension SeatLayerPickerController {
         play(result.cues)
     }
 
-    func reportHoldExpired() {
+    /// - Parameter playingCue: false for an expiry discovered by reading state
+    ///   rather than by the runtime telling us it just happened.
+    func reportHoldExpired(playingCue: Bool = true) {
         let result = SeatLayerPickerHaptics.signalHoldExpired(hapticPolicy)
         hapticPolicy = result.state
         guard result.cues.contains(.holdExpired) else { return }
-        play(result.cues)
+        if playingCue { play(result.cues) }
         holdExpirationSubject.send(())
     }
 

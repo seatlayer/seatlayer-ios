@@ -85,10 +85,24 @@ extension SeatLayerPickerController {
         let task = Task { @MainActor [weak self] in
             guard let self else { throw SeatLayerError.destroyed }
             return try await self.enqueue { generation in
-                let result = try await self.send(
-                    "picker.continue",
-                    .object(compacting: ["ttlMs": ttlMs.map(JSONValue.int)])
+                let payload = JSONValue.object(
+                    compacting: ["ttlMs": ttlMs.map(JSONValue.int)]
                 )
+                var result: JSONValue
+                do {
+                    result = try await self.send("picker.continue", payload)
+                } catch let error as SeatLayerError
+                    where error.code == "hold_selection_mismatch" {
+                    // Back from checkout with more seats: a runtime that still
+                    // counts the existing hold as checkout's refuses to carry
+                    // the new ones. The host is the one asking to continue
+                    // again, so the hold is replaced first — the runtime's own
+                    // hold call carries every held seat along with the new —
+                    // and the handoff is asked for a second time.
+                    guard self.supports(command: "hold") else { throw error }
+                    _ = try await self.send("hold", payload)
+                    result = try await self.send("picker.continue", payload)
+                }
                 let updated = try await self.applyMutationResult(result, generation: generation)
                 let categories = updated?.categories ?? self.snapshot?.categories ?? []
                 guard let handoff = decodeSeatLayerPickerCheckoutHandoff(

@@ -473,6 +473,175 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertEqual(calls.map(\.name), ["picker.zoomOut", "picker.zoomOut", "picker.abort"])
     }
 
+    func testASecondTapOnAnAnsweredSeatAsksBeforeItRemoves() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        presentation.confirmPending()
+        let seat = try XCTUnwrap(controller.snapshot?.selection.first)
+
+        controller.accept(seatRetap: seat)
+        XCTAssertEqual(presentation.candidateSeat?.label, "A-1")
+        XCTAssertEqual(presentation.cardIntent, .remove)
+        // A seat the buyer already agreed to stays counted while the card asks.
+        XCTAssertEqual(presentation.confirmedCartLines.map(\.label), ["A-1"])
+
+        presentation.dismissCandidate()
+        XCTAssertNil(presentation.candidateSeat)
+        XCTAssertEqual(presentation.cardIntent, .add)
+    }
+
+    func testACandidateTheBuyerHasNotAgreedToIsNotCounted() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1", "A-2"]))
+        let seat = try XCTUnwrap(controller.snapshot?.selection.last)
+        presentation.askAbout(seat)
+
+        XCTAssertEqual(presentation.cardIntent, .add)
+        XCTAssertEqual(presentation.confirmedCartLines.map(\.label), ["A-1"])
+        XCTAssertEqual(presentation.confirmedTicketCount, 1)
+        XCTAssertEqual(presentation.confirmedCartTotal, 25)
+    }
+
+    func testTheSheetStepsDownUnderACardAndBackWhenItGoes() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(panelInitiallyCollapsed: false)
+        )
+
+        XCTAssertEqual(presentation.sheetDetent, .open)
+        XCTAssertTrue(presentation.cartSheetExpanded)
+
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        presentation.askAbout(try XCTUnwrap(controller.snapshot?.selection.first))
+        XCTAssertEqual(presentation.sheetDetent, .mini)
+        XCTAssertFalse(presentation.cartSheetExpanded)
+
+        presentation.dismissCandidate()
+        XCTAssertEqual(presentation.sheetDetent, .peek)
+
+        presentation.cartSheetExpanded = true
+        XCTAssertEqual(presentation.sheetDetent, .open)
+        XCTAssertEqual(presentation.nextBackStep, .cart)
+    }
+
+    func testTheAddLandsBeforeAnythingElseMoves() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+
+        XCTAssertTrue(presentation.mapMayMove)
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        presentation.confirmPending()
+
+        XCTAssertEqual(presentation.cartLanding, .cardDismissed)
+        XCTAssertFalse(presentation.mapMayMove)
+        presentation.chipDidLand()
+        XCTAssertEqual(presentation.cartLanding, .chipLanded)
+        XCTAssertFalse(presentation.mapMayMove)
+        presentation.endCartLanding()
+        XCTAssertEqual(presentation.cartLanding, .mapMayMove)
+        XCTAssertTrue(presentation.mapMayMove)
+    }
+
+    func testSeatsAHoldArrivesWithAreAdoptedAndLaterTapsStillAsk() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+
+        var held = try XCTUnwrap(snapshot(revision: 1, labels: ["A-1", "A-2"]).objectValue)
+        held["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(held))
+
+        // A hold agreed to before this picker opened is not a question.
+        XCTAssertNil(presentation.pendingSeat)
+        XCTAssertEqual(presentation.confirmedCartLines.count, 2)
+
+        var later = try XCTUnwrap(
+            snapshot(revision: 2, labels: ["A-1", "A-2", "A-3"]).objectValue
+        )
+        later["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(later))
+        XCTAssertEqual(presentation.pendingSeat?.label, "A-3")
+    }
+
+    func testCheckoutCanResumeAfterTheHostHandsTheBuyerBack() async throws {
+        let transport = PresentationTransportSpy(
+            responses: ["picker.continue": checkoutResponse()]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+
+        _ = try await presentation.checkout { _ in }
+        XCTAssertNotNil(presentation.checkoutHandoff)
+        XCTAssertFalse(presentation.canCheckout)
+
+        presentation.resumeAfterCheckout()
+        XCTAssertTrue(presentation.resumedAfterCheckout)
+        XCTAssertTrue(presentation.canCheckout)
+    }
+
+    func testCheckoutReplacesAMismatchedHoldAndAsksAgain() async throws {
+        let transport = PresentationTransportSpy(
+            responses: ["picker.continue": checkoutResponse(), "hold": [:]],
+            failOnce: ["picker.continue": .bridge(.init(
+                code: "hold_selection_mismatch",
+                message: "the hold does not match the selection"
+            ))]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue", "hold"]
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+
+        let handoff = try await controller.checkout()
+
+        XCTAssertEqual(handoff.holdId, "opaque-test-hold")
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.continue", "hold", "picker.continue"])
+    }
+
+    func testAMismatchWithNoHoldCommandToReplaceItStillSurfaces() async {
+        let transport = PresentationTransportSpy(
+            failOnce: ["picker.continue": .bridge(.init(
+                code: "hold_selection_mismatch",
+                message: "the hold does not match the selection"
+            ))]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue"]
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+
+        do {
+            _ = try await controller.checkout()
+            XCTFail("a mismatch with no way to replace the hold must surface")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "hold_selection_mismatch")
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+    }
+
     private func readyController(
         transport: PresentationTransportSpy,
         commands: [String],
@@ -610,18 +779,23 @@ private actor PresentationTransportSpy: SeatLayerPickerCommandTransport {
     private var responseOffsets: [String: Int] = [:]
     private let delayNanoseconds: UInt64
 
+    private var failOnce: [String: SeatLayerError]
+
     init(
         responses: [String: JSONValue] = [:],
         responseSequences: [String: [JSONValue]] = [:],
+        failOnce: [String: SeatLayerError] = [:],
         delayNanoseconds: UInt64 = 0
     ) {
         self.responses = responses
         self.responseSequences = responseSequences
+        self.failOnce = failOnce
         self.delayNanoseconds = delayNanoseconds
     }
 
     func command(_ name: String, payload: JSONValue?) async throws -> JSONValue {
         calls.append(.init(name: name, payload: payload))
+        if let failure = failOnce.removeValue(forKey: name) { throw failure }
         if delayNanoseconds > 0 { try await Task.sleep(nanoseconds: delayNanoseconds) }
         if let sequence = responseSequences[name] {
             let offset = responseOffsets[name, default: 0]

@@ -116,16 +116,30 @@ public enum SeatLayerPickerProjections {
         _ items: [SeatLayerPickerCartLine],
         pending: SelectedSeat?
     ) -> SeatLayerPickerConfirmedCartProjection {
-        guard let pending else {
+        confirmedCart(items, excluding: [pending].compactMap { $0 })
+    }
+
+    /// The cart with every unanswered seat taken out of it.
+    ///
+    /// A seat a card is still asking about is in the runtime's selection from
+    /// the moment it is tapped, but the buyer has not agreed to it: counting it
+    /// would show a ticket and a price for a question that has not been
+    /// answered.
+    public static func confirmedCart(
+        _ items: [SeatLayerPickerCartLine],
+        excluding unanswered: [SelectedSeat]
+    ) -> SeatLayerPickerConfirmedCartProjection {
+        guard !unanswered.isEmpty else {
             return .init(items: items, totals: totals(items))
         }
-        let pendingId = nonBlank(pending.id)
-        let pendingLabel = nonBlank(pending.label)
+        let ids = Set(unanswered.compactMap { nonBlank($0.id) })
+        let labels = Set(unanswered.compactMap { nonBlank($0.label) })
         let kept = items.filter { line in
             let identity = ticketIdentity(of: line)
-            return identity.seatId == nil
-                ? identity.removalLabel != pendingLabel
-                : identity.seatId != pendingId
+            guard let seatId = identity.seatId else {
+                return identity.removalLabel.map { !labels.contains($0) } ?? true
+            }
+            return !ids.contains(seatId)
         }
         return .init(items: kept, totals: totals(kept))
     }

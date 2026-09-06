@@ -83,6 +83,7 @@ final class PickerSnapshotTests: XCTestCase {
                 ["unitPrice": 999],
             ]),
         ]
+        raw["selection"] = ["seats": .array([])]
 
         let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
         XCTAssertEqual(snapshot.categories.map(\.key), ["balcony"])
@@ -93,6 +94,38 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.cartLines.count, 1)
         XCTAssertEqual(snapshot.cartTotal, 20)
         XCTAssertEqual(snapshot.currency, "EUR")
+    }
+
+    func testACartMissingASelectedSeatIsCompletedAndRecounted() throws {
+        // A runtime holding seats reports the HOLD's lines as the cart, so a
+        // seat added after checkout came back is drawn selected and missing
+        // from the cart. The seat carries its own price and address; nothing
+        // is invented, only counted.
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            pickerSnapshot(additions: ["cart": [
+                "currency": "EUR",
+                "quantity": .int(1),
+                "total": .double(45),
+                "items": .array([
+                    ["label": "A-1", "unitPrice": .double(45), "currency": "EUR", "quantity": .int(1)],
+                ]),
+            ]])
+        ))
+
+        XCTAssertEqual(snapshot.cartLines.map(\.label), ["A-1", "A-2"])
+        XCTAssertEqual(snapshot.cartLines.last?.unitPrice, 75)
+        XCTAssertEqual(snapshot.cartLines.last?.seatId, "seat-2")
+        XCTAssertEqual(snapshot.cartLines.last?.currency, "EUR")
+        XCTAssertEqual(snapshot.ticketCount, 2)
+        XCTAssertEqual(snapshot.cartTotal, 120)
+    }
+
+    func testACompleteCartIsLeftExactlyAsTheRuntimeCountedIt() throws {
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot()))
+
+        XCTAssertEqual(snapshot.cartLines.count, 2)
+        XCTAssertEqual(snapshot.ticketCount, 2)
+        XCTAssertEqual(snapshot.cartTotal, 120)
     }
 
     func testMissingAvailabilityNeverInventsSoldOutState() throws {
