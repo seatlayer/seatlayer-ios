@@ -391,6 +391,18 @@ public enum SeatLayerPickerDockModel {
         }
     }
 
+    /// The widest rung of the ladder that fits, measured rather than guessed.
+    ///
+    /// Candidates arrive widest first with the width their text actually
+    /// measured; the count may never be clipped, so a budget that fits none of
+    /// them hides the count rather than truncating it.
+    public static func fit(
+        _ candidates: [(step: SeatLayerPickerDockCountStep, width: Double)],
+        budget: Double
+    ) -> SeatLayerPickerDockCountStep {
+        candidates.first { $0.width <= budget }?.step ?? .hidden
+    }
+
     /// The next rung down when the measured text does not fit.
     public static func degrade(_ step: SeatLayerPickerDockCountStep) -> SeatLayerPickerDockCountStep {
         switch step {
