@@ -343,6 +343,18 @@ final class PickerMapChromeModelTests: XCTestCase {
         ))
     }
 
+    func testTheWidestRungThatFitsIsChosenAndTheCountIsNeverClipped() {
+        let candidates: [(step: SeatLayerPickerDockCountStep, width: Double)] = [
+            (.full, 180),
+            (.short, 70),
+        ]
+
+        XCTAssertEqual(SeatLayerPickerDockModel.fit(candidates, budget: 200), .full)
+        XCTAssertEqual(SeatLayerPickerDockModel.fit(candidates, budget: 120), .short)
+        XCTAssertEqual(SeatLayerPickerDockModel.fit(candidates, budget: 40), .hidden)
+        XCTAssertEqual(SeatLayerPickerDockModel.fit([], budget: 400), .hidden)
+    }
+
     // MARK: - Fixtures
 
     private func section(accessibleFree: Int?) -> SeatLayerPickerSectionSummary {
