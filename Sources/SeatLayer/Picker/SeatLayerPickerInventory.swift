@@ -17,17 +17,17 @@ func seatLayerPickerInventoryStatus(
     if snapshot.event.salesClosed { return .salesClosed }
 
     let sellableCategories = snapshot.categories.filter { !$0.notForSale }
-    let categoryEvidence = !sellableCategories.isEmpty
-        && sellableCategories.allSatisfy(\.availabilityReported)
-    let gaEvidence = !snapshot.generalAdmissionAreas.isEmpty
-        && snapshot.generalAdmissionAreas.allSatisfy { ($0.available ?? -1) >= 0 }
-
-    if !sellableCategories.isEmpty && !categoryEvidence { return .availableOrUnknown }
-    if !snapshot.generalAdmissionAreas.isEmpty && !gaEvidence { return .availableOrUnknown }
-    guard categoryEvidence || gaEvidence else { return .availableOrUnknown }
-
-    if sellableCategories.contains(where: { $0.available > 0 })
-        || snapshot.generalAdmissionAreas.contains(where: { ($0.available ?? 0) > 0 }) {
+    // The predicate is about SEATED inventory: every seated category's live
+    // free count is zero, there is at least one seated category, and the chart
+    // has no general-admission areas at all. A venue that also sells standing
+    // room is never sold out on the strength of its seats alone, so GA areas
+    // are a disqualification here rather than a second kind of evidence.
+    guard snapshot.generalAdmissionAreas.isEmpty else { return .availableOrUnknown }
+    guard !sellableCategories.isEmpty,
+          sellableCategories.allSatisfy(\.availabilityReported) else {
+        return .availableOrUnknown
+    }
+    if sellableCategories.contains(where: { $0.available > 0 }) {
         return .availableOrUnknown
     }
     return .soldOut

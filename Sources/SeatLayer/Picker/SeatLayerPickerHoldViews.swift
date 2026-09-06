@@ -57,31 +57,32 @@ public struct SeatLayerHoldLapseNotice: View {
 }
 
 /// Truthful no-inventory state; it never replaces a loading or error surface.
+///
+/// Two different answers, said two different ways: a venue with nothing left
+/// gets the sold-out veil, and an event that has stopped selling gets the
+/// tray's own statement. Both are read from the live snapshot, so both clear
+/// themselves.
 public struct SeatLayerPickerEmptyView: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
-    @Environment(\.seatLayerPickerStyle) private var style
-    @Environment(\.colorScheme) private var colorScheme
 
     public init() {}
 
     public var body: some View {
-        let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
-        let message = controller.snapshot?.event.salesClosed == true
-            ? style.strings.text(.salesClosed)
-            : style.strings.text(.noTicketsAvailable)
-        VStack(spacing: 10) {
-            Image(systemName: "ticket.fill").seatLayerPickerFont(size: 24).foregroundColor(palette.mutedText)
-            Text(message)
-                .seatLayerPickerFont(size: 14, weight: .bold)
-                .foregroundColor(palette.text)
-                .multilineTextAlignment(.center)
+        switch controller.snapshot.map(seatLayerPickerInventoryStatus) {
+        case .soldOut:
+            SeatLayerPickerSoldOutOverlay()
+        case .salesClosed:
+            SeatLayerPickerSalesClosedStatement()
+                .frame(maxWidth: emptyStatementMaxWidth)
+                .padding(20)
+        case .availableOrUnknown, .none:
+            EmptyView()
         }
-        .padding(20)
-        .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.96)
-        .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.card))
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("seatlayer-empty")
     }
+
+    // tokens.json gap: the width the tray statement takes when it stands in
+    // the middle of the map rather than in the sheet.
+    private let emptyStatementMaxWidth = 360.0
 }
 
 /// Canonical checkout-bar spelling used by builders and custom layouts.

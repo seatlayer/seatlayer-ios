@@ -390,7 +390,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
 }
 
 /// Letter-spacing for the one heading that carries it.
-private struct SeatLayerPickerLetterSpacing: ViewModifier {
+struct SeatLayerPickerLetterSpacing: ViewModifier {
     let amount: Double
 
     func body(content: Content) -> some View {
