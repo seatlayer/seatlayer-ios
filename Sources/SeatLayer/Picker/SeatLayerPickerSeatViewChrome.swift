@@ -28,19 +28,22 @@ public struct SeatLayerSeatViewChrome: View {
         if availability.panoramaChrome,
            let seatView = controller.seatView {
             let wording = SeatLayerPickerImmersive.panoramaWording(seatView)
-            let palette = immersivePalette
             VStack {
                 Spacer()
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
                             if let title = wording.title {
-                                Text(title).seatLayerPickerFont(size: 14, weight: .heavy).lineLimit(2)
+                                Text(title)
+                                    .seatLayerPickerFont(size: 14, weight: .heavy)
+                                    .lineLimit(2)
                             }
                             if let caption = wording.caption {
                                 Text(caption)
                                     .seatLayerPickerFont(size: 12, weight: .semibold)
-                                    .foregroundColor(palette.mutedText)
+                                    .foregroundColor(
+                                        SeatLayerPickerPalette.immersiveCaptionInk.opacity(mutedInk)
+                                    )
                                     .lineLimit(2)
                             }
                         }
@@ -48,35 +51,36 @@ public struct SeatLayerSeatViewChrome: View {
                         if let badge = wording.badge {
                             Text(badge)
                                 .seatLayerPickerFont(size: 12, weight: .heavy)
-                                .foregroundColor(seatView.real ? palette.onAccent : palette.text)
+                                .foregroundColor(SeatLayerPickerPalette.immersiveCaptionInk)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
-                                    seatView.real
-                                        ? palette.accent
-                                        : palette.text.opacity(0.14)
+                                    SeatLayerPickerPalette.immersiveCaptionInk.opacity(
+                                        seatView.real ? badgeRealWash : badgeWash
+                                    )
                                 )
                                 .clipShape(Capsule())
                                 .lineLimit(1)
                         }
                     }
-                    .foregroundColor(palette.text)
+                    .foregroundColor(SeatLayerPickerPalette.immersiveCaptionInk)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.92)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button)
-                            .stroke(palette.divider, lineWidth: 1)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+                    .seatLayerImmersiveCaptionGlass(radius: SeatLayerPickerRadiusTokens.chip)
                     if showDragHint, let hint = wording.dragHint {
                         Text(hint)
-                            .seatLayerPickerFont(size: 12, weight: .semibold)
-                            .foregroundColor(palette.mutedText)
+                            .seatLayerPickerFont(
+                                size: SeatLayerPickerSizeTokens.immersiveCaptionFontSize,
+                                weight: .semibold
+                            )
+                            .foregroundColor(
+                                SeatLayerPickerPalette.immersiveCaptionInk.opacity(mutedInk)
+                            )
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.80)
-                            .clipShape(Capsule())
+                            .seatLayerImmersiveCaptionGlass(
+                                radius: SeatLayerPickerRadiusTokens.chip
+                            )
                     }
                 }
                 .padding(.horizontal, 18)
@@ -91,14 +95,10 @@ public struct SeatLayerSeatViewChrome: View {
         }
     }
 
-    private var immersivePalette: SeatLayerPickerPalette {
-        var immersiveStyle = style
-        immersiveStyle.mode = .dark
-        return resolveSeatLayerPickerPalette(
-            style: immersiveStyle,
-            colorScheme: .dark,
-            snapshot: controller.snapshot
-        )
-    }
+    // tokens.json gap: how much of the caption ink the secondary lines and
+    // the disclosure badge's ground take.
+    private let mutedInk = 0.72
+    private let badgeWash = 0.14
+    private let badgeRealWash = 0.24
 }
 #endif

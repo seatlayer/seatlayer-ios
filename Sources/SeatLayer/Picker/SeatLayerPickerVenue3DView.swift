@@ -2,11 +2,18 @@
 import SwiftUI
 
 /// Native chrome over renderer-owned venue-3D pixels.
+///
+/// The back pill is the way out of a SEAT, not out of the scene, so it is drawn
+/// only while the buyer is sitting in an exact one. The deck scrolls
+/// horizontally, so a venue with one more action never pushes a chip off a
+/// narrow phone.
 public struct SeatLayerVenue3D: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var busy = false
+    @State private var recentreSpin = 0.0
     private let onBackToVenue: (() -> Void)?
     private let topInset: Double
     private let bottomInset: Double
@@ -33,142 +40,232 @@ public struct SeatLayerVenue3D: View {
         if availability.venue3D,
            !availability.panoramaChrome,
            let snapshot = controller.snapshot {
-            let palette = immersivePalette(snapshot: snapshot)
             let position = SeatLayerPickerImmersive.position(in: snapshot)
             let targeted = position.targetSeatId != nil
-            VStack {
-                HStack {
+            VStack(spacing: 0) {
+                topRow(availability: availability, snapshot: snapshot, targeted: targeted)
+                    .padding(.top, topInset)
+                Spacer(minLength: 0)
+                deck(availability: availability, position: position, targeted: targeted)
+                    .padding(.bottom, bottomInset)
+            }
+            .padding(.horizontal, SeatLayerPickerSizeTokens.mapAnchorInset)
+            .accessibilityIdentifier("seatlayer-venue-3d-chrome")
+            .transition(.opacity)
+            .animation(
+                seatLayerPickerAnimation(.immersive, reduceMotion: reduceMotion),
+                value: targeted
+            )
+        }
+    }
+
+    // MARK: - Top row
+
+    @ViewBuilder
+    private func topRow(
+        availability: SeatLayerPickerImmersiveAvailability,
+        snapshot: SeatLayerPickerSnapshot,
+        targeted: Bool
+    ) -> some View {
+        HStack(spacing: SeatLayerPickerSizeTokens.mapAnchorGap) {
+            if targeted {
+                backPill()
+            } else if showsMapBackControl {
+                chip(
+                    symbol: "map",
+                    label: style.strings.text(.mapView),
+                    labelled: true,
+                    enabled: !busy
+                ) { execute(.back) }
+            }
+            Spacer(minLength: 0)
+            if availability.navigationMode {
+                let panning = snapshot.map.view3DNavigationMode == "pan"
+                // The control names the mode it is IN; its hint names the drag
+                // that mode gives the buyer.
+                chip(
+                    symbol: panning
+                        ? "arrow.up.and.down.and.arrow.left.and.right"
+                        : "rotate.left",
+                    label: style.strings.text(panning ? .panMode : .orbitMode),
+                    hint: style.strings.text(panning ? .moveVenue : .rotateVenue),
+                    enabled: !busy
+                ) { toggleNavigation(from: snapshot) }
+            }
+        }
+    }
+
+    /// Top-left, only while sitting in an exact seat.
+    private func backPill() -> some View {
+        Button { execute(.back) } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left")
+                    .seatLayerPickerFont(
+                        size: SeatLayerPickerSizeTokens.immersiveBackIconSize,
+                        weight: .bold
+                    )
+                Text(style.strings.text(.backToVenue))
+                    .seatLayerPickerFont(
+                        size: SeatLayerPickerSizeTokens.immersiveBackFontSize,
+                        weight: .heavy
+                    )
+                    .lineLimit(1)
+            }
+            .foregroundColor(SeatLayerPickerPalette.immersiveGlassInk)
+            .padding(.horizontal, SeatLayerPickerSizeTokens.immersiveNavChipPaddingX)
+            .frame(minHeight: SeatLayerPickerSizeTokens.immersiveBackPillHeight)
+            .seatLayerImmersiveGlass(radius: SeatLayerPickerRadiusTokens.pill)
+            .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+        .accessibilityLabel(style.strings.text(.backToVenue))
+        .accessibilityIdentifier("seatlayer-venue-3d-back")
+    }
+
+    // MARK: - Deck
+
+    @ViewBuilder
+    private func deck(
+        availability: SeatLayerPickerImmersiveAvailability,
+        position: SeatLayerPickerVenue3DPosition,
+        targeted: Bool
+    ) -> some View {
+        VStack(spacing: SeatLayerPickerSizeTokens.mapAnchorGap) {
+            if let caption = caption(for: position.targetSeat) {
+                Text(caption)
+                    .seatLayerPickerFont(
+                        size: SeatLayerPickerSizeTokens.immersiveCaptionFontSize,
+                        weight: .bold
+                    )
+                    .foregroundColor(SeatLayerPickerPalette.immersiveCaptionInk)
+                    .lineLimit(1)
+                    .padding(.horizontal, SeatLayerPickerSizeTokens.immersiveNavChipPaddingX)
+                    .frame(minHeight: SeatLayerPickerSizeTokens.immersiveNavChipHeight)
+                    .seatLayerImmersiveCaptionGlass(radius: SeatLayerPickerRadiusTokens.chip)
+                    .accessibilityIdentifier("seatlayer-venue-3d-caption")
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: SeatLayerPickerSizeTokens.mapAnchorGap) {
                     if targeted {
-                        control(
+                        chip(
                             symbol: "chevron.left",
-                            label: style.strings.text(.backToVenue),
-                            labelled: true,
+                            label: style.strings.text(.previousSeat),
+                            enabled: !busy && position.previousSeatId != nil
+                        ) { execute(.previous) }
+                        if availability.seatViewAction {
+                            chip(
+                                symbol: "view.3d",
+                                label: style.strings.text(.openVenue360),
+                                labelled: true,
+                                enabled: !busy
+                            ) { openSeatView(position.targetSeatId) }
+                        }
+                        chip(
+                            symbol: "chevron.right",
+                            label: style.strings.text(.nextSeat),
+                            enabled: !busy && position.nextSeatId != nil
+                        ) { execute(.next) }
+                        chip(
+                            symbol: "scope",
+                            label: style.strings.text(.recentre),
                             enabled: !busy,
-                            palette: palette
-                        ) { execute(.back) }
-                    } else if showsMapBackControl {
-                        control(
-                            symbol: "map",
-                            label: style.strings.text(.mapView),
-                            labelled: true,
-                            enabled: !busy,
-                            palette: palette
-                        ) { execute(.back) }
-                    }
-                    Spacer()
-                    if availability.navigationMode {
-                        let moving = snapshot.map.view3DNavigationMode == "pan"
-                        control(
-                            symbol: moving
-                                ? "arrow.up.and.down.and.arrow.left.and.right"
-                                : "rotate.left",
-                            label: style.strings.text(moving ? .moveVenue : .orbitMode),
-                            enabled: !busy,
-                            palette: palette
-                        ) { toggleNavigation(from: snapshot) }
-                    }
-                }
-                .padding(.top, topInset)
-                Spacer()
-                VStack(spacing: 8) {
-                    if let caption = caption(for: position.targetSeat) {
-                        Text(caption)
-                            .seatLayerPickerFont(size: 12, weight: .bold)
-                            .foregroundColor(palette.text)
-                            .lineLimit(1)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 28)
-                            .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.88)
-                            .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
-                            .clipShape(Capsule())
-                            .accessibilityIdentifier("seatlayer-venue-3d-caption")
-                    }
-                    HStack(spacing: 8) {
-                        if targeted {
-                            control(
-                                symbol: "chevron.left",
-                                label: style.strings.text(.previousSeat),
-                                enabled: !busy && position.previousSeatId != nil,
-                                palette: palette
-                            ) { execute(.previous) }
-                            if availability.seatViewAction {
-                                control(
-                                    symbol: "eye",
-                                    label: style.strings.text(.viewFromHere),
-                                    labelled: true,
-                                    enabled: !busy,
-                                    palette: palette
-                                ) { openSeatView(position.targetSeatId) }
-                            }
-                            control(
-                                symbol: "chevron.right",
-                                label: style.strings.text(.nextSeat),
-                                enabled: !busy && position.nextSeatId != nil,
-                                palette: palette
-                            ) { execute(.next) }
-                            control(
-                                symbol: "scope",
-                                label: style.strings.text(.recentre),
-                                enabled: !busy,
-                                palette: palette
-                            ) { execute(.recentre) }
-                        } else {
-                            if availability.zoomOut {
-                                control(
-                                    symbol: "minus",
-                                    label: style.strings.text(.zoomOut),
-                                    enabled: !busy,
-                                    palette: palette
-                                ) { camera(.zoomOut) }
-                            }
-                            if availability.zoomToFit {
-                                control(
-                                    symbol: "viewfinder",
-                                    label: style.strings.text(.fitVenue),
-                                    labelled: true,
-                                    enabled: !busy,
-                                    palette: palette
-                                ) { camera(.fit) }
-                            }
-                            if availability.zoomIn {
-                                control(
-                                    symbol: "plus",
-                                    label: style.strings.text(.zoomIn),
-                                    enabled: !busy,
-                                    palette: palette
-                                ) { camera(.zoomIn) }
-                            }
+                            spin: recentreSpin
+                        ) { recentre() }
+                    } else {
+                        // The stepper is disabled in venue mode; the camera
+                        // controls take its place.
+                        if availability.zoomOut {
+                            chip(
+                                symbol: "minus",
+                                label: style.strings.text(.zoomOut),
+                                enabled: !busy
+                            ) { camera(.zoomOut) }
+                        }
+                        if availability.zoomToFit {
+                            chip(
+                                symbol: "viewfinder",
+                                label: style.strings.text(.fitWholeVenue),
+                                labelled: true,
+                                enabled: !busy
+                            ) { camera(.fit) }
+                        }
+                        if availability.zoomIn {
+                            chip(
+                                symbol: "plus",
+                                label: style.strings.text(.zoomIn),
+                                enabled: !busy
+                            ) { camera(.zoomIn) }
                         }
                     }
                 }
-                .padding(.bottom, bottomInset)
+                .padding(.horizontal, 1)
             }
-            .padding(.horizontal, 10)
-            .accessibilityIdentifier("seatlayer-venue-3d-chrome")
-            .transition(.opacity)
         }
+    }
+
+    // MARK: - One chip
+
+    @ViewBuilder
+    private func chip(
+        symbol: String,
+        label: String,
+        hint: String? = nil,
+        labelled: Bool = false,
+        enabled: Bool,
+        spin: Double = 0,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .seatLayerPickerFont(
+                        size: SeatLayerPickerSizeTokens.immersiveNavChipFontSize,
+                        weight: .bold
+                    )
+                    .rotationEffect(.degrees(spin))
+                if labelled {
+                    Text(label)
+                        .seatLayerPickerFont(
+                            size: SeatLayerPickerSizeTokens.immersiveNavChipFontSize,
+                            weight: .heavy
+                        )
+                        .lineLimit(1)
+                }
+            }
+            .foregroundColor(SeatLayerPickerPalette.immersiveGlassInk)
+            .padding(
+                .horizontal,
+                labelled
+                    ? SeatLayerPickerSizeTokens.immersiveNavChipPaddingX
+                    : 0
+            )
+            .frame(
+                minWidth: labelled ? 0 : SeatLayerPickerSizeTokens.immersiveNavCloseSize,
+                minHeight: SeatLayerPickerSizeTokens.immersiveNavChipHeight
+            )
+            .seatLayerImmersiveGlass(radius: SeatLayerPickerRadiusTokens.pill)
+            .frame(
+                minWidth: SeatLayerPickerSizeTokens.minimumHitTarget,
+                minHeight: SeatLayerPickerSizeTokens.minimumHitTarget
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : SeatLayerPickerOpacityTokens.mapControlDisabled)
+        .accessibilityLabel(label)
+        .accessibilityHint(hint ?? "")
     }
 
     private enum CameraAction { case zoomIn, zoomOut, fit }
 
-    private func immersivePalette(snapshot: SeatLayerPickerSnapshot) -> SeatLayerPickerPalette {
-        var immersiveStyle = style
-        immersiveStyle.mode = .dark
-        return resolveSeatLayerPickerPalette(
-            style: immersiveStyle,
-            colorScheme: .dark,
-            snapshot: snapshot
-        )
-    }
-
     private func caption(for seat: SelectedSeat?) -> String? {
         guard let seat else { return nil }
+        let seatNumber = seat.seatNumber ?? seat.buyerFacingLabel
         let values = [
             seat.sectionLabel,
-            seat.rowLabel.map { "\(style.strings.text(.row)) \($0)" },
-            (seat.seatNumber ?? seat.buyerFacingLabel).isEmpty
-                ? nil
-                : "\(style.strings.text(.seat)) \(seat.seatNumber ?? seat.buyerFacingLabel)",
+            seat.rowLabel.map { "\(style.strings.text(.rowWord)) \($0)" },
+            seatNumber.isEmpty ? nil : "\(style.strings.text(.seatWord)) \(seatNumber)",
             style.strings.text(.viewFromYourSeat),
         ].compactMap { value -> String? in
             guard let value,
@@ -178,38 +275,7 @@ public struct SeatLayerVenue3D: View {
         return values.isEmpty ? nil : values.joined(separator: " · ")
     }
 
-    @ViewBuilder
-    private func control(
-        symbol: String,
-        label: String,
-        labelled: Bool = false,
-        enabled: Bool,
-        palette: SeatLayerPickerPalette,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: symbol).seatLayerPickerFont(size: 14, weight: .bold)
-                if labelled {
-                    Text(label).seatLayerPickerFont(size: 13, weight: .heavy).lineLimit(1)
-                }
-            }
-            .foregroundColor(palette.text)
-            .padding(.horizontal, labelled ? 12 : 8)
-            .frame(minWidth: 36, minHeight: 36)
-            .seatLayerPickerTranslucentBackground(palette.surface, opacity: 0.92)
-            .overlay {
-                RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button)
-                    .stroke(palette.divider, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
-            .frame(minWidth: 44, minHeight: 44)
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.48)
-        .accessibilityLabel(label)
-    }
+    // MARK: - Commands
 
     private func execute(_ action: SeatLayerPickerVenue3DAction) {
         if action == .back, let onBackToVenue {
@@ -233,6 +299,16 @@ public struct SeatLayerVenue3D: View {
                 resetView: request.resetView
             )
         }
+    }
+
+    /// Recentre arrives with a single spring spin.
+    private func recentre() {
+        if !reduceMotion {
+            withAnimation(seatLayerPickerAnimation(.pop, reduceMotion: false)) {
+                recentreSpin += 360
+            }
+        }
+        execute(.recentre)
     }
 
     private func openSeatView(_ seatId: String?) {
