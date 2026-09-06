@@ -41,7 +41,7 @@ final class PickerChartLoadTests: XCTestCase {
                 "transform": 12,
                 "host": "webview",
                 "platform": "ios",
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": 2,
                 "chromeOwner": "native",
                 "bootMs": 1_018,
@@ -212,7 +212,7 @@ final class PickerChartLoadTests: XCTestCase {
         controller.connect(
             transport: PickerChartLoadTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "capabilities": .array(
                     capability ? ["chart-load-trace-v1"] : []

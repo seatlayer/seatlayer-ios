@@ -23,6 +23,38 @@ public enum SeatLayerPickerBackStep: String, Sendable, Equatable, CaseIterable {
     case close
 }
 
+/// What the seat card is asking about the seat it stands over.
+public enum SeatLayerPickerCardIntent: String, Sendable, Equatable, CaseIterable {
+    /// A seat the buyer has just tapped: the card offers to add it.
+    case add
+    /// A seat already in the cart, tapped again: the card offers to take it
+    /// back out. A second tap is a question, never a silent removal.
+    case remove
+}
+
+/// How far the ticket sheet is open.
+///
+/// Three rests, not two: `mini` is the step-down the sheet takes while a seat
+/// card is up, so the card is never argued with by a sheet standing at its
+/// full height.
+public enum SeatLayerPickerSheetDetent: String, Sendable, Equatable, CaseIterable {
+    case mini
+    case peek
+    case open
+}
+
+/// The order of the cart-landing choreography.
+///
+/// The add lands before anything else moves: the card goes, then the chip
+/// arrives in the tray, and only then may the map re-frame. Publishing one
+/// "moment" let all three happen at once, which read as the map bolting while
+/// the buyer was still looking at the card.
+public enum SeatLayerPickerCartLanding: String, Sendable, Equatable, CaseIterable {
+    case cardDismissed
+    case chipLanded
+    case mapMayMove
+}
+
 public enum SeatLayerPickerPrompt: Sendable, Equatable {
     case generalAdmission(GAArea)
     case table(SelectedSeat)
@@ -70,7 +102,30 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     @Published public private(set) var lastActionError: SeatLayerError?
     @Published public private(set) var selectionFlight: SeatLayerPickerSelectionFlightMoment?
     @Published public private(set) var removalUndo: SeatLayerPickerRemovalUndo?
-    @Published public var cartSheetExpanded: Bool
+    /// The seat a card is asking about but the buyer has not agreed to.
+    ///
+    /// Deliberately not the same thing as `pendingSeat`: a candidate is never
+    /// counted in the cart, and it can be a seat that is already in the cart
+    /// and is being asked about again.
+    @Published public private(set) var candidateSeat: SelectedSeat?
+    /// What the card over `candidateSeat` is offering to do.
+    @Published public private(set) var cardIntent: SeatLayerPickerCardIntent = .add
+    /// How far the ticket sheet is open.
+    @Published public var sheetDetent: SeatLayerPickerSheetDetent
+    /// Where the add choreography has got to, or nil when nothing is landing.
+    @Published public private(set) var cartLanding: SeatLayerPickerCartLanding?
+    /// Whether the buyer came back from a checkout handoff and may keep
+    /// choosing seats against the hold they already have.
+    @Published public private(set) var resumedAfterCheckout = false
+
+    /// Whether the sheet is at its full height.
+    ///
+    /// Kept as the binary the existing chrome reads; `sheetDetent` is the
+    /// three-rest truth and the one to write against.
+    public var cartSheetExpanded: Bool {
+        get { sheetDetent == .open }
+        set { sheetDetent = newValue ? .open : .peek }
+    }
 
     public let controller: SeatLayerPickerController
     public private(set) var options: SeatLayerPickerOptions
@@ -78,7 +133,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public var confirmedCartLines: [SeatLayerPickerCartLine] {
         SeatLayerPickerProjections.confirmedCart(
             controller.snapshot?.cartLines ?? [],
-            pending: pendingSeat
+            excluding: unansweredSeats
         ).items
     }
 
@@ -94,11 +149,22 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         SeatLayerPickerProjections.totals(confirmedCartLines)
     }
 
+    /// Every seat the buyer has been asked about and has not answered.
+    var unansweredSeats: [SelectedSeat] {
+        var seats: [SelectedSeat] = []
+        if let pendingSeat { seats.append(pendingSeat) }
+        if let candidateSeat, cardIntent == .add,
+           identity(of: candidateSeat) != pendingSeat.flatMap(identity) {
+            seats.append(candidateSeat)
+        }
+        return seats
+    }
+
     public var canCheckout: Bool {
         guard controller.isReady,
               !options.readOnly,
               !actionInFlight,
-              checkoutHandoff == nil,
+              checkoutHandoff == nil || resumedAfterCheckout,
               activePrompt == nil,
               pendingSeat == nil,
               !confirmedCartLines.isEmpty,
@@ -160,9 +226,9 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     public var nextBackStep: SeatLayerPickerBackStep {
         if activePrompt != nil { return .prompt }
-        if cartSheetExpanded { return .cart }
+        if sheetDetent == .open { return .cart }
         if controller.snapshot?.map.buyerView != "map" { return .venue }
-        if pendingSeat != nil { return .confirmation }
+        if pendingSeat != nil || candidateSeat != nil { return .confirmation }
         if controller.snapshot?.map.focusedSectionId != nil
             || (controller.snapshot?.map.rung ?? "zones") != "zones" { return .section }
         return .close
@@ -179,6 +245,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     private var cancellables: Set<AnyCancellable> = []
     private var answered = Set<String>()
+    private var adoptedHoldSeats = false
     private var runtimeSessionId: String?
     private var latestRevision: Int?
     private var checkoutTask: Task<SeatLayerPickerCheckoutHandoff, Error>?
@@ -197,13 +264,16 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     ) {
         self.controller = controller
         self.options = options
-        self.cartSheetExpanded = !options.panelInitiallyCollapsed
+        self.sheetDetent = options.panelInitiallyCollapsed ? .peek : .open
 
         controller.$snapshot
             .sink { [weak self] snapshot in self?.apply(snapshot) }
             .store(in: &cancellables)
         controller.$lastError
             .sink { [weak self] error in self?.lastActionError = error }
+            .store(in: &cancellables)
+        controller.seatRetaps
+            .sink { [weak self] seat in self?.acceptRetap(seat) }
             .store(in: &cancellables)
     }
 
@@ -220,6 +290,10 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public func confirmPending(animateToCart: Bool = true) {
         guard let pendingSeat, let identity = identity(of: pendingSeat) else { return }
         if animateToCart { publishSelectionFlight(for: pendingSeat) }
+        beginCartLanding()
+        candidateSeat = nil
+        cardIntent = .add
+        if sheetDetent == .mini { sheetDetent = .peek }
         answered.insert(identity)
         setPendingSeat(nextPending(in: controller.snapshot))
         seatSelectionSubject.send(pendingSeat)
@@ -414,6 +488,85 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         return true
     }
 
+    // MARK: - The card's candidate seat
+
+    /// The buyer tapped a seat that is already theirs.
+    ///
+    /// A second tap is a question, never a silent removal: the card comes back
+    /// over the seat offering to take it out. A retap of a seat that has not
+    /// been agreed to yet simply re-opens the add card.
+    func acceptRetap(_ seat: SelectedSeat) {
+        guard !options.readOnly, controller.isReady else { return }
+        let isAnswered = identity(of: seat).map { answered.contains($0) } ?? false
+        if isAnswered {
+            askAboutRemoving(seat)
+        } else {
+            askAbout(seat)
+        }
+    }
+
+    /// Put a card over `seat`, asking to add it.
+    ///
+    /// The seat is already in the runtime's selection — it was tapped — but it
+    /// stays out of the cart's count and total until the buyer answers.
+    public func askAbout(_ seat: SelectedSeat) {
+        candidateSeat = seat
+        cardIntent = .add
+        if sheetDetent == .open { sheetDetent = .mini }
+    }
+
+    /// Put a card over a seat the buyer tapped a second time, asking whether
+    /// to take it back out of the cart.
+    public func askAboutRemoving(_ seat: SelectedSeat) {
+        candidateSeat = seat
+        cardIntent = .remove
+        if sheetDetent == .open { sheetDetent = .mini }
+    }
+
+    /// Take the card away without answering it. A candidate the buyer never
+    /// agreed to is still selected in the runtime; answering is the chrome's
+    /// job, and `cancelPending()` is what removes it.
+    public func dismissCandidate() {
+        candidateSeat = nil
+        cardIntent = .add
+        if sheetDetent == .mini { sheetDetent = .peek }
+    }
+
+    // MARK: - The add choreography
+
+    /// The card has gone. Nothing else may move until `chipDidLand()`.
+    public func beginCartLanding() {
+        cartLanding = .cardDismissed
+    }
+
+    /// The chip has arrived in the tray.
+    public func chipDidLand() {
+        guard cartLanding == .cardDismissed else { return }
+        cartLanding = .chipLanded
+    }
+
+    /// The landing is over and the map may re-frame.
+    public func endCartLanding() {
+        guard cartLanding != nil else { return }
+        cartLanding = .mapMayMove
+    }
+
+    /// Whether the map is free to move right now.
+    public var mapMayMove: Bool {
+        cartLanding == nil || cartLanding == .mapMayMove
+    }
+
+    /// Let the buyer keep choosing after a checkout handoff came back.
+    ///
+    /// The handoff is not undone — the hold still belongs to the host — but
+    /// the picker stops treating the session as finished, so a seat added
+    /// afterwards is counted and the checkout action works again.
+    public func resumeAfterCheckout() {
+        guard checkoutHandoff != nil else { return }
+        resumedAfterCheckout = true
+        cartLanding = nil
+    }
+
     /// Record a successful native inspection action without changing selection.
     public func recordSeatViewOpened(_ seat: SelectedSeat) {
         seatViewOpeningSubject.send(seat)
@@ -514,9 +667,13 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
                 break
             }
         case .cart:
-            cartSheetExpanded = false
+            sheetDetent = .peek
         case .confirmation:
-            _ = await cancelPending()
+            if candidateSeat != nil, cardIntent == .remove {
+                dismissCandidate()
+            } else {
+                _ = await cancelPending()
+            }
         case .section:
             do { try await controller.zoomOut() }
             catch let error as SeatLayerError { controller.record(error) }
@@ -553,7 +710,12 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             setPendingSeat(nil)
             pendingTable = nil
             checkoutHandoff = nil
+            resumedAfterCheckout = false
             selectionFlight = nil
+            candidateSeat = nil
+            cardIntent = .add
+            cartLanding = nil
+            adoptedHoldSeats = false
             clearRemovalUndo()
             didClose = false
             return
@@ -564,7 +726,12 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             runtimeSessionId = snapshot.sessionId
             answered.removeAll()
             checkoutHandoff = nil
+            resumedAfterCheckout = false
             selectionFlight = nil
+            candidateSeat = nil
+            cardIntent = .add
+            cartLanding = nil
+            adoptedHoldSeats = false
             didClose = false
             clearRemovalUndo()
         }
@@ -573,7 +740,23 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             controller.dismissGeneralAdmissionCandidate()
         }
         let present = Set(snapshot.selection.compactMap(identity))
+        // A hold the session ARRIVES with was agreed to before this picker
+        // opened — a resumed session, a hold handed over by the host — so its
+        // seats are already answered and no card asks about them. Every seat
+        // tapped afterwards is asked about as usual.
+        if snapshot.hold.active, !adoptedHoldSeats {
+            adoptedHoldSeats = true
+            answered.formUnion(present)
+        } else if !snapshot.hold.active {
+            adoptedHoldSeats = false
+        }
         answered = answered.intersection(present)
+        if let candidate = candidateSeat,
+           let identity = identity(of: candidate),
+           !present.contains(identity) {
+            candidateSeat = nil
+            cardIntent = .add
+        }
         setPendingSeat(nextPending(in: snapshot))
         pendingTable = nextTable(in: snapshot)
         if let undo = removalUndo {
@@ -585,10 +768,14 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     }
 
     private func nextPending(in snapshot: SeatLayerPickerSnapshot?) -> SelectedSeat? {
+        // A live hold no longer silences the card. Seats the hold ARRIVED with
+        // are adopted as answered above; a seat tapped afterwards is a new
+        // question, and a hold owned by the host is the only one the buyer
+        // cannot add to.
         guard let snapshot,
               options.confirmSelection,
               !options.readOnly,
-              !snapshot.hold.active else { return nil }
+              !snapshot.hold.active || snapshot.hold.owner != "host" else { return nil }
         return snapshot.selection.reversed().first { seat in
             guard seat.objectType?.rawValue != "table" || seat.bookingMode != "variable",
                   let identity = identity(of: seat) else { return false }
@@ -599,7 +786,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     private func nextTable(in snapshot: SeatLayerPickerSnapshot?) -> SelectedSeat? {
         guard let snapshot,
               !options.readOnly,
-              !snapshot.hold.active else { return nil }
+              !snapshot.hold.active || snapshot.hold.owner != "host" else { return nil }
         return snapshot.selection.reversed().first { seat in
             guard seat.objectType?.rawValue == "table",
                   seat.bookingMode == "variable",

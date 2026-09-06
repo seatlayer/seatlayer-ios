@@ -347,7 +347,7 @@ final class PickerControllerTests: XCTestCase {
         let secondOwner = UUID()
         let transport = PickerTransportSpy()
         let bundle = BundleInfo([
-            "bundle": "0.71.5",
+            "bundle": "0.84.1",
             "protocol": ["min": 2, "max": 2],
             "capabilities": .array([]),
             "commands": .array([]),
@@ -437,7 +437,7 @@ final class PickerControllerTests: XCTestCase {
         capabilities: [String] = []
     ) -> SeatLayerPickerController {
         let bundle = BundleInfo([
-            "bundle": "0.71.5",
+            "bundle": "0.84.1",
             "protocol": ["min": 2, "max": 2],
             "capabilities": .array(capabilities.map(JSONValue.string)),
             "commands": .array(commands.map(JSONValue.string)),

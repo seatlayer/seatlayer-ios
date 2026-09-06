@@ -18,10 +18,22 @@ func decodeSeatLayerPickerSnapshot(_ value: JSONValue?) -> SeatLayerPickerSnapsh
     let hold = root["hold"]?.objectValue
     let access = root["access"]?.objectValue
     let categories = decodeList(catalog?["categories"], using: decodeCategory)
-    let cartLines = decodeList(cart?["items"] ?? cart?["lines"]) {
+    let reportedLines = decodeList(cart?["items"] ?? cart?["lines"]) {
         decodeCartLine($0, categories: categories)
     }
     let selected = decodeCodableList(selectionNode?["seats"], as: SelectedSeat.self)
+    // A runtime with a live hold reports the HOLD's lines as the cart and
+    // drops a seat the buyer has selected since: back from checkout, every new
+    // seat is drawn selected on the map and missing from the cart. The seat is
+    // a fact the snapshot still carries, so the cart is completed from it here.
+    // The runtime's own continue already replaces the hold with the whole
+    // selection, so nothing is invented — only counted.
+    let missingLines = cartLinesFor(
+        seatsMissingFrom: reportedLines,
+        selection: selected,
+        currency: cart?["currency"]?.stringValue ?? event.currency
+    )
+    let cartLines = reportedLines + missingLines
     let lineTotal = cartLines.reduce(0) { $0 + $1.total }
 
     return SeatLayerPickerSnapshot(
@@ -42,9 +54,15 @@ func decodeSeatLayerPickerSnapshot(_ value: JSONValue?) -> SeatLayerPickerSnapsh
         selection: selected,
         selectionValidity: try? selectionNode?["validity"]?.decode(SelectionValidity.self),
         maxSelection: exactInteger(selectionNode?["maxSelection"]) ?? 10,
-        ticketCount: exactInteger(cart?["quantity"]) ?? selected.count,
+        // The runtime's own count and total describe the lines it reported;
+        // once a line is completed here they are recounted from the lines.
+        ticketCount: missingLines.isEmpty
+            ? exactInteger(cart?["quantity"]) ?? selected.count
+            : cartLines.reduce(0) { $0 + max(0, $1.quantity) },
         cartLines: cartLines,
-        cartTotal: finiteDouble(cart?["total"]) ?? lineTotal,
+        cartTotal: missingLines.isEmpty
+            ? finiteDouble(cart?["total"]) ?? lineTotal
+            : lineTotal,
         currency: cart?["currency"]?.stringValue ?? event.currency,
         hold: SeatLayerPickerHold(
             active: hold?["active"]?.boolValue ?? false,
@@ -183,6 +201,40 @@ private func decodeZone(_ value: JSONValue) -> SeatLayerPickerZone? {
     )
 }
 
+/// A line for every selected seat the runtime left out of its own cart.
+///
+/// The seat carries its own price, category and address, so nothing here is
+/// invented; a seat without a price is a line at zero, which the runtime's own
+/// hold corrects the moment it is made.
+private func cartLinesFor(
+    seatsMissingFrom reported: [SeatLayerPickerCartLine],
+    selection: [SelectedSeat],
+    currency: String
+) -> [SeatLayerPickerCartLine] {
+    let reportedLabels = Set(reported.map(\.label))
+    return selection.compactMap { seat in
+        guard !reportedLabels.contains(seat.label) else { return nil }
+        return SeatLayerPickerCartLine(
+            lineKey: seat.objectId ?? seat.id,
+            label: seat.label,
+            displayLabel: seat.displayLabel,
+            displayType: seat.displayType,
+            objectId: seat.objectId ?? seat.id,
+            objectType: seat.objectType?.rawValue ?? "seat",
+            categoryKey: seat.categoryKey ?? "",
+            tierId: seat.tierId,
+            tierName: seat.tiers?.first(where: { $0.id == seat.tierId })?.name,
+            unitPrice: seat.price ?? 0,
+            currency: seat.currency ?? currency,
+            quantity: max(1, seat.quantity ?? 1),
+            seatId: seat.id,
+            sectionLabel: seat.sectionLabel,
+            rowLabel: seat.rowLabel,
+            seatNumber: seat.seatNumber
+        )
+    }
+}
+
 private func decodeSection(_ value: JSONValue) -> SeatLayerPickerSectionSummary? {
     guard let item = value.objectValue,
           let id = nonEmpty(item["id"]?.stringValue) else { return nil }
@@ -196,6 +248,7 @@ private func decodeSection(_ value: JSONValue) -> SeatLayerPickerSectionSummary?
         color: item["color"]?.stringValue,
         dominantCategoryKey: item["dominantCategoryKey"]?.stringValue,
         seatsLeft: exactInteger(item["seatsLeft"]),
+        accessibleFree: exactInteger(item["accessibleFree"]),
         priceMin: finiteDouble(item["priceMin"]),
         priceMax: finiteDouble(item["priceMax"])
     )
@@ -244,7 +297,7 @@ private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
         ].contains(where: object.keys.contains)
     } ?? false
     return SeatLayerPickerMapState(
-        rung: item?["rung"]?.stringValue ?? "zones",
+        rung: item?["rung"]?.stringValue ?? "overview",
         viewMode: item?["viewMode"]?.stringValue ?? item?["projection"]?.stringValue ?? "flat",
         buyerView: item?["buyerView"]?.stringValue ?? "map",
         view3DNavigationMode: item?["view3dNavigationMode"]?.stringValue ?? "orbit",
@@ -263,6 +316,7 @@ private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
         hideLimitedView: item?["hideLimitedView"]?.boolValue ?? false,
         canZoomIn: item?["canZoomIn"]?.boolValue ?? true,
         canZoomOut: item?["canZoomOut"]?.boolValue ?? true,
+        atVenueFit: item?["atVenueFit"]?.boolValue ?? false,
         categoryFilter: uniqueStrings(item?["categoryFilter"]),
         accessibilityFilter: uniqueStrings(item?["accessibilityFilter"]),
         accessNeeds: uniqueAccessNeeds(item?["accessNeeds"]),

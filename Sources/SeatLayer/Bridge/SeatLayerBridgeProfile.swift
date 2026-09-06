@@ -16,6 +16,14 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
         protocolRange: ProtocolRange(min: 1, max: 1)
     )
 
+    /// The picker profile.
+    ///
+    /// Only the capabilities the session cannot run without are required.
+    /// Everything else — every command, the snapshot event, and each additive
+    /// capability — is read from the bundle's own `hello` tables at the call
+    /// site and silently withheld when a runtime does not advertise it. A
+    /// wrapper that failed the handshake over one missing command would refuse
+    /// to boot against a runtime it could have degraded on.
     static func picker(
         enable3D: Bool = true,
         enableSeatView: Bool = true,
@@ -26,69 +34,27 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
             "picker-snapshot-v1",
             "picker-actions-v1",
             "native-picker-chrome-v1",
-            "native-chrome-contract-v1",
             "checkout-handoff-v1",
             "checkout-handoff-reject-v1",
             "hold-ownership-v1",
             "cart-line-remove-v1",
             "table-quantity-v1",
         ]
-        var commands = [
-            "picker.getSnapshot",
-            "picker.selectObjects",
-            "picker.deselectObjects",
-            "picker.clearSelection",
-            "picker.selectCategories",
-            "picker.deselectCategories",
-            "picker.setSeatTier",
-            "picker.removeCartLine",
-            "picker.setTableQuantity",
-            "picker.setSelectableObjects",
-            "picker.setMaxSelection",
-            "picker.setCategoryFilter",
-            "picker.setAccessibilityFilter",
-            "picker.setLimitedViewFilter",
-            "picker.focusSection",
-            "picker.overview",
-            "picker.setRung",
-            "picker.setFloor",
-            "picker.setColorblindSafe",
-            "picker.setThemeMode",
-            "picker.setViewMode",
-            "picker.setInteractionEnabled",
-            "picker.zoomIn",
-            "picker.zoomOut",
-            "picker.zoomToFit",
-            "picker.holdGA",
-            "picker.bestAvailable",
-            "picker.resumeHold",
-            "picker.extendHold",
-            "picker.continue",
-            "picker.rejectHandoff",
-            "picker.abort",
-            "picker.lifecycle",
-            "picker.destroy",
-        ]
-
         if enable3D {
             capabilities.append(contentsOf: ["venue-3d-v1", "venue-3d-controls-v1"])
-            commands.append(contentsOf: [
-                "picker.setBuyerView",
-                "picker.setVenue3DNavigationMode",
-            ])
         }
         if enableSeatView {
             capabilities.append("seat-view-v1")
-            commands.append("picker.openSeatView")
         }
 
         return SeatLayerBridgeProfile(
             surface: .picker,
             protocolRange: ProtocolRange(min: 2, max: 2),
             requiredCapabilities: capabilities,
-            requiredCommands: commands,
-            requiredEvents: ["picker.snapshot"],
             optionalCapabilities: [
+                // Read as gates, never required: a runtime without one draws
+                // the chrome it can and says nothing about the rest.
+                "native-chrome-contract-v1",
                 "native-seat-view-chrome-v1",
                 "viewport-insets-v1",
                 "floor-stack-v1",
@@ -96,6 +62,13 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
                 "availability-refresh-v1",
                 "access-needs-v1",
                 "hold-selection-v1",
+                "seat-view-thumbnail-v1",
+                "accessibility-focus-v1",
+                "section-access-counts-v1",
+                // Present-only reads: the snapshot simply carries the extra
+                // field, and chrome that cannot see it renders as before.
+                "seat-screen-point-v1",
+                "category-availability-v1",
             ],
             config: config
         )

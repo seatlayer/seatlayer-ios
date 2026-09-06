@@ -382,6 +382,67 @@ public struct SeatCommercialAttributes: Codable, Sendable, Equatable {
     public var note: String?
 }
 
+/// A seat's place on the map surface, in points from its top-left corner.
+///
+/// Reported only by a runtime that advertises `seat-screen-point-v1`.
+public struct SeatLayerScreenPoint: Codable, Sendable, Equatable {
+    public var x: Double?
+    public var y: Double?
+
+    /// Whether both coordinates arrived and are usable. Half a point would aim
+    /// native chrome at the map's top-left corner rather than at the seat.
+    public var isComplete: Bool {
+        guard let x, let y else { return false }
+        return x.isFinite && y.isFinite
+    }
+}
+
+/// A reference to one authored seat-view image.
+public struct SeatViewThumb: Codable, Sendable, Equatable {
+    /// The asset reference, as the runtime wrote it.
+    public var reference: String?
+    /// `real` for an uploaded photograph. An OPEN string: a value this build
+    /// has never heard of is not a reason to drop the photo, and nothing here
+    /// may be used to justify drawing a generated stand-in.
+    public var kind: String?
+
+    /// The authored kind, defaulting to a real photograph.
+    public var authoredKind: String { kind ?? "real" }
+
+    /// A thumbnail with no reference is not half a photograph, it is none:
+    /// drawing the strip for it would promise an image that cannot arrive.
+    public var isUsable: Bool {
+        !(reference ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+/// What the runtime will say about how a seat's view was produced.
+public struct SeatConfidenceDisclosure: Codable, Sendable, Equatable {
+    /// The one-line claim.
+    public var headline: String?
+    /// What was modelled.
+    public var model: String?
+    /// What is real.
+    public var reality: String?
+    /// How much of the venue the evidence covers.
+    public var coverage: String?
+    /// Where the evidence came from.
+    public var provenance: String?
+    /// How current the evidence is.
+    public var freshness: String?
+    /// What the model does not claim.
+    public var limitations: [String]?
+    /// What was modelled, when the runtime names it.
+    public var modeledTarget: String?
+    /// The evidence reference, when the runtime names one.
+    public var reference: String?
+
+    /// Nothing is disclosed without a headline.
+    public var isDisclosed: Bool {
+        !(headline ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 /// One selected seat.
 public struct SelectedSeat: Codable, Sendable, Equatable {
     public var id: String
@@ -413,9 +474,35 @@ public struct SelectedSeat: Codable, Sendable, Equatable {
     public var rowType: String?
     public var accessibility: [String]?
     public var wheelchairSpaceType: String?
+    /// What the runtime says this seat's live status is, where it says
+    /// anything at all.
+    public var status: SeatStatus?
+    /// Where the seat sits on the map, under `seat-screen-point-v1`.
+    public var screenPoint: SeatLayerScreenPoint?
+    /// The authored photograph of the view, under `seat-view-thumbnail-v1`.
+    public var seatViewThumb: SeatViewThumb?
+    /// Straight-line distance from the seat to the stage, in metres. Only
+    /// charts with a stage report it.
+    public var sightlineMetres: Double?
+    /// How the seat's view was produced, for the disclosure the buyer reads.
+    public var seatViewConfidence: SeatConfidenceDisclosure?
+    /// Whether the view is a photograph, a render, or something this build has
+    /// no name for. Present-only: no capability gates it.
+    public var seatViewKind: String?
 
     /// What to show the buyer. Booking still uses `label`.
     public var buyerFacingLabel: String { displayLabel ?? label }
+
+    /// The seat's place on the map, or nil when the runtime reported none, or
+    /// only half of one.
+    public var mapPoint: SeatLayerScreenPoint? {
+        screenPoint?.isComplete == true ? screenPoint : nil
+    }
+
+    /// The photograph, or nil when there is nothing to draw.
+    public var usableSeatViewThumb: SeatViewThumb? {
+        seatViewThumb?.isUsable == true ? seatViewThumb : nil
+    }
 }
 
 /// Current exact-count and validator state for the buyer's selection.

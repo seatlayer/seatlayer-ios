@@ -89,7 +89,7 @@ final class PickerMotionHapticsTests: XCTestCase {
 
     func testHapticStrengthsMatchTheSharedTokenVocabulary() {
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .selectionAdded), .selection)
-        XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .sectionFocused), .light)
+        XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .sectionFocused), .selection)
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .holdCreated), .medium)
         XCTAssertEqual(SeatLayerPickerHaptics.strength(for: .holdExpired), .heavy)
     }
@@ -109,7 +109,7 @@ final class PickerHapticControllerTests: XCTestCase {
         let controller = SeatLayerPickerController(
             transport: PickerHapticTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "capabilities": .array([]),
                 "commands": .array([]),
@@ -148,7 +148,7 @@ final class PickerHapticControllerTests: XCTestCase {
             hasHold: true
         )))
 
-        XCTAssertEqual(adapter.strengths, [.selection, .light, .medium, .heavy, .medium])
+        XCTAssertEqual(adapter.strengths, [.selection, .selection, .medium, .heavy, .medium])
         XCTAssertEqual(expirations, 1)
     }
 
@@ -157,7 +157,7 @@ final class PickerHapticControllerTests: XCTestCase {
         let controller = SeatLayerPickerController(
             transport: PickerHapticTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "events": .array(["picker.snapshot", "hold.expired"]),
             ])

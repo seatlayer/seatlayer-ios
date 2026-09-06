@@ -86,6 +86,11 @@ public struct SeatLayerPickerSectionSummary: Sendable, Equatable {
     public let color: String?
     public let dominantCategoryKey: String?
     public let seatsLeft: Int?
+    /// Free spaces matching the active accessibility filter, under
+    /// `section-access-counts-v1`. Nil means nobody counted — never zero:
+    /// chrome that read a missing count as none would tell a buyer a section
+    /// is full when the truth is that it was not measured.
+    public let accessibleFree: Int?
     public let priceMin: Double?
     public let priceMax: Double?
 }
@@ -282,6 +287,9 @@ public struct SeatLayerPickerMapState: Sendable, Equatable {
     public let hideLimitedView: Bool
     public let canZoomIn: Bool
     public let canZoomOut: Bool
+    /// Whether the camera is already showing the whole venue, so a fit control
+    /// can rest rather than repeat a move that changes nothing.
+    public let atVenueFit: Bool
     public let categoryFilter: [String]
     public let accessibilityFilter: [String]
     public let accessNeeds: [SeatLayerPickerAccessNeed]

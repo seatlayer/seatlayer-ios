@@ -160,6 +160,12 @@ final class PickerContractFixtureTests: XCTestCase {
         XCTAssertEqual(strings(root["requiredCapabilities"]), core.requiredCapabilities)
         XCTAssertEqual(strings(root["requiredCommands"]), core.requiredCommands)
         XCTAssertEqual(strings(root["requiredEvents"]), core.requiredEvents)
+        XCTAssertTrue(core.requiredCommands.isEmpty)
+        XCTAssertTrue(core.requiredEvents.isEmpty)
+        // The command and event tables are documentation of what the wrapper
+        // sends and listens for; the handshake demands neither.
+        XCTAssertEqual(strings(root["usedCommands"]).count, 42)
+        XCTAssertTrue(strings(root["usedEvents"]).contains("seat.retap"))
         XCTAssertEqual(strings(root["optionalCapabilities"]), core.optionalCapabilities)
 
         let complete = SeatLayerBridgeProfile.picker()
@@ -169,12 +175,7 @@ final class PickerContractFixtureTests: XCTestCase {
                 + strings(root["conditionalRequirements"]?["enable3D"]?["capabilities"])
                 + strings(root["conditionalRequirements"]?["enableSeatView"]?["capabilities"])
         )
-        XCTAssertEqual(
-            complete.requiredCommands,
-            core.requiredCommands
-                + strings(root["conditionalRequirements"]?["enable3D"]?["commands"])
-                + strings(root["conditionalRequirements"]?["enableSeatView"]?["commands"])
-        )
+
         XCTAssertEqual(root["examples"]?["initialize"]?["p"]?["host"]?["sdk"]?.stringValue, SeatLayer.sdkVersion)
     }
 

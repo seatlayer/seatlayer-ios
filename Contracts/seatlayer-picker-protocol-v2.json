@@ -13,7 +13,6 @@
     "picker-snapshot-v1",
     "picker-actions-v1",
     "native-picker-chrome-v1",
-    "native-chrome-contract-v1",
     "checkout-handoff-v1",
     "checkout-handoff-reject-v1",
     "hold-ownership-v1",
@@ -21,15 +20,22 @@
     "table-quantity-v1"
   ],
   "optionalCapabilities": [
+    "native-chrome-contract-v1",
     "native-seat-view-chrome-v1",
     "viewport-insets-v1",
     "floor-stack-v1",
     "chart-load-trace-v1",
     "availability-refresh-v1",
     "access-needs-v1",
-    "hold-selection-v1"
+    "hold-selection-v1",
+    "seat-view-thumbnail-v1",
+    "accessibility-focus-v1",
+    "section-access-counts-v1",
+    "seat-screen-point-v1",
+    "category-availability-v1"
   ],
-  "requiredCommands": [
+  "requiredCommands": [],
+  "usedCommands": [
     "picker.getSnapshot",
     "picker.selectObjects",
     "picker.deselectObjects",
@@ -43,19 +49,27 @@
     "picker.setMaxSelection",
     "picker.setCategoryFilter",
     "picker.setAccessibilityFilter",
+    "picker.focusAccessibilityFilter",
+    "picker.focusNextAccessibleSection",
     "picker.setLimitedViewFilter",
     "picker.focusSection",
     "picker.overview",
     "picker.setRung",
     "picker.setFloor",
     "picker.setColorblindSafe",
+    "picker.setSelectionFocus",
+    "picker.setBlockedRegions",
+    "picker.frameSeat",
     "picker.setThemeMode",
     "picker.setViewMode",
     "picker.setInteractionEnabled",
     "picker.zoomIn",
     "picker.zoomOut",
     "picker.zoomToFit",
+    "picker.setViewportInsets",
+    "picker.refreshAvailability",
     "picker.holdGA",
+    "picker.holdSelection",
     "picker.bestAvailable",
     "picker.resumeHold",
     "picker.extendHold",
@@ -65,8 +79,10 @@
     "picker.lifecycle",
     "picker.destroy"
   ],
-  "requiredEvents": [
-    "picker.snapshot"
+  "requiredEvents": [],
+  "usedEvents": [
+    "picker.snapshot",
+    "seat.retap"
   ],
   "optionalEvents": [
     "seatView.changed",
@@ -85,13 +101,23 @@
   "conditionalRequirements": {
     "enable3D": {
       "default": true,
-      "capabilities": ["venue-3d-v1", "venue-3d-controls-v1"],
-      "commands": ["picker.setBuyerView", "picker.setVenue3DNavigationMode"]
+      "capabilities": [
+        "venue-3d-v1",
+        "venue-3d-controls-v1"
+      ],
+      "usedCommands": [
+        "picker.setBuyerView",
+        "picker.setVenue3DNavigationMode"
+      ]
     },
     "enableSeatView": {
       "default": true,
-      "capabilities": ["seat-view-v1"],
-      "commands": ["picker.openSeatView"]
+      "capabilities": [
+        "seat-view-v1"
+      ],
+      "usedCommands": [
+        "picker.openSeatView"
+      ]
     }
   },
   "examples": {
@@ -100,14 +126,21 @@
       "k": "hello",
       "t": "sys.hello",
       "p": {
-        "bundle": "0.71.5",
+        "bundle": "0.84.1",
         "protocol": {
           "min": 2,
           "max": 2
         },
-        "capabilities": ["picker-session-v2", "picker-snapshot-v1"],
-        "commands": ["picker.getSnapshot"],
-        "events": ["picker.snapshot"]
+        "capabilities": [
+          "picker-session-v2",
+          "picker-snapshot-v1"
+        ],
+        "commands": [
+          "picker.getSnapshot"
+        ],
+        "events": [
+          "picker.snapshot"
+        ]
       }
     },
     "initialize": {
@@ -188,5 +221,6 @@
     "foreignSessionSnapshot": "drop",
     "unknownEnvelopeKind": "decode then ignore on native ingress",
     "unknownErrorCode": "pass through unchanged"
-  }
+  },
+  "contractNote": "Commands and events are read from the bundle's own hello tables at the call site and withheld silently when absent; only the capabilities a session cannot run without are required of the handshake."
 }
