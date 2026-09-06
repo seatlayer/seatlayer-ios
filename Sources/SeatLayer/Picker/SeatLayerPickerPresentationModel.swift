@@ -579,7 +579,10 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public func checkout(
         using handler: @escaping SeatLayerPickerCheckoutHandler
     ) async throws -> SeatLayerPickerCheckoutHandoff {
-        if let checkoutHandoff { return checkoutHandoff }
+        // A handoff already given back is reused — except after the buyer has
+        // resumed and added more seats, where continuing must ask the runtime
+        // again so the hold is replaced with one covering the whole cart.
+        if let checkoutHandoff, !resumedAfterCheckout { return checkoutHandoff }
         if let checkoutTask { return try await checkoutTask.value }
 
         let task = Task { @MainActor [weak self, controller, options] in
@@ -602,6 +605,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         do {
             let handoff = try await task.value
             checkoutHandoff = handoff
+            resumedAfterCheckout = false
             return handoff
         } catch let error as SeatLayerError {
             lastActionError = error

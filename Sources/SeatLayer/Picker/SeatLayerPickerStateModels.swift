@@ -199,3 +199,42 @@ public func seatLayerPickerHoldClock(_ seconds: Int) -> String {
 
 /// The last minute, when the pill inverts and starts counting out loud.
 public let seatLayerPickerHoldExpiringSeconds = 60
+
+/// What an inline bar says when the runtime refuses to change a hold.
+///
+/// The hold belongs to the host from the moment it is handed off, and the
+/// runtime refuses to grow or shrink it from the picker. None of those refusals
+/// is a failure the buyer can read as one, so the bar says the STATE instead —
+/// and the runtime's own sentence is never shown.
+public enum SeatLayerPickerHoldStateNotice: Sendable, Equatable {
+    /// The seats are with checkout; the way forward is to give them back.
+    case inCheckout
+    /// The seats are held by this picker already; there is nothing to release.
+    case alreadyHeld
+
+    public var title: SeatLayerPickerStringKey {
+        self == .inCheckout ? .holdInCheckoutTitle : .holdAlreadyHeldTitle
+    }
+
+    public var body: SeatLayerPickerStringKey {
+        self == .inCheckout ? .holdInCheckoutBody : .holdAlreadyHeldBody
+    }
+
+    /// Only a hand-off can be given back; the other shape offers dismiss alone.
+    public var releases: Bool { self == .inCheckout }
+}
+
+/// The notice one refusal code earns, or nil where the error is a real error.
+public func seatLayerPickerHoldStateNotice(
+    code: String,
+    hasHandoff: Bool
+) -> SeatLayerPickerHoldStateNotice? {
+    switch code {
+    case "hold_owned_by_host", "hold_selection_mismatch":
+        return hasHandoff ? .inCheckout : .alreadyHeld
+    case "hold_already_active":
+        return hasHandoff ? .inCheckout : .alreadyHeld
+    default:
+        return nil
+    }
+}

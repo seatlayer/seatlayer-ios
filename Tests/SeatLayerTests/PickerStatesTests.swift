@@ -174,3 +174,37 @@ final class PickerStatesTests: XCTestCase {
         ]))
     }
 }
+
+final class PickerHoldStateNoticeTests: XCTestCase {
+    func testAHostOwnedHoldSaysTheSeatsAreInCheckoutAndOffersARelease() {
+        let notice = seatLayerPickerHoldStateNotice(
+            code: "hold_owned_by_host",
+            hasHandoff: true
+        )
+        XCTAssertEqual(notice, .inCheckout)
+        XCTAssertTrue(notice?.releases == true)
+        XCTAssertEqual(notice?.title, .holdInCheckoutTitle)
+    }
+
+    func testASelectionMismatchIsTheSameState() {
+        XCTAssertEqual(
+            seatLayerPickerHoldStateNotice(code: "hold_selection_mismatch", hasHandoff: true),
+            .inCheckout
+        )
+    }
+
+    func testASecondHoldWithNothingToGiveBackOffersOnlyDismiss() {
+        let notice = seatLayerPickerHoldStateNotice(
+            code: "hold_already_active",
+            hasHandoff: false
+        )
+        XCTAssertEqual(notice, .alreadyHeld)
+        XCTAssertFalse(notice?.releases == true)
+        XCTAssertEqual(notice?.body, .holdAlreadyHeldBody)
+    }
+
+    func testARealErrorKeepsThePlainLine() {
+        XCTAssertNil(seatLayerPickerHoldStateNotice(code: "sold_out", hasHandoff: true))
+        XCTAssertNil(seatLayerPickerHoldStateNotice(code: "transport", hasHandoff: false))
+    }
+}
