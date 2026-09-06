@@ -31,6 +31,13 @@ jobs:
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
+      - name: Run the chrome golden tests on a simulator
+        run: >-
+          xcodebuild test
+          -project Example/SeatLayerDemo.xcodeproj
+          -scheme SeatLayerDemo
+          -destination 'platform=iOS Simulator,name=iPhone 16'
+          CODE_SIGNING_ALLOWED=NO
       - name: Verify hosted runtime and legacy fixture metadata
         run: |
           source=Sources/SeatLayer/SeatLayerConfiguration.swift
