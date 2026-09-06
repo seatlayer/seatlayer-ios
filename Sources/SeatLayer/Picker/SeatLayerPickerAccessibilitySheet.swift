@@ -18,9 +18,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var openNote: String?
-    @State private var revealed = false
 
     public init() {}
 
@@ -39,13 +37,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                 .background(palette.surface)
                 .modifier(SeatLayerPickerBoundedSheet(height: sheetHeight))
                 .accessibilityIdentifier("seatlayer-access-sheet")
-                .onAppear {
-                    guardMapWhileUp(true)
-                    guard !reduceMotion else { revealed = true; return }
-                    withAnimation(seatLayerPickerAnimation(.stagger, reduceMotion: false)) {
-                        revealed = true
-                    }
-                }
+                .onAppear { guardMapWhileUp(true) }
                 .onDisappear { guardMapWhileUp(false) }
         }
     }
@@ -73,7 +65,6 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                             palette: palette,
                             last: index == needs.count - 1
                         )
-                        .opacity(revealed ? 1 : 0)
                     }
                 }
             }
