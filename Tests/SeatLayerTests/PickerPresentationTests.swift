@@ -809,3 +809,65 @@ private actor PresentationTransportSpy: SeatLayerPickerCommandTransport {
 
     func recordedCalls() -> [Call] { calls }
 }
+
+/// The public knobs a host sets, and the defaults each one carries.
+final class PickerPublicOptionTests: XCTestCase {
+    func testTheApprovedDefaultsAreTheOnesTheOwnerChose() {
+        let options = SeatLayerPickerOptions()
+
+        XCTAssertNil(options.eventName)
+        XCTAssertTrue(options.showBookedOverlay)
+        XCTAssertTrue(options.persistColorblindPreference)
+        // The ticket panel already names the section the buyer is in.
+        XCTAssertFalse(options.chrome.dock)
+        XCTAssertTrue(options.chrome.seatCardGlass)
+    }
+
+    func testWideOnlyControlsStayOffThePhoneUntilAskedFor() {
+        let defaults = SeatLayerPickerChromeOptions()
+
+        for control in [
+            defaults.showsFit(wide:),
+            defaults.showsExtendHoldPrompt(wide:),
+            defaults.showsOverview(wide:),
+            defaults.showsZoom(wide:),
+            defaults.showsColorblind(wide:),
+        ] {
+            XCTAssertTrue(control(true))
+            XCTAssertFalse(control(false))
+        }
+
+        let asked = SeatLayerPickerChromeOptions(
+            phoneOverview: true,
+            phoneZoom: true,
+            phoneColorblind: true,
+            phoneFit: true
+        )
+        XCTAssertTrue(asked.showsFit(wide: false))
+        XCTAssertTrue(asked.showsOverview(wide: false))
+    }
+
+    func testTheThemeCarriesTheOrganizerLookWithoutInventingOne() {
+        let theme = SeatLayerPickerTheme(
+            fontFamily: "Inter",
+            logo: SeatLayerPickerBrandLogo(imageName: "brand"),
+            radius: -4,
+            buttonRadius: 6,
+            layout: .init(overrides: ["peekHeight": 72])
+        )
+
+        XCTAssertEqual(theme.fontFamily, "Inter")
+        XCTAssertEqual(theme.logo?.imageName, "brand")
+        // A negative radius is not a shape.
+        XCTAssertEqual(theme.radius, 0)
+        XCTAssertEqual(theme.buttonRadius, 6)
+        XCTAssertEqual(theme.layout?.value("peekHeight"), 72)
+        // An untouched token still answers with the canonical value.
+        XCTAssertEqual(
+            theme.layout?.value("headerHeight"),
+            SeatLayerPickerSizeTokens.headerHeight
+        )
+        XCTAssertNil(theme.layout?.value("aTokenThisBuildDoesNotKnow"))
+        XCTAssertNil(SeatLayerPickerTheme().layout)
+    }
+}

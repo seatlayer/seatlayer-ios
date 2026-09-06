@@ -155,6 +155,9 @@ public enum SeatLayerPickerProjections {
         )
     }
 
+    /// Retired with the dense ticket list: the tray now draws one card per
+    /// ticket. Kept until the last chrome that folds runs has moved over.
+    @available(*, deprecated, message: "The dense ticket list has been retired.")
     public static func denseLine(
         _ item: SeatLayerPickerCartLine,
         selection: [SelectedSeat] = [],
@@ -191,6 +194,9 @@ public enum SeatLayerPickerProjections {
     }
 
     /// Folds only adjacent lines whose complete buyer-facing run key matches.
+    /// Retired with the dense ticket list: the tray now draws one card per
+    /// ticket. Kept until the last chrome that folds runs has moved over.
+    @available(*, deprecated, message: "The dense ticket list has been retired.")
     public static func denseRuns(_ lines: [SeatLayerPickerDenseLine]) -> [SeatLayerPickerDenseRun] {
         var groups: [[SeatLayerPickerDenseLine]] = []
         for line in lines {
