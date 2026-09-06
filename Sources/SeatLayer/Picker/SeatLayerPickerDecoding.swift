@@ -196,6 +196,7 @@ private func decodeSection(_ value: JSONValue) -> SeatLayerPickerSectionSummary?
         color: item["color"]?.stringValue,
         dominantCategoryKey: item["dominantCategoryKey"]?.stringValue,
         seatsLeft: exactInteger(item["seatsLeft"]),
+        accessibleFree: exactInteger(item["accessibleFree"]),
         priceMin: finiteDouble(item["priceMin"]),
         priceMax: finiteDouble(item["priceMax"])
     )
@@ -244,7 +245,7 @@ private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
         ].contains(where: object.keys.contains)
     } ?? false
     return SeatLayerPickerMapState(
-        rung: item?["rung"]?.stringValue ?? "zones",
+        rung: item?["rung"]?.stringValue ?? "overview",
         viewMode: item?["viewMode"]?.stringValue ?? item?["projection"]?.stringValue ?? "flat",
         buyerView: item?["buyerView"]?.stringValue ?? "map",
         view3DNavigationMode: item?["view3dNavigationMode"]?.stringValue ?? "orbit",
@@ -263,6 +264,7 @@ private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
         hideLimitedView: item?["hideLimitedView"]?.boolValue ?? false,
         canZoomIn: item?["canZoomIn"]?.boolValue ?? true,
         canZoomOut: item?["canZoomOut"]?.boolValue ?? true,
+        atVenueFit: item?["atVenueFit"]?.boolValue ?? false,
         categoryFilter: uniqueStrings(item?["categoryFilter"]),
         accessibilityFilter: uniqueStrings(item?["accessibilityFilter"]),
         accessNeeds: uniqueAccessNeeds(item?["accessNeeds"]),
