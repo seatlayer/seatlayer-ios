@@ -36,18 +36,79 @@ final class BridgeProfileTests: XCTestCase {
         XCTAssertEqual(payload["chrome"]?["testModeIndicator"]?.boolValue, false)
         XCTAssertEqual(payload["chrome"]?["attribution"]?.boolValue, false)
         XCTAssertEqual(payload["chrome"]?["seatViewTitle"]?.boolValue, false)
-        XCTAssertTrue(
-            payload["requirements"]?["capabilities"]?.arrayValue?.contains(
-                .string("native-chrome-contract-v1")
-            ) == true
-        )
+        XCTAssertEqual(payload["chrome"]?["seatViewCaption"]?.boolValue, false)
+        // The runtime's own seat-view badge would otherwise be drawn on top of
+        // the native seat-view chrome.
+        XCTAssertEqual(payload["chrome"]?["seatViewBadge"]?.boolValue, false)
+    }
+
+    func testPickerRequiresOnlyWhatTheSessionCannotRunWithout() {
+        let profile = SeatLayerBridgeProfile.picker()
+
+        XCTAssertEqual(profile.requiredCapabilities, [
+            "picker-session-v2",
+            "picker-snapshot-v1",
+            "picker-actions-v1",
+            "native-picker-chrome-v1",
+            "checkout-handoff-v1",
+            "checkout-handoff-reject-v1",
+            "hold-ownership-v1",
+            "cart-line-remove-v1",
+            "table-quantity-v1",
+            "venue-3d-v1",
+            "venue-3d-controls-v1",
+            "seat-view-v1",
+        ])
+        // Commands and events are read from the bundle's own tables at the
+        // call site, never demanded of the handshake.
+        XCTAssertTrue(profile.requiredCommands.isEmpty)
+        XCTAssertTrue(profile.requiredEvents.isEmpty)
+    }
+
+    func testAdditiveContractsAreOptionalAndWithheldSilently() {
+        let profile = SeatLayerBridgeProfile.picker()
+        for gate in [
+            // A wrapper that failed the handshake over this one would refuse
+            // to boot against a runtime it could have degraded on.
+            "native-chrome-contract-v1",
+            "native-seat-view-chrome-v1",
+            "viewport-insets-v1",
+            "floor-stack-v1",
+            "chart-load-trace-v1",
+            "availability-refresh-v1",
+            "access-needs-v1",
+            "hold-selection-v1",
+            "seat-view-thumbnail-v1",
+            "accessibility-focus-v1",
+            "section-access-counts-v1",
+            "seat-screen-point-v1",
+            "category-availability-v1",
+        ] {
+            XCTAssertTrue(profile.optionalCapabilities.contains(gate), gate)
+            XCTAssertFalse(profile.requiredCapabilities.contains(gate), gate)
+        }
+    }
+
+    func testABundleWithNoCommandsOrEventsStillBoots() throws {
+        let profile = SeatLayerBridgeProfile.picker()
+        let bare = BundleInfo([
+            "bundle": "0.84.1",
+            "protocol": ["min": 1, "max": 2],
+            "capabilities": .array(
+                profile.requiredCapabilities.map(JSONValue.string)
+            ),
+            "commands": .array([]),
+            "events": .array([]),
+        ])
+
+        XCTAssertNoThrow(try profile.validate(bare))
     }
 
     func testPickerProfileDoesNotSuppressPanoramaDisclosureWithoutItsEventContract() {
         let profile = SeatLayerBridgeProfile.picker()
         let bundle = completePickerBundle(
             capabilities: profile.requiredCapabilities + ["native-seat-view-chrome-v1"],
-            events: profile.requiredEvents
+            events: []
         )
         let payload = profile.initPayload(
             configuration: SeatLayerConfiguration(event: "ev_picker"),
@@ -65,8 +126,8 @@ final class BridgeProfileTests: XCTestCase {
             "bundle": "0.66.0",
             "protocol": ["min": 1, "max": 1],
             "capabilities": .array(profile.requiredCapabilities.map(JSONValue.string)),
-            "commands": .array(profile.requiredCommands.map(JSONValue.string)),
-            "events": .array(profile.requiredEvents.map(JSONValue.string)),
+            "commands": .array([]),
+            "events": .array([]),
         ])
 
         XCTAssertThrowsError(try profile.validate(oldBundle)) { error in
@@ -74,7 +135,7 @@ final class BridgeProfileTests: XCTestCase {
         }
     }
 
-    func testPickerProfileReportsMissingCapabilitiesCommandsAndEvents() {
+    func testPickerProfileReportsAMissingRequiredCapability() {
         let profile = SeatLayerBridgeProfile.picker()
         let incomplete = BundleInfo([
             "bundle": "0.84.1",
@@ -82,7 +143,7 @@ final class BridgeProfileTests: XCTestCase {
             "capabilities": .array(
                 profile.requiredCapabilities.dropLast().map(JSONValue.string)
             ),
-            "commands": .array(profile.requiredCommands.dropLast().map(JSONValue.string)),
+            "commands": .array([]),
             "events": .array([]),
         ])
 
@@ -91,8 +152,6 @@ final class BridgeProfileTests: XCTestCase {
                 return XCTFail("expected an incompatible picker contract")
             }
             XCTAssertTrue(reason.contains(profile.requiredCapabilities.last!), reason)
-            XCTAssertTrue(reason.contains(profile.requiredCommands.last!), reason)
-            XCTAssertTrue(reason.contains("picker.snapshot"), reason)
         }
     }
 
@@ -103,9 +162,8 @@ final class BridgeProfileTests: XCTestCase {
         )
 
         XCTAssertFalse(profile.requiredCapabilities.contains("venue-3d-v1"))
+        XCTAssertFalse(profile.requiredCapabilities.contains("venue-3d-controls-v1"))
         XCTAssertFalse(profile.requiredCapabilities.contains("seat-view-v1"))
-        XCTAssertFalse(profile.requiredCommands.contains("picker.setBuyerView"))
-        XCTAssertFalse(profile.requiredCommands.contains("picker.openSeatView"))
         XCTAssertNoThrow(try profile.validate(completePickerBundle(profile: profile)))
     }
 
@@ -122,11 +180,9 @@ final class BridgeProfileTests: XCTestCase {
                 (capabilities ?? profile.requiredCapabilities + ["native-seat-view-chrome-v1"])
                     .map(JSONValue.string)
             ),
-            "commands": .array(
-                (commands ?? profile.requiredCommands).map(JSONValue.string)
-            ),
+            "commands": .array((commands ?? []).map(JSONValue.string)),
             "events": .array(
-                (events ?? profile.requiredEvents + ["seatView.changed"]).map(JSONValue.string)
+                (events ?? ["picker.snapshot", "seatView.changed"]).map(JSONValue.string)
             ),
         ])
     }

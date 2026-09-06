@@ -56,6 +56,15 @@ public final class SeatLayerPickerController: ObservableObject {
         accessUnavailableSubject.eraseToAnyPublisher()
     }
 
+    /// The buyer tapped a seat that is already in their selection.
+    ///
+    /// The runtime does not remove it: a second tap is a question, and the
+    /// native card answers it. Chrome that draws no card can ignore this
+    /// entirely and the seat stays selected, exactly as before.
+    public var seatRetaps: AnyPublisher<SelectedSeat, Never> {
+        seatRetapSubject.eraseToAnyPublisher()
+    }
+
     public var selectedObjectUnavailability: AnyPublisher<SelectedObjectUnavailableEvent, Never> {
         selectedObjectUnavailableSubject.eraseToAnyPublisher()
     }
@@ -112,6 +121,7 @@ public final class SeatLayerPickerController: ObservableObject {
     let accessExpirationSubject = PassthroughSubject<BuyerAccessExpiredEvent, Never>()
     let accessUnavailableSubject = PassthroughSubject<BuyerAccessUnavailableEvent, Never>()
     let selectedObjectUnavailableSubject = PassthroughSubject<SelectedObjectUnavailableEvent, Never>()
+    let seatRetapSubject = PassthroughSubject<SelectedSeat, Never>()
     var lastPublishedSelectionValidity: SelectionValidity?
     var hapticPolicy = SeatLayerPickerHaptics.initialState
     var hapticsEnabled = false
@@ -393,6 +403,11 @@ public final class SeatLayerPickerController: ObservableObject {
     ) {
         guard acceptsRuntimeOwner(owner) else { return }
         selectedObjectUnavailableSubject.send(event)
+    }
+
+    func accept(seatRetap seat: SelectedSeat, owner: UUID? = nil) {
+        guard acceptsRuntimeOwner(owner) else { return }
+        seatRetapSubject.send(seat)
     }
 
     func accept(generalAdmissionCandidate area: GAArea, owner: UUID? = nil) {

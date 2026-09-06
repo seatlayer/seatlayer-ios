@@ -199,3 +199,91 @@ extension SeatLayerPickerController {
     }
 
 }
+
+/// The capability that reports `sections[].accessibleFree`.
+///
+/// Separate from the focus commands because the two are separate capabilities
+/// on the wire: a runtime can fly the camera without counting, and chrome that
+/// read a missing count as zero would tell a buyer a section is full when the
+/// truth is that nobody counted it.
+let seatLayerSectionAccessCountsCapability = "section-access-counts-v1"
+
+/// One stop on the accessible-section tour.
+public struct SeatLayerPickerAccessibleStep: Sendable, Equatable {
+    /// The section the runtime framed.
+    public let id: String
+    /// What that section is called, already buyer-facing.
+    public let label: String
+    /// How many matching free spaces it holds.
+    public let free: Int
+    /// Zero-based position in the tour; chrome prints it one-based.
+    public let index: Int
+    /// How many stops the walk has.
+    public let total: Int
+
+    public init(id: String, label: String, free: Int, index: Int, total: Int) {
+        self.id = id
+        self.label = label
+        self.free = free
+        self.index = index
+        self.total = total
+    }
+
+    /// The step in `value`, or nil when the runtime answered with none.
+    public init?(_ value: JSONValue?) {
+        guard let id = value?["id"]?.stringValue, !id.isEmpty else { return nil }
+        self.init(
+            id: id,
+            label: value?["label"]?.stringValue ?? id,
+            free: value?["free"]?.intValue ?? 0,
+            index: value?["index"]?.intValue ?? 0,
+            total: value?["total"]?.intValue ?? 0
+        )
+    }
+}
+
+@MainActor
+extension SeatLayerPickerController {
+    /// Whether the mounted runtime can fly the accessibility filter's camera.
+    public var supportsAccessibilityFocus: Bool {
+        isReady
+            && supports(capability: "accessibility-focus-v1")
+            && supports(command: "picker.focusAccessibilityFilter")
+    }
+
+    /// Whether `sections[].accessibleFree` is reported at all.
+    public var supportsSectionAccessCounts: Bool {
+        supports(capability: seatLayerSectionAccessCountsCapability)
+    }
+
+    /// Re-run the filter's own camera flight without toggling the filter.
+    ///
+    /// The buyer has panned away from the spaces the filter lit and wants them
+    /// back; turning the filter off and on again is the only other way to ask,
+    /// and that briefly shows them the whole venue.
+    @discardableResult
+    public func focusAccessibilityFilter() async throws -> SeatLayerPickerSnapshot? {
+        guard supports(command: "picker.focusAccessibilityFilter") else { return nil }
+        return try await mutation("picker.focusAccessibilityFilter")
+    }
+
+    /// Frame the next section holding a matching free space.
+    ///
+    /// `types` defaults to the active filter, which is what the runtime uses
+    /// when the field is absent. A nil result means nothing matches — not an
+    /// error, and never a step with a zero total: the caller hides its control
+    /// rather than drawing "0 of 0".
+    public func focusNextAccessibleSection(
+        types: [String] = []
+    ) async throws -> SeatLayerPickerAccessibleStep? {
+        guard supports(command: "picker.focusNextAccessibleSection") else { return nil }
+        let payload: JSONValue? = types.isEmpty
+            ? nil
+            : .object(["types": .array(types.map(JSONValue.string))])
+        return try await enqueue { generation in
+            let raw = try await self.send("picker.focusNextAccessibleSection", payload)
+            _ = try await self.applyMutationResult(raw, generation: generation)
+            return SeatLayerPickerAccessibleStep(raw["step"])
+        }
+    }
+}
