@@ -56,19 +56,19 @@ public enum SeatLayerPickerTypeTokens {
         size: 17,
         weight: 700
     )
-    /// `size 13, weight 700`
+    /// `size 15, weight 700`
     public static let cartCardName = SeatLayerPickerTypeToken(
-        size: 13,
+        size: 15,
         weight: 700
     )
-    /// `size 11.5, weight 600`
+    /// `size 13, weight 600`
     public static let cartCardPosition = SeatLayerPickerTypeToken(
-        size: 11.5,
+        size: 13,
         weight: 600
     )
-    /// `size 13, weight 800`
+    /// `size 15, weight 800`
     public static let cartCardAmount = SeatLayerPickerTypeToken(
-        size: 13,
+        size: 15,
         weight: 800
     )
     /// `size 10, weight 800`
