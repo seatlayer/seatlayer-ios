@@ -53,8 +53,9 @@ final class SeatCardGoldenTests: XCTestCase {
         let bytes = seatCardGoldenPhotograph()
         let loader = SeatLayerBuyerAssetLoader(
             eventKey: "golden-event",
-            token: BuyerAccessToken(token: "golden")
-        ) { _, _ in bytes }
+            token: BuyerAccessToken(token: "golden"),
+            fetch: { _, _ in bytes }
+        )
         try renderBothSchemes(named: "seat-card-photo", fixture: fixture) {
             SeatLayerPickerSeatConfirmation()
                 .environment(\.seatLayerBuyerAssetLoader, loader)

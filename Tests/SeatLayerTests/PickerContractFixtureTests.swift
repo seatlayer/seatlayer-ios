@@ -40,39 +40,6 @@ final class PickerContractFixtureTests: XCTestCase {
                     id: fixture.id
                 )
 
-            case "denseRuns":
-                let display = SeatLayerPickerDenseDisplay(
-                    categoryLabel: fixture.input["display"]?["categoryLabel"]?.stringValue,
-                    amountText: fixture.input["display"]?["amountText"]?.stringValue
-                )
-                let runs = SeatLayerPickerProjections.denseRuns(
-                    try lines(fixture.input["items"]).map {
-                        SeatLayerPickerProjections.denseLine($0, display: display)
-                    }
-                )
-                let expectedRuns = try XCTUnwrap(fixture.expected["runs"]?.arrayValue, fixture.id)
-                XCTAssertEqual(runs.count, expectedRuns.count, fixture.id)
-                for (run, expected) in zip(runs, expectedRuns) {
-                    XCTAssertEqual(
-                        run.members.map { $0.item.lineKey },
-                        expected["memberLineKeys"]?.arrayValue?.compactMap(\.stringValue),
-                        fixture.id
-                    )
-                    XCTAssertEqual(
-                        SeatLayerPickerProjections.membersInSeatOrder(run).map { $0.item.lineKey },
-                        expected["orderedMemberLineKeys"]?.arrayValue?.compactMap(\.stringValue),
-                        fixture.id
-                    )
-                    XCTAssertEqual(run.seatsLabel, expected["seatsLabel"]?.stringValue, fixture.id)
-                    XCTAssertEqual(run.quantity, expected["quantity"]?.intValue, fixture.id)
-                    XCTAssertEqual(
-                        run.total,
-                        try XCTUnwrap(expected["total"]?.doubleValue, fixture.id),
-                        accuracy: 0.000_001,
-                        fixture.id
-                    )
-                }
-
             case "seatRunLabel":
                 let labels = fixture.input["labels"]?.arrayValue?.compactMap(\.stringValue) ?? []
                 XCTAssertEqual(
@@ -259,7 +226,6 @@ final class PickerContractFixtureTests: XCTestCase {
         "ticket-identity-addressed-v1",
         "confirmed-cart-per-line-addressing-v1",
         "totals-mixed-currency-v1",
-        "dense-runs-adjacent-fold-and-order-v1",
         "seat-run-label-never-invents-gaps-v1",
         "undo-requires-same-session-absence-v1",
         "structural-seat-identity-v1",

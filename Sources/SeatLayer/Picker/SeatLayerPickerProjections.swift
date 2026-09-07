@@ -39,58 +39,6 @@ public struct SeatLayerPickerConfirmedCartProjection: Sendable, Equatable {
     }
 }
 
-public struct SeatLayerPickerDenseDisplay: Sendable, Equatable {
-    public let section: String?
-    public let rowLabel: String?
-    public let seatLabel: String?
-    public let categoryLabel: String?
-    public let amountText: String?
-
-    public init(
-        section: String? = nil,
-        rowLabel: String? = nil,
-        seatLabel: String? = nil,
-        categoryLabel: String? = nil,
-        amountText: String? = nil
-    ) {
-        self.section = section
-        self.rowLabel = rowLabel
-        self.seatLabel = seatLabel
-        self.categoryLabel = categoryLabel
-        self.amountText = amountText
-    }
-}
-
-public struct SeatLayerPickerDenseLine: Sendable, Equatable {
-    public let item: SeatLayerPickerCartLine
-    public let identity: SeatLayerPickerTicketIdentity
-    public let section: String
-    public let rowLabel: String
-    public let seatLabel: String
-    public let categoryLabel: String
-    public let amountText: String
-    public let quantity: Int
-    public let total: Double
-    public let held: Bool
-    public let groupable: Bool
-}
-
-public struct SeatLayerPickerDenseRun: Sendable, Equatable {
-    public let members: [SeatLayerPickerDenseLine]
-    public let seatsLabel: String
-    public let total: Double
-    public let quantity: Int
-
-    public var isGroup: Bool { members.count > 1 }
-    public var id: String {
-        members.first?.identity.lineKey
-            ?? members.first?.identity.removalLabel
-            ?? members.first?.identity.objectId
-            ?? members.first?.identity.seatId
-            ?? "empty-run"
-    }
-}
-
 public enum SeatLayerPickerRemovalPhase: String, Sendable, Equatable, CaseIterable {
     case awaitingRemove
     case undoWindow
@@ -155,81 +103,6 @@ public enum SeatLayerPickerProjections {
         )
     }
 
-    /// Retired with the dense ticket list: the tray now draws one card per
-    /// ticket. Kept until the last chrome that folds runs has moved over.
-    @available(*, deprecated, message: "The dense ticket list has been retired.")
-    public static func denseLine(
-        _ item: SeatLayerPickerCartLine,
-        selection: [SelectedSeat] = [],
-        display: SeatLayerPickerDenseDisplay = .init(),
-        held: Bool = false
-    ) -> SeatLayerPickerDenseLine {
-        let identity = ticketIdentity(of: item)
-        let selected = uniqueSelection(for: identity, in: selection)
-        let section = firstKnown(display.section, item.sectionLabel, selected?.sectionLabel,
-                                 display.categoryLabel, item.categoryKey,
-                                 item.displayLabel, identity.removalLabel) ?? ""
-        let row = firstKnown(display.rowLabel, item.rowLabel, selected?.rowLabel) ?? ""
-        let seat = firstKnown(display.seatLabel, item.seatNumber, selected?.seatNumber,
-                              item.displayLabel, identity.removalLabel, identity.objectId) ?? ""
-        let category = firstKnown(display.categoryLabel, item.categoryKey) ?? ""
-        let quantity = validQuantity(item.quantity)
-        let amount = firstKnown(display.amountText, "\(item.currency) · \(item.unitPrice * Double(quantity))") ?? ""
-        return SeatLayerPickerDenseLine(
-            item: item,
-            identity: identity,
-            section: section,
-            rowLabel: row,
-            seatLabel: seat,
-            categoryLabel: category,
-            amountText: amount,
-            quantity: quantity,
-            total: item.unitPrice * Double(quantity),
-            held: held,
-            groupable: item.objectType != "ga"
-                && quantity <= 1
-                && (selected?.tiers?.count ?? 0) <= 1
-                && identity.removalLabel != nil
-        )
-    }
-
-    /// Folds only adjacent lines whose complete buyer-facing run key matches.
-    /// Retired with the dense ticket list: the tray now draws one card per
-    /// ticket. Kept until the last chrome that folds runs has moved over.
-    @available(*, deprecated, message: "The dense ticket list has been retired.")
-    public static func denseRuns(_ lines: [SeatLayerPickerDenseLine]) -> [SeatLayerPickerDenseRun] {
-        var groups: [[SeatLayerPickerDenseLine]] = []
-        for line in lines {
-            if let last = groups.indices.last,
-               let first = groups[last].first,
-               canJoin(first, line) {
-                groups[last].append(line)
-            } else {
-                groups.append([line])
-            }
-        }
-        return groups.map { members in
-            SeatLayerPickerDenseRun(
-                members: members,
-                seatsLabel: seatRunLabel(members.map(\.seatLabel)),
-                total: members.reduce(0) { $0 + $1.total },
-                quantity: members.reduce(0) { $0 + $1.quantity }
-            )
-        }
-    }
-
-    public static func membersInSeatOrder(
-        _ run: SeatLayerPickerDenseRun
-    ) -> [SeatLayerPickerDenseLine] {
-        let numbered = run.members.map { seatNumber($0.seatLabel) }
-        guard numbered.allSatisfy({ $0 != nil }) else { return run.members }
-        return run.members.enumerated().sorted {
-            let left = numbered[$0.offset] ?? 0
-            let right = numbered[$1.offset] ?? 0
-            return left == right ? $0.offset < $1.offset : left < right
-        }.map(\.element)
-    }
-
     public static func seatRunLabel(_ labels: [String]) -> String {
         guard !labels.isEmpty else { return "" }
         guard labels.count > 1 else { return labels[0] }
@@ -267,18 +140,6 @@ public enum SeatLayerPickerProjections {
                 .replacingOccurrences(of: "\"", with: "\\\"")
             return escaped.map { "\"\($0)\"" } ?? "null"
         }.joined(separator: ",").withJSONArrayBrackets
-    }
-
-    private static func canJoin(
-        _ left: SeatLayerPickerDenseLine,
-        _ right: SeatLayerPickerDenseLine
-    ) -> Bool {
-        left.groupable && right.groupable
-            && left.held == right.held
-            && left.section == right.section
-            && left.rowLabel == right.rowLabel
-            && left.categoryLabel == right.categoryLabel
-            && left.amountText == right.amountText
     }
 
     private static func uniqueSelection(

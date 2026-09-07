@@ -22,19 +22,7 @@ public let seatLayerPickerSpecSourceSHA256 =
 
 // Every number the native chrome draws now enters Swift through
 // `SeatLayerPickerTokens*.g.swift`, generated from `Design/tokens.json`. This
-// file keeps only behaviour built on top of those constants, plus the
-// deprecated names that older call sites still spell.
-
-extension SeatLayerPickerSizeTokens {
-    /// Retired with the dense ticket list. Kept so existing call sites still
-    /// compile; it has no counterpart in the canonical token document.
-    @available(*, deprecated, message: "The dense ticket list has been retired.")
-    public static let denseLineHeight: Double = 40
-
-    /// Retired with the dense ticket list.
-    @available(*, deprecated, message: "The dense ticket list has been retired.")
-    public static let denseVisibleLines = 5
-}
+// file keeps only the behaviour built on top of those constants.
 
 /// One animated moment in the native chrome.
 public enum SeatLayerPickerMotionEffect: String, Sendable, Equatable, CaseIterable {
@@ -259,62 +247,32 @@ extension View {
             design: design
         ))
     }
+
+    /// Draws text at one role from the generated type ramp.
+    func seatLayerPickerFont(_ token: SeatLayerPickerTypeToken) -> some View {
+        seatLayerPickerFont(
+            size: token.size,
+            weight: .seatLayerPickerWeight(token.weight)
+        )
+    }
+}
+
+extension Font.Weight {
+    /// The nearest platform weight to a token's 100–950 numeric weight.
+    static func seatLayerPickerWeight(_ value: Double) -> Font.Weight {
+        switch value {
+        case ..<250: return .ultraLight
+        case ..<350: return .light
+        case ..<450: return .regular
+        case ..<550: return .medium
+        case ..<650: return .semibold
+        case ..<750: return .bold
+        case ..<850: return .heavy
+        default: return .black
+        }
+    }
 }
 #endif
-
-extension SeatLayerPickerStringKey {
-    /// Renamed to `rowWord` in the canonical token document.
-    @available(*, deprecated, renamed: "rowWord")
-    public static var row: Self { .rowWord }
-    /// Renamed to `seatWord`.
-    @available(*, deprecated, renamed: "seatWord")
-    public static var seat: Self { .seatWord }
-    /// Renamed to `sectionWord`.
-    @available(*, deprecated, renamed: "sectionWord")
-    public static var section: Self { .sectionWord }
-    /// Renamed to `placeWord`.
-    @available(*, deprecated, renamed: "placeWord")
-    public static var place: Self { .placeWord }
-    /// Renamed to `accessiblePhysicalSeat`.
-    @available(*, deprecated, renamed: "accessiblePhysicalSeat")
-    public static var accessiblePlace: Self { .accessiblePhysicalSeat }
-    /// Renamed to `accessiblePhysicalSeat`.
-    @available(*, deprecated, renamed: "accessiblePhysicalSeat")
-    public static var wheelchairAccessibleSeating: Self { .accessiblePhysicalSeat }
-    /// Renamed to `emptyWheelchairSpace`.
-    @available(*, deprecated, renamed: "emptyWheelchairSpace")
-    public static var wheelchairSpaceNoFixedChair: Self { .emptyWheelchairSpace }
-    /// Renamed to `chooseTableGuests`.
-    @available(*, deprecated, renamed: "chooseTableGuests")
-    public static var chooseGuests: Self { .chooseTableGuests }
-    /// Renamed to `testModeExplained`.
-    @available(*, deprecated, renamed: "testModeExplained")
-    public static var testModeDescription: Self { .testModeExplained }
-    /// Renamed to `noSelectableSeats`.
-    @available(*, deprecated, renamed: "noSelectableSeats")
-    public static var noTicketsAvailable: Self { .noSelectableSeats }
-    /// Renamed to `ticketType`.
-    @available(*, deprecated, renamed: "ticketType")
-    public static var ticket: Self { .ticketType }
-    /// Renamed to `restrictedView`.
-    @available(*, deprecated, renamed: "restrictedView")
-    public static var limitedViewNotice: Self { .restrictedView }
-    /// Renamed to `viewGroupTitle`.
-    @available(*, deprecated, renamed: "viewGroupTitle")
-    public static var viewInformation: Self { .viewGroupTitle }
-    /// Renamed to `removeSeat`; a table line is removed the same way.
-    @available(*, deprecated, renamed: "removeSeat")
-    public static var removeTable: Self { .removeSeat }
-    /// Retired: the accessibility sheet applies its filters live.
-    @available(*, deprecated, message: "Filters apply live; there is no apply step.")
-    public static var applyFilters: Self { .continueWord }
-    /// Retired with the staged hold-recovery prompt.
-    @available(*, deprecated, renamed: "retry")
-    public static var recoverSeats: Self { .retry }
-    /// Retired: the seat card no longer offers a bare dismiss verb.
-    @available(*, deprecated, renamed: "close")
-    public static var dismiss: Self { .close }
-}
 
 /// Buyer-facing wording for the native chrome. Host overrides use the same
 /// stable keys as Flutter and React Native and may replace one string without
@@ -334,16 +292,6 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         self.overrides = Dictionary(
             uniqueKeysWithValues: overrides.map { ($0.key.rawValue, $0.value) }
         )
-        self.localeIdentifier = localeIdentifier
-    }
-
-    /// Untyped overrides, kept for hosts that carry their own key table.
-    @available(*, deprecated, message: "Use init(overrides:localeIdentifier:) with typed keys.")
-    public init(
-        overrides: [String: String],
-        localeIdentifier: String? = nil
-    ) {
-        self.overrides = overrides
         self.localeIdentifier = localeIdentifier
     }
 
@@ -400,12 +348,6 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
 
     public func seatsLeft(_ count: Int) -> String {
         text(SeatLayerPickerPluralKeys.seatsLeftInSection, count: count)
-    }
-
-    /// Retired with the collapsed sheet's "from" price line.
-    @available(*, deprecated, message: "The collapsed sheet no longer prints a from-price.")
-    public func fromPrice(_ price: String) -> String {
-        text(.fromPrice, replacing: ["price": price])
     }
 
     public func continueWithTotal(_ money: String) -> String {

@@ -4,32 +4,6 @@ import SwiftUI
 // A tapped cart card frames its seat at `seatLayerSheetRestoreFraction`,
 // declared with the seat lift so the card and the lift agree on one resting place.
 
-extension Font.Weight {
-    /// The nearest platform weight to a token's 100–950 numeric weight.
-    static func seatLayerPickerWeight(_ value: Double) -> Font.Weight {
-        switch value {
-        case ..<250: return .ultraLight
-        case ..<350: return .light
-        case ..<450: return .regular
-        case ..<550: return .medium
-        case ..<650: return .semibold
-        case ..<750: return .bold
-        case ..<850: return .heavy
-        default: return .black
-        }
-    }
-}
-
-extension View {
-    /// Draws text at one role from the generated type ramp.
-    func seatLayerPickerFont(_ token: SeatLayerPickerTypeToken) -> some View {
-        seatLayerPickerFont(
-            size: token.size,
-            weight: .seatLayerPickerWeight(token.weight)
-        )
-    }
-}
-
 // tokens.json gap: the card's own blends are Dart-local in
 // `picker_cart_list.dart` — held ground 7 % accent, held border 45 % accent,
 // category hairline 22 % of the category ink, mark ↔ text gap 10, text ↔
