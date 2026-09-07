@@ -107,7 +107,14 @@ public struct SeatLayerPickerCartSheet: View {
         seatLayerPickerSheetDetents(
             screenHeight: seatLayerPickerScreenHeight(),
             chrome: chrome,
-            contentHeight: min(contentHeight, SeatLayerPickerSizeTokens.cartPeekMaxHeight),
+            // Three cards and a sliver of the fourth is a ceiling on the CART,
+            // and one measure carries both what the cart asks for and what the
+            // empty tray does. Capping the tray with it cut the best-seats
+            // form's own row in half — its stepper and its button — which is
+            // the one thing that must never be what gets cut.
+            contentHeight: hasTickets
+                ? min(contentHeight, SeatLayerPickerSizeTokens.cartPeekMaxHeight)
+                : contentHeight,
             hasTickets: hasTickets
         )
     }
