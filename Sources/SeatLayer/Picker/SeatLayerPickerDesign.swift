@@ -175,6 +175,16 @@ public enum SeatLayerPickerHapticTokens {
         strength(named: SeatLayerPickerHapticNameTokens.holdCreated)
     public static let holdExpired =
         strength(named: SeatLayerPickerHapticNameTokens.holdExpired)
+    public static let ticketRemoved =
+        strength(named: SeatLayerPickerHapticNameTokens.ticketRemoved)
+    public static let holdEnding =
+        strength(named: SeatLayerPickerHapticNameTokens.holdEnding)
+    public static let cardArrived =
+        strength(named: SeatLayerPickerHapticNameTokens.cardArrived)
+    public static let seatConfirmed =
+        strength(named: SeatLayerPickerHapticNameTokens.seatConfirmed)
+    public static let cardCancelled =
+        strength(named: SeatLayerPickerHapticNameTokens.cardCancelled)
 
     public static func strength(
         for cue: SeatLayerPickerHapticCue
@@ -190,7 +200,7 @@ public enum SeatLayerPickerHapticTokens {
         case "light": return .light
         case "medium": return .medium
         case "heavy": return .heavy
-        case "warning": return .heavy
+        case "warning": return .warning
         default: return .light
         }
     }
