@@ -57,10 +57,14 @@ public struct SeatLayerPickerHeader: View {
             } else {
                 Spacer(minLength: 0)
             }
-            if style.options.chrome.holdPill,
+            if controller.snapshot?.event.salesClosed == true {
+                SeatLayerPickerSalesClosedPill()
+                    .fixedSize(horizontal: true, vertical: false)
+            } else if style.options.chrome.holdPill,
                let expiry = controller.snapshot?.hold.expiresAt,
-               controller.snapshot?.hold.active == true,
-               controller.holdLapse == nil {
+               controller.snapshot?.hold.active == true {
+                // Never hidden while the hold lives: a lapse ends the hold, and
+                // the pill goes with it rather than being suppressed under it.
                 SeatLayerPickerPartHost(.holdCountdown) {
                     SeatLayerPickerHoldCountdown(expiresAt: expiry)
                 }
@@ -88,7 +92,49 @@ public struct SeatLayerPickerHeader: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(palette.divider).frame(height: 1)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilitySortPriority(headerReadingOrder)
     }
+
+    /// §4.10 reading order: the header is read first, at 800.
+    private let headerReadingOrder = 800.0
+}
+
+/// The neutral pill that says an event has stopped selling.
+///
+/// Neutral, never the accent: this is a fact about the event, not a warning
+/// about the buyer's own time.
+public struct SeatLayerPickerSalesClosedPill: View {
+    @EnvironmentObject private var controller: SeatLayerPickerController
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
+
+    public init() {}
+
+    public var body: some View {
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: controller.snapshot
+        )
+        HStack(spacing: 5) {
+            Image(systemName: "lock.fill").accessibilityHidden(true)
+            Text(style.strings.text(.salesClosedPill)).lineLimit(1)
+        }
+        .seatLayerPickerFont(size: 12, weight: .bold)
+        .foregroundColor(palette.mutedText)
+        .padding(.horizontal, 10)
+        .frame(minHeight: pillHeight)
+        .background(palette.text.opacity(neutralWash))
+        .clipShape(Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("seatlayer-sales-closed-pill")
+    }
+
+    // tokens.json gap: the header pill's own height and neutral ground.
+    private let pillHeight = 28.0
+    private let neutralWash = 0.08
 }
 
 public struct SeatLayerPickerLogo: View {
@@ -128,10 +174,19 @@ public struct SeatLayerPickerLogo: View {
     }
 }
 
+/// The picker's only clock.
+///
+/// Ticks twice a second so a second never appears to skip, floors at zero, and
+/// inverts to a full accent with a breathing status light for the last minute
+/// — which it also counts out, second by second, to a screen reader. It stops
+/// the moment a read finds the hold gone, even when the snapshot in hand still
+/// describes a live one: a clock still running over released seats is the one
+/// thing that can leave a buyer reassured right up to a failed checkout.
 public struct SeatLayerPickerHoldCountdown: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let expiresAt: Double
 
     public init(expiresAt: Double) {
@@ -144,29 +199,62 @@ public struct SeatLayerPickerHoldCountdown: View {
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let remaining = max(0, Int(expiryDate.timeIntervalSince(context.date)))
-            HStack(spacing: 5) {
-                Image(systemName: "timer")
-                Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
-                    .monospacedDigit()
+        if controller.snapshot?.hold.active == true, controller.holdLapse == nil {
+            TimelineView(.periodic(from: .now, by: tickSeconds)) { context in
+                let remaining = seatLayerPickerHoldSecondsRemaining(
+                    expiresAt: expiresAt,
+                    now: context.date.timeIntervalSince1970
+                )
+                let expiring = remaining <= seatLayerPickerHoldExpiringSeconds
+                let clock = seatLayerPickerHoldClock(remaining)
+                HStack(spacing: 5) {
+                    statusLight(expiring: expiring, palette: palette, date: context.date)
+                    Text(clock).monospacedDigit()
+                }
+                .seatLayerPickerFont(size: 12, weight: .bold)
+                .foregroundColor(expiring ? palette.onAccent : palette.text)
+                .padding(.horizontal, 10)
+                .frame(minHeight: pillHeight)
+                .background(expiring ? palette.accent : palette.background)
+                .clipShape(Capsule())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(style.strings.text(.heldFor, replacing: ["clock": clock]))
+                // Announced politely on the minute, and every second of the
+                // last one — an interruption a buyer cannot silence would be
+                // worse than the deadline it describes.
+                .accessibilityAddTraits(.updatesFrequently)
+                .accessibilityIdentifier("seatlayer-hold-countdown")
             }
-            .seatLayerPickerFont(size: 12, weight: .bold)
-            .foregroundColor(palette.text)
-            .padding(.horizontal, 10)
-            .frame(minHeight: 28)
-            .background(palette.background)
-            .clipShape(Capsule())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(style.strings.text(
-                .heldFor,
-                replacing: ["clock": String(format: "%d:%02d", remaining / 60, remaining % 60)]
-            ))
         }
     }
 
-    private var expiryDate: Date {
-        Date(timeIntervalSince1970: expiresAt > 10_000_000_000 ? expiresAt / 1_000 : expiresAt)
+    @ViewBuilder
+    private func statusLight(
+        expiring: Bool,
+        palette: SeatLayerPickerPalette,
+        date: Date
+    ) -> some View {
+        if expiring {
+            let breathe = !reduceMotion && Int(date.timeIntervalSince1970 * 2) % 2 == 0
+            Circle()
+                .fill(palette.onAccent)
+                .frame(width: statusLightSize, height: statusLightSize)
+                .opacity(breathe ? 1 : breathedOpacity)
+                .animation(
+                    seatLayerPickerAnimation(.crossfade, reduceMotion: reduceMotion),
+                    value: breathe
+                )
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: "timer").accessibilityHidden(true)
+        }
     }
+
+    // tokens.json gap: the pill's height and its status light, both Dart-local
+    // constants in `picker_header.dart`.
+    private let tickSeconds = 0.5
+    private let pillHeight = 28.0
+    private let statusLightSize = 7.0
+    private let breathedOpacity = 0.35
 }
 #endif

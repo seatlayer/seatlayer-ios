@@ -1,0 +1,481 @@
+#if canImport(SwiftUI) && canImport(UIKit)
+import SwiftUI
+import UIKit
+
+/// The accessibility and view sheet.
+///
+/// A switch IS the action: every row applies as it is flipped and the sheet
+/// stays open, because a buyer with more than one need flips more than one
+/// row. The staged `Apply filters` form this replaced asked twice for one
+/// decision, and left a buyer who dragged the sheet away — the gesture that
+/// closes every other sheet — with a map that had ignored everything they had
+/// just done.
+///
+/// The sheet is bounded to a fraction of the screen and the provision list
+/// scrolls inside that bound, so the map being filtered stays visible.
+public struct SeatLayerPickerAccessibilityFilters: View {
+    @EnvironmentObject private var controller: SeatLayerPickerController
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var openNote: String?
+
+    public init() {}
+
+    public var body: some View {
+        let availability = SeatLayerPickerAccessibility.availability(
+            snapshot: controller.snapshot,
+            bundle: controller.bundleInfo
+        )
+        let palette = resolveSeatLayerPickerPalette(
+            style: style,
+            colorScheme: colorScheme,
+            snapshot: controller.snapshot
+        )
+        if availability.any, controller.snapshot?.map.buyerView == "map" {
+            content(availability: availability, palette: palette)
+                .background(palette.surface)
+                .modifier(SeatLayerPickerBoundedSheet(height: sheetHeight))
+                .accessibilityIdentifier("seatlayer-access-sheet")
+                .onAppear { guardMapWhileUp(true) }
+                .onDisappear { guardMapWhileUp(false) }
+        }
+    }
+
+    @ViewBuilder
+    private func content(
+        availability: SeatLayerPickerAccessibilityAvailability,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        let needs = SeatLayerPickerAccessibility.needs(
+            snapshot: controller.snapshot,
+            availability: availability
+        )
+        VStack(alignment: .leading, spacing: 0) {
+            Text(style.strings.text(.accessibilityTitle))
+                .seatLayerPickerFont(size: 16, weight: .bold)
+                .foregroundColor(palette.text)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, titleGap)
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(needs.enumerated()), id: \.element.key) { index, need in
+                        needRow(
+                            need,
+                            palette: palette,
+                            last: index == needs.count - 1
+                        )
+                    }
+                }
+            }
+            viewGroup(availability: availability, palette: palette)
+        }
+        .padding(.horizontal, sheetPadX)
+        .padding(.bottom, sheetPadBottom)
+        .padding(.top, sheetPadTop)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Provision rows
+
+    @ViewBuilder
+    private func needRow(
+        _ need: SeatLayerPickerAccessNeed,
+        palette: SeatLayerPickerPalette,
+        last: Bool
+    ) -> some View {
+        let label = style.strings.accessNeed(need.key)
+        let on = controller.snapshot?.map.accessibilityFilter.contains(need.key) == true
+        let soldOut = need.count == 0
+        let note = note(for: need)
+        VStack(alignment: .leading, spacing: 0) {
+            row(
+                glyph: need.key,
+                label: label,
+                note: note,
+                count: countCell(need, label: label, palette: palette),
+                on: on,
+                enabled: !soldOut,
+                palette: palette,
+                divider: !last,
+                identifier: "seatlayer-access-need-\(need.key)"
+            ) {
+                toggleNeed(need.key, on: !on)
+            }
+            if let note, openNote == need.key {
+                Text(note)
+                    .seatLayerPickerFont(size: SeatLayerPickerSizeTokens.accessRowNoteFontSize)
+                    .foregroundColor(palette.mutedText)
+                    .padding(.leading, noteIndent)
+                    .padding(.bottom, SeatLayerPickerSizeTokens.accessRowPaddingY)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// The count column: a jump chip where the walk is offered, a plain figure
+    /// otherwise. The figure does not move or change size when it becomes
+    /// pressable — only its ground arrives.
+    @ViewBuilder
+    private func countCell(
+        _ need: SeatLayerPickerAccessNeed,
+        label: String,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        let text = need.count == 0
+            ? zeroCount
+            : style.strings.text(.accessFreeCount, replacing: ["count": String(need.count)])
+        if controller.supportsAccessibilityFocus, need.count > 0 {
+            Button { jump(to: need.key) } label: {
+                Text(text)
+                    .seatLayerPickerFont(
+                        size: SeatLayerPickerSizeTokens.accessStepFontSize,
+                        weight: .heavy
+                    )
+                    .monospacedDigit()
+                    .foregroundColor(palette.text)
+                    .lineLimit(1)
+                    .padding(.horizontal, SeatLayerPickerSizeTokens.accessStepPaddingX)
+                    .frame(minHeight: SeatLayerPickerSizeTokens.accessStepHeight)
+                    .background(palette.text.opacity(jumpChipGround))
+                    .clipShape(Capsule())
+                    .frame(minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(label), \(text), \(style.strings.text(.accessJumpFirstSection))")
+        } else {
+            Text(text)
+                .seatLayerPickerFont(size: SeatLayerPickerSizeTokens.accessStepFontSize)
+                .monospacedDigit()
+                .foregroundColor(palette.mutedText)
+                .lineLimit(1)
+        }
+    }
+
+    // MARK: - View group
+
+    @ViewBuilder
+    private func viewGroup(
+        availability: SeatLayerPickerAccessibilityAvailability,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        if availability.limitedView || availability.colorblind {
+            Text(style.strings.text(.viewGroupTitle))
+                .seatLayerPickerFont(size: viewHeadingFontSize, weight: .bold)
+                .modifier(SeatLayerPickerLetterSpacing(amount: viewHeadingTracking))
+                .foregroundColor(palette.mutedText)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.leading, SeatLayerPickerSizeTokens.accessRowPaddingX)
+                .padding(.top, viewHeadingPadTop)
+                .padding(.trailing, SeatLayerPickerSizeTokens.accessRowPaddingX)
+                .padding(.bottom, viewHeadingPadBottom)
+            if availability.limitedView {
+                row(
+                    glyph: "restrictedView",
+                    label: style.strings.text(.hideLimitedView),
+                    note: nil,
+                    count: EmptyView(),
+                    on: controller.snapshot?.map.hideLimitedView == true,
+                    enabled: true,
+                    palette: palette,
+                    divider: availability.colorblind,
+                    identifier: "seatlayer-access-limited-view"
+                ) {
+                    let next = !(controller.snapshot?.map.hideLimitedView == true)
+                    runPickerAction(controller) {
+                        _ = try await controller.setLimitedViewFilter(next)
+                    }
+                }
+            }
+            if availability.colorblind {
+                row(
+                    glyph: "contrast",
+                    label: style.strings.text(.colorblindSafe),
+                    note: nil,
+                    count: EmptyView(),
+                    on: controller.snapshot?.map.colorblindSafe == true,
+                    enabled: true,
+                    palette: palette,
+                    divider: false,
+                    identifier: "seatlayer-access-colorblind"
+                ) {
+                    let next = !(controller.snapshot?.map.colorblindSafe == true)
+                    runPickerAction(controller) {
+                        _ = try await controller.setColorblindSafe(next)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - One row
+
+    /// icon · gap · label (+ ⓘ) · count column · gap · switch, at one fixed
+    /// height for every row on the sheet. The whole line is the control, so
+    /// the buyer aims at the words rather than at the toggle.
+    @ViewBuilder
+    private func row<Count: View>(
+        glyph: String,
+        label: String,
+        note: String?,
+        count: Count,
+        on: Bool,
+        enabled: Bool,
+        palette: SeatLayerPickerPalette,
+        divider: Bool,
+        identifier: String,
+        toggle: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 0) {
+            SeatLayerPickerAccessRowGlyph(key: glyph)
+                .foregroundColor(palette.mutedText)
+                .frame(
+                    width: SeatLayerPickerSizeTokens.accessRowIconCell,
+                    height: SeatLayerPickerSizeTokens.accessRowIconCell
+                )
+                .accessibilityHidden(true)
+            Spacer().frame(width: SeatLayerPickerSizeTokens.accessRowGap)
+            Text(label)
+                .seatLayerPickerFont(
+                    size: SeatLayerPickerSizeTokens.accessRowLabelFontSize,
+                    weight: .semibold
+                )
+                .foregroundColor(palette.text)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let note {
+                Button {
+                    openNote = openNote == glyph ? nil : glyph
+                } label: {
+                    Image(systemName: "info.circle")
+                        .seatLayerPickerFont(size: SeatLayerPickerSizeTokens.accessNoteIconSize)
+                        .foregroundColor(openNote == glyph ? palette.accent : palette.mutedText)
+                        .frame(
+                            width: noteColumn,
+                            height: SeatLayerPickerSizeTokens.minimumHitTarget
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(note)
+            }
+            count
+                .frame(width: countColumn, alignment: .trailing)
+            Spacer().frame(width: SeatLayerPickerSizeTokens.accessRowSwitchGap)
+            SeatLayerPickerAccessSwitch(on: on, palette: palette)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, SeatLayerPickerSizeTokens.accessRowPaddingX)
+        .frame(height: rowHeight)
+        .opacity(enabled ? 1 : SeatLayerPickerOpacityTokens.mapControlDisabled)
+        .contentShape(Rectangle())
+        .onTapGesture { if enabled { toggle() } }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(accessibilityValue(on: on))
+        .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
+        .accessibilityIdentifier(identifier)
+        .overlay(alignment: .bottom) {
+            if divider {
+                Rectangle()
+                    .fill(palette.divider.opacity(rowDividerOpacity))
+                    .frame(height: 1)
+            }
+        }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+    }
+
+    private func accessibilityValue(on: Bool) -> String {
+        on ? style.strings.text(.select) : ""
+    }
+
+    // MARK: - Behaviour
+
+    /// Sends the whole union on every flip, and reads availability at the
+    /// moment of the flip rather than capturing it when the sheet opened.
+    private func toggleNeed(_ key: String, on: Bool) {
+        var union = controller.snapshot?.map.accessibilityFilter ?? []
+        if on {
+            if !union.contains(key) { union.append(key) }
+        } else {
+            union.removeAll { $0 == key }
+        }
+        runPickerAction(controller) {
+            guard SeatLayerPickerAccessibility.availability(
+                snapshot: controller.snapshot,
+                bundle: controller.bundleInfo
+            ).accessibility else { return }
+            _ = try await controller.setAccessibilityFilter(union)
+        }
+    }
+
+    /// The count as a jump: turn the provision on if it was off, apply, close
+    /// the sheet — the one control on it that does — and take the first step.
+    private func jump(to key: String) {
+        var union = controller.snapshot?.map.accessibilityFilter ?? []
+        if !union.contains(key) { union.append(key) }
+        dismiss()
+        runPickerAction(controller) {
+            guard SeatLayerPickerAccessibility.availability(
+                snapshot: controller.snapshot,
+                bundle: controller.bundleInfo
+            ).accessibility else { return }
+            _ = try await controller.setAccessibilityFilter(union)
+            guard controller.supportsAccessibilityFocus else { return }
+            _ = try await controller.focusNextAccessibleSection(types: union)
+        }
+    }
+
+    /// A modal over the page guards the whole map while it is up.
+    private func guardMapWhileUp(_ blocked: Bool) {
+        guard controller.supportsBlockedRegions else { return }
+        let screen = UIScreen.main.bounds
+        let regions = blocked
+            ? [SeatLayerBlockedRegion(
+                x: 0,
+                y: 0,
+                w: Double(screen.width),
+                h: Double(screen.height)
+            )]
+            : []
+        Task { @MainActor in try? await controller.setBlockedRegions(regions) }
+    }
+
+    private func note(for need: SeatLayerPickerAccessNeed) -> String? {
+        guard need.key == "wheelchair",
+              controller.snapshot?.map.accessNeeds.contains(where: {
+                  $0.key == "companion"
+              }) == true else { return nil }
+        return style.strings.text(.companionSeatsNote)
+    }
+
+    private var sheetHeight: Double {
+        seatLayerAccessSheetHeight(screenHeight: Double(UIScreen.main.bounds.height))
+    }
+
+    // tokens.json gap: the sheet's fixed row height, its count and note
+    // columns, the zero figure and the sheet's own paddings are Dart-local
+    // constants in `picker_accessibility.dart` rather than tokens. Lift them
+    // into `Design/tokens.json` and regenerate; every value below is the
+    // Flutter number, not a new one.
+    private let rowHeight = 50.0
+    private let countColumn = 68.0
+    private let noteColumn = 36.0
+    private let zeroCount = "0"
+    private let rowDividerOpacity = 0.35
+    private let jumpChipGround = 0.06
+    private let sheetPadX = 20.0
+    private let sheetPadTop = 20.0
+    private let sheetPadBottom = 20.0
+    private let titleGap = 12.0
+    private let viewHeadingFontSize = 11.0
+    private let viewHeadingTracking = 0.6
+    private let viewHeadingPadTop = 18.0
+    private let viewHeadingPadBottom = 4.0
+
+    private var noteIndent: Double {
+        SeatLayerPickerSizeTokens.accessRowPaddingX
+            + SeatLayerPickerSizeTokens.accessRowIconCell
+            + SeatLayerPickerSizeTokens.accessRowGap
+    }
+}
+
+/// Letter-spacing for the one heading that carries it.
+struct SeatLayerPickerLetterSpacing: ViewModifier {
+    let amount: Double
+
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content.kerning(amount)
+        } else {
+            content
+        }
+    }
+}
+
+/// Bounds the sheet to a fraction of the screen where the platform can.
+///
+/// On iOS 15 the system sheet has no detent API and takes the height it takes;
+/// the row list still scrolls inside its own bound, so nothing is lost but the
+/// map staying visible behind it.
+private struct SeatLayerPickerBoundedSheet: ViewModifier {
+    let height: Double
+
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content
+                .presentationDetents([.height(height)])
+                .presentationDragIndicator(.visible)
+        } else {
+            content.frame(maxHeight: height, alignment: .top)
+        }
+    }
+}
+
+/// The sheet's own switch: a drawn track and knob, not the platform's, so the
+/// row owns the semantics and one contrast decision covers every row.
+struct SeatLayerPickerAccessSwitch: View {
+    let on: Bool
+    let palette: SeatLayerPickerPalette
+
+    var body: some View {
+        Capsule()
+            .fill(on ? palette.accent : palette.mutedText.opacity(offTrackOpacity))
+            .frame(
+                width: SeatLayerPickerSizeTokens.accessSwitchWidth,
+                height: SeatLayerPickerSizeTokens.accessSwitchHeight
+            )
+            .overlay(alignment: on ? .trailing : .leading) {
+                Circle()
+                    .fill(palette.surface)
+                    .frame(
+                        width: SeatLayerPickerSizeTokens.accessSwitchKnob,
+                        height: SeatLayerPickerSizeTokens.accessSwitchKnob
+                    )
+                    .padding(.horizontal, knobInset)
+            }
+    }
+
+    // tokens.json gap: the knob's inset inside the track.
+    private let knobInset = 2.0
+    private let offTrackOpacity = 0.32
+}
+
+/// One drawing per row, chosen by the runtime's own key.
+///
+/// INTERIM: the shared per-attribute glyph set (spec §3.8.9, Flutter
+/// `picker_seat_icons.dart`) is not on iOS yet, so each key resolves to its
+/// closest system glyph here rather than to the authored artwork. That keeps
+/// twelve provisions from all wearing one wheelchair, but it is not the shared
+/// set: replace the body of this view with the transcribed paths as soon as
+/// the seat card lands them.
+struct SeatLayerPickerAccessRowGlyph: View {
+    let key: String
+
+    var body: some View {
+        Image(systemName: Self.symbol(for: key))
+            .seatLayerPickerFont(size: SeatLayerPickerSizeTokens.accessRowIconSize)
+    }
+
+    static func symbol(for key: String) -> String {
+        switch key.lowercased().replacingOccurrences(of: "_", with: "-") {
+        case "wheelchair": return "figure.roll"
+        case "companion": return "person.2"
+        case "semi-ambulatory": return "figure.walk.motion"
+        case "designated-aisle": return "arrow.left.and.right"
+        case "step-free": return "figure.walk.arrival"
+        case "hearing": return "ear"
+        case "cart": return "circle.circle"
+        case "sign-language": return "hand.raised"
+        case "low-vision": return "eye"
+        case "sensory-friendly": return "headphones"
+        case "plus-size": return "chair.lounge"
+        case "lift-armrest": return "arrow.up.to.line"
+        case "restrictedview": return "eye.trianglebadge.exclamationmark"
+        case "obstructedview": return "eye.slash"
+        case "contrast": return "circle.righthalf.filled"
+        default: return "circle"
+        }
+    }
+}
+#endif
