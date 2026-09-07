@@ -279,14 +279,13 @@ public enum SeatLayerPickerMapControlModel {
     /// runtime does not report a pose, `canZoomOut` is the older and coarser
     /// reading it falls back to.
     ///
-    /// iOS decodes `map.atVenueFit` as a plain `Bool`, so an unreported pose
-    /// and a reported `false` are the same value here; the fallback is written
-    /// so that reading a missing field as `false` still lands on `canZoomOut`
-    /// rather than on an invented "yes".
+    /// An unreported pose is not a reported "no": a runtime that says nothing
+    /// about where its camera is falls back to `canZoomOut`, and only a
+    /// runtime that says it is already fitted rests the control.
     public static func canStepBack(_ map: SeatLayerPickerMapState?) -> Bool {
         guard let map else { return false }
         if map.focusedSectionId != nil { return true }
-        if map.atVenueFit { return false }
+        if map.atVenueFit == true { return false }
         return map.canZoomOut
     }
 

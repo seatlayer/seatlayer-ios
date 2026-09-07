@@ -74,11 +74,29 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     /// the map as well; the original `overview`, `zoom`, and `colorblind`
     /// switches remain source-compatible master gates.
     public var phoneOverview: Bool
-    public var phoneZoom: Bool
     public var phoneColorblind: Bool
-    /// The fit control is wide-only too: the phone reaches the whole venue
-    /// through the overview rung rather than through a disc on the map.
-    public var phoneFit: Bool
+
+    /// Retired. The phone's control column now carries `+` and the whole-venue
+    /// disc for every buyer, so there is nothing left for this to reveal.
+    ///
+    /// Still stored and still read by `showsZoom(wide:)` for a host composing
+    /// its own controls; the ready-made picker no longer consults it.
+    @available(*, deprecated, message: "The phone column always carries the zoom controls.")
+    public var phoneZoom: Bool {
+        get { storedPhoneZoom }
+        set { storedPhoneZoom = newValue }
+    }
+
+    /// Retired for the same reason as `phoneZoom`: the whole-venue disc is
+    /// part of the phone column rather than an opt-in.
+    @available(*, deprecated, message: "The phone column always carries the whole-venue control.")
+    public var phoneFit: Bool {
+        get { storedPhoneFit }
+        set { storedPhoneFit = newValue }
+    }
+
+    private var storedPhoneZoom: Bool
+    private var storedPhoneFit: Bool
 
     public init(
         header: Bool = true,
@@ -131,15 +149,15 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
         self.seatViewChrome = seatViewChrome
         self.systemBars = systemBars
         self.phoneOverview = phoneOverview
-        self.phoneZoom = phoneZoom
+        self.storedPhoneZoom = phoneZoom
         self.phoneColorblind = phoneColorblind
-        self.phoneFit = phoneFit
+        self.storedPhoneFit = phoneFit
     }
 
     public func showsOverview(wide: Bool) -> Bool { overview && (wide || phoneOverview) }
-    public func showsZoom(wide: Bool) -> Bool { zoom && (wide || phoneZoom) }
+    public func showsZoom(wide: Bool) -> Bool { zoom && (wide || storedPhoneZoom) }
     public func showsColorblind(wide: Bool) -> Bool { colorblind && (wide || phoneColorblind) }
-    public func showsFit(wide: Bool) -> Bool { fit && (wide || phoneFit) }
+    public func showsFit(wide: Bool) -> Bool { fit && (wide || storedPhoneFit) }
     public func showsExtendHoldPrompt(wide: Bool) -> Bool {
         extendHoldPrompt && (wide || phoneExtendHoldPrompt)
     }

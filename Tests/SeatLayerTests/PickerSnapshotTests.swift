@@ -304,12 +304,13 @@ final class PickerSnapshotTests: XCTestCase {
         let complete = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
             pickerSnapshot(additions: ["map": ["atVenueFit": true]])
         ))
-        XCTAssertTrue(complete.map.atVenueFit)
+        XCTAssertEqual(complete.map.atVenueFit, true)
         // A runtime that names no rung is showing the venue, not its seats.
         XCTAssertEqual(complete.map.rung, "overview")
 
         let older = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot()))
-        XCTAssertFalse(older.map.atVenueFit)
+        // Absent, not false: nobody reported the pose.
+        XCTAssertNil(older.map.atVenueFit)
     }
 
     func testSectionAccessCountIsAbsentRatherThanZeroWhenNobodyCounted() throws {

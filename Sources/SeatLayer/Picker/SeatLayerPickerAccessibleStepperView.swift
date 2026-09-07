@@ -120,7 +120,7 @@ public struct SeatLayerPickerAccessibleStepper: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @State private var step: SeatLayerPickerAccessibleStep?
+    @State private var tour = SeatLayerPickerAccessibilityTour()
     @State private var walking = false
 
     public init() {}
@@ -166,14 +166,15 @@ public struct SeatLayerPickerAccessibleStepper: View {
             .buttonStyle(.plain)
             .disabled(!controller.isReady || walking)
             .accessibilityLabel(style.strings.text(
-                step == nil ? .accessJumpFirstSection : .accessJumpNextSection
+                tour.isWalking ? .accessJumpNextSection : .accessJumpFirstSection
             ))
             .accessibilityValue(label)
             .dynamicTypeSize(...DynamicTypeSize.large)
-            .onChange(of: controller.snapshot?.map.accessibilityFilter) { _ in
+            .onChange(of: controller.snapshot?.map.accessibilityFilter) { filter in
                 // A different filter is a different tour.
-                step = nil
+                tour.reconcile(activeTypes: filter ?? [])
             }
+            .onAppear { tour.reconcile(activeTypes: activeTypes) }
         }
     }
 
@@ -182,34 +183,47 @@ public struct SeatLayerPickerAccessibleStepper: View {
     /// Before the first jump it offers the count the runtime reported; after
     /// one it says which stop the buyer is on, printed one-based over a
     /// zero-based index.
+    private var activeTypes: [String] { controller.snapshot?.map.accessibilityFilter ?? [] }
+
     private var pillLabel: String? {
-        guard controller.supportsAccessibilityFocus,
-              !(controller.snapshot?.map.accessibilityFilter.isEmpty ?? true),
-              controller.snapshot?.map.buyerView == "map" else { return nil }
-        if let step {
-            guard step.total > 0 else { return nil }
+        guard controller.snapshot?.map.buyerView == "map" else { return nil }
+        switch tour.state(
+            supportsFocus: controller.supportsAccessibilityFocus,
+            sectionsWithMatches: seatLayerAccessibleSectionCount(
+                snapshot: controller.snapshot,
+                types: activeTypes,
+                supportsCounts: controller.supportsSectionAccessCounts
+            )
+        ) {
+        case .step(let index, let total):
             return style.strings.text(.accessibleStep, replacing: [
-                "index": String(step.index + 1),
-                "total": String(step.total),
+                "index": String(index),
+                "total": String(total),
             ])
+        case .counted(let sections):
+            return style.strings.text(.accessibleSections, replacing: [
+                "count": String(sections),
+            ])
+        // A runtime that walks but does not count has a tour to offer and no
+        // number to put on it, so the pill invites the first step by name.
+        case .uncounted:
+            return style.strings.text(.accessJumpFirstSection)
+        case .absent:
+            return nil
         }
-        guard controller.supportsSectionAccessCounts else { return nil }
-        let sections = controller.snapshot?.sections.filter { ($0.accessibleFree ?? 0) > 0 } ?? []
-        guard !sections.isEmpty else { return nil }
-        return style.strings.text(.accessibleSections, replacing: [
-            "count": String(sections.count),
-        ])
     }
 
     private func walk() {
         guard !walking else { return }
         walking = true
+        let types = activeTypes
+        tour.reconcile(activeTypes: types)
         Task { @MainActor in
             defer { walking = false }
             // A nil answer means nothing matches — not an error, and never a
             // step with a zero total. The pill leaves rather than drawing
             // "0 of 0".
-            step = try? await controller.focusNextAccessibleSection()
+            tour.advance(to: try? await controller.focusNextAccessibleSection(types: types))
         }
     }
 }

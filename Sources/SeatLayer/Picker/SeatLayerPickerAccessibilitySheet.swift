@@ -87,6 +87,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     ) -> some View {
         let label = style.strings.accessNeed(need.key)
         let on = controller.snapshot?.map.accessibilityFilter.contains(need.key) == true
+        // An uncounted provision stays live: only a counted zero is sold out.
         let soldOut = need.count == 0
         let note = note(for: need)
         VStack(alignment: .leading, spacing: 0) {
@@ -123,10 +124,14 @@ public struct SeatLayerPickerAccessibilityFilters: View {
         label: String,
         palette: SeatLayerPickerPalette
     ) -> some View {
-        let text = need.count == 0
-            ? zeroCount
-            : style.strings.text(.accessFreeCount, replacing: ["count": String(need.count)])
-        if controller.supportsAccessibilityFocus, need.count > 0 {
+        // An uncounted provision prints no figure at all rather than a zero
+        // it was never told.
+        let text = need.count.map { free in
+            free == 0
+                ? zeroCount
+                : style.strings.text(.accessFreeCount, replacing: ["count": String(free)])
+        } ?? ""
+        if controller.supportsAccessibilityFocus, (need.count ?? 0) > 0 {
             Button { jump(to: need.key) } label: {
                 Text(text)
                     .seatLayerPickerFont(
@@ -228,8 +233,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
         toggle: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 0) {
-            SeatLayerPickerAccessRowGlyph(key: glyph)
-                .foregroundColor(palette.mutedText)
+            SeatLayerPickerAccessRowGlyph(key: glyph, color: palette.mutedText)
                 .frame(
                     width: SeatLayerPickerSizeTokens.accessRowIconCell,
                     height: SeatLayerPickerSizeTokens.accessRowIconCell
@@ -456,32 +460,33 @@ struct SeatLayerPickerAccessSwitch: View {
 /// twelve provisions from all wearing one wheelchair, but it is not the shared
 /// set: replace the body of this view with the transcribed paths as soon as
 /// the seat card lands them.
+/// One accommodation's drawing, on the sheet's own row.
+///
+/// The same authored set the seat card and the map legend draw, so a buyer who
+/// learns a mark on the card recognises it on this sheet — a platform symbol
+/// set would have made the two surfaces disagree about what a wheelchair space
+/// looks like. A key with no drawing renders nothing rather than a placeholder
+/// circle: the row already prints the accommodation in words.
 struct SeatLayerPickerAccessRowGlyph: View {
     let key: String
+    let color: Color
 
     var body: some View {
-        Image(systemName: Self.symbol(for: key))
-            .seatLayerPickerFont(size: SeatLayerPickerSizeTokens.accessRowIconSize)
+        SeatLayerPickerSeatIcon(
+            iconKey: Self.glyphKey(for: key),
+            color: color,
+            size: SeatLayerPickerSizeTokens.accessRowIconSize
+        )
     }
 
-    static func symbol(for key: String) -> String {
-        switch key.lowercased().replacingOccurrences(of: "_", with: "-") {
-        case "wheelchair": return "figure.roll"
-        case "companion": return "person.2"
-        case "semi-ambulatory": return "figure.walk.motion"
-        case "designated-aisle": return "arrow.left.and.right"
-        case "step-free": return "figure.walk.arrival"
-        case "hearing": return "ear"
-        case "cart": return "circle.circle"
-        case "sign-language": return "hand.raised"
-        case "low-vision": return "eye"
-        case "sensory-friendly": return "headphones"
-        case "plus-size": return "chair.lounge"
-        case "lift-armrest": return "arrow.up.to.line"
-        case "restrictedview": return "eye.trianglebadge.exclamationmark"
-        case "obstructedview": return "eye.slash"
-        case "contrast": return "circle.righthalf.filled"
-        default: return "circle"
+    /// The runtime writes accommodation keys in several shapes; the drawings
+    /// are filed under one.
+    static func glyphKey(for key: String) -> String {
+        let normalized = key.lowercased().replacingOccurrences(of: "_", with: "-")
+        switch normalized {
+        case "restrictedview", "restricted-view": return "restrictedView"
+        case "obstructedview", "obstructed-view": return "obstructedView"
+        default: return normalized
         }
     }
 }

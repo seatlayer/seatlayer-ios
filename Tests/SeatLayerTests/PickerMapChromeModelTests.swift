@@ -286,6 +286,12 @@ final class PickerMapChromeModelTests: XCTestCase {
         // read as "already home".
         let pinched = try makeSnapshot(canZoomOut: true).map
         XCTAssertTrue(SeatLayerPickerMapControlModel.canStepBack(pinched))
+
+        // A runtime that reports no pose at all has said nothing, which must
+        // not be read as "already home".
+        let silent = try makeSnapshot(atVenueFit: nil, canZoomOut: true).map
+        XCTAssertNil(silent.atVenueFit)
+        XCTAssertTrue(SeatLayerPickerMapControlModel.canStepBack(silent))
     }
 
     // MARK: - Section dock
@@ -377,16 +383,17 @@ final class PickerMapChromeModelTests: XCTestCase {
     private func makeSnapshot(
         rung: String = "zones",
         focusedSection: String? = nil,
-        atVenueFit: Bool = false,
+        atVenueFit: Bool? = false,
         canZoomOut: Bool = false,
         sellable: Bool = true
     ) throws -> SeatLayerPickerSnapshot {
         var map: [String: JSONValue] = [
             "rung": .string(rung),
             "buyerView": "map",
-            "atVenueFit": .bool(atVenueFit),
+            "canZoomIn": true,
             "canZoomOut": .bool(canZoomOut),
         ]
+        if let atVenueFit { map["atVenueFit"] = .bool(atVenueFit) }
         if let focusedSection { map["focusedSectionId"] = .string(focusedSection) }
         let categories: [JSONValue] = sellable
             ? [

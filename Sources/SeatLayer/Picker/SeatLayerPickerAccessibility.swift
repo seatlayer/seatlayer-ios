@@ -86,7 +86,8 @@ public enum SeatLayerPickerAccessibility {
         from snapshot: SeatLayerPickerSnapshot?
     ) -> SeatLayerPickerAccessibilityDraft {
         let reported = snapshot?.map.accessNeeds ?? []
-        let takeable = Set(reported.filter { $0.count > 0 }.map(\.key))
+        // Uncounted counts as takeable: only a reported zero is not.
+        let takeable = Set(reported.filter { $0.count ?? 1 > 0 }.map(\.key))
         let selected = snapshot?.map.accessibilityFilter ?? []
         return SeatLayerPickerAccessibilityDraft(
             types: reported.isEmpty ? selected : selected.filter(takeable.contains),

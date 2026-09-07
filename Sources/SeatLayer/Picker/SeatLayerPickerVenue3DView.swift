@@ -159,7 +159,7 @@ public struct SeatLayerVenue3D: View {
                                 label: style.strings.text(.openVenue360),
                                 labelled: true,
                                 enabled: !busy
-                            ) { openSeatView(position.targetSeatId) }
+                            ) { openVenue360(position.targetSeatId) }
                         }
                         chip(
                             symbol: "chevron.right",
@@ -311,7 +311,7 @@ public struct SeatLayerVenue3D: View {
         execute(.recentre)
     }
 
-    private func openSeatView(_ seatId: String?) {
+    private func openVenue360(_ seatId: String?) {
         perform {
             guard let seatId,
                   let snapshot = controller.snapshot,
@@ -323,7 +323,7 @@ public struct SeatLayerVenue3D: View {
                   ).seatViewAction else { return }
             let seat = snapshot.map.view3DTargetSeat
                 ?? snapshot.selection.first { $0.id == seatId }
-            _ = try await controller.openSeatView(seatId)
+            _ = try await controller.openVenue360(seatId)
             if let seat { presentation.recordSeatViewOpened(seat) }
         }
     }

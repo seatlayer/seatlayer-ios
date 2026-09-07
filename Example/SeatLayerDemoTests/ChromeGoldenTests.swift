@@ -136,7 +136,6 @@ final class ChromeGoldenTests: XCTestCase {
         options.layout = .phone
         // The map control column is otherwise a single disc on a phone.
         options.chrome.phoneOverview = true
-        options.chrome.phoneZoom = true
         options.chrome.phoneColorblind = true
 
         let controller = SeatLayerPickerController(

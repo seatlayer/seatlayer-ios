@@ -86,6 +86,27 @@ final class PickerAccessibilityTests: XCTestCase {
         XCTAssertEqual(strings.accessNeed("future-need"), "Future need")
     }
 
+    func testAnUncountedProvisionIsNotASoldOutOne() throws {
+        var raw = try XCTUnwrap(makeSnapshot().raw.objectValue)
+        var map = try XCTUnwrap(raw["map"]?.objectValue)
+        map["accessNeeds"] = .array([
+            .object(["key": "step-free"]),
+            .object(["key": "wheelchair", "count": 0]),
+        ])
+        map["accessibilityFilter"] = .array(["step-free", "wheelchair"])
+        raw["map"] = .object(map)
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
+
+        XCTAssertNil(snapshot.map.accessNeeds.first?.count)
+        XCTAssertEqual(snapshot.map.accessNeeds.last?.count, 0)
+        // The uncounted provision survives the draft; only the counted zero
+        // is dropped.
+        XCTAssertEqual(
+            SeatLayerPickerAccessibility.draft(from: snapshot).types,
+            ["step-free"]
+        )
+    }
+
     func testSoldOutAuthoredNeedIsVisibleButDroppedFromActiveDraft() throws {
         var raw = try XCTUnwrap(makeSnapshot().raw.objectValue)
         var map = try XCTUnwrap(raw["map"]?.objectValue)

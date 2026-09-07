@@ -64,6 +64,9 @@ public struct SeatLayerPickerCartList: View {
     /// inline action error. There is no toast and no Undo.
     private func remove(_ line: SeatLayerPickerCartLine) {
         guard !removing.contains(line.lineKey) else { return }
+        // The cue is the answer to the press, so it fires on the press rather
+        // than on the runtime's reply: the card is already fading by then.
+        controller.emitHaptic(.ticketRemoved)
         removing.insert(line.lineKey)
         let key = line.lineKey
         runPickerAction(controller) {

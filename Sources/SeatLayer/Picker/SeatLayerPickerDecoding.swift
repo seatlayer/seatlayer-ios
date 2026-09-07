@@ -316,7 +316,7 @@ private func decodeMap(_ value: JSONValue?) -> SeatLayerPickerMapState {
         hideLimitedView: item?["hideLimitedView"]?.boolValue ?? false,
         canZoomIn: item?["canZoomIn"]?.boolValue ?? true,
         canZoomOut: item?["canZoomOut"]?.boolValue ?? true,
-        atVenueFit: item?["atVenueFit"]?.boolValue ?? false,
+        atVenueFit: item?["atVenueFit"]?.boolValue,
         categoryFilter: uniqueStrings(item?["categoryFilter"]),
         accessibilityFilter: uniqueStrings(item?["accessibilityFilter"]),
         accessNeeds: uniqueAccessNeeds(item?["accessNeeds"]),
@@ -353,7 +353,7 @@ private func uniqueAccessNeeds(_ value: JSONValue?) -> [SeatLayerPickerAccessNee
               seen.insert(key).inserted else { return nil }
         return SeatLayerPickerAccessNeed(
             key: key,
-            count: max(0, exactInteger(item["count"]) ?? 0)
+            count: exactInteger(item["count"]).map { max(0, $0) }
         )
     }
 }

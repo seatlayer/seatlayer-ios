@@ -145,6 +145,24 @@ extension SeatLayerPickerController {
         return try await mutation("picker.openSeatView", ["seatId": .string(seatId)])
     }
 
+    /// Whether the runtime can open the seat's own 360 view from the scene.
+    public var supportsVenue360: Bool { supports(command: "picker.openVenue360") }
+
+    /// Open the panorama the buyer is standing at inside the 3D scene.
+    ///
+    /// A distinct command from `picker.openSeatView`: that one is the map's
+    /// "see the view from here", and this one is the scene's — the runtime
+    /// keeps the camera it already has rather than travelling to the seat
+    /// again. Falls back to the map's command where the runtime is older, so
+    /// the chip never goes dead.
+    @discardableResult
+    public func openVenue360(_ seatId: String) async throws -> SeatLayerPickerSnapshot? {
+        try validateNonEmpty(seatId, named: "seatId")
+        guard supportsSeatView else { return snapshot }
+        guard supportsVenue360 else { return try await openSeatView(seatId) }
+        return try await mutation("picker.openVenue360", ["seatId": .string(seatId)])
+    }
+
     @discardableResult
     public func setVenue3DNavigationMode(_ mode: String) async throws -> SeatLayerPickerSnapshot? {
         guard ["orbit", "pan"].contains(mode) else {

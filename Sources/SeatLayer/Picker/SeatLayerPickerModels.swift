@@ -258,7 +258,12 @@ public struct SeatLayerPickerFloorInfo: Sendable, Equatable {
 
 public struct SeatLayerPickerAccessNeed: Sendable, Equatable {
     public let key: String
-    public let count: Int
+    /// How many spaces of this kind are free, where the runtime counts them.
+    ///
+    /// Absent is not zero. A runtime that reports a provision without a figure
+    /// is saying the venue has it, not that none is left — dimming that row
+    /// like a sold-out one hid provisions the buyer could still ask for.
+    public let count: Int?
 }
 
 public struct SeatLayerPickerMapState: Sendable, Equatable {
@@ -289,7 +294,10 @@ public struct SeatLayerPickerMapState: Sendable, Equatable {
     public let canZoomOut: Bool
     /// Whether the camera is already showing the whole venue, so a fit control
     /// can rest rather than repeat a move that changes nothing.
-    public let atVenueFit: Bool
+    ///
+    /// Absent on a runtime that does not report its pose at all, which is not
+    /// the same fact as a runtime saying the camera is somewhere else.
+    public let atVenueFit: Bool?
     public let categoryFilter: [String]
     public let accessibilityFilter: [String]
     public let accessNeeds: [SeatLayerPickerAccessNeed]
