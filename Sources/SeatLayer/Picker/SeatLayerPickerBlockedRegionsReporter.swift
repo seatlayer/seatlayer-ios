@@ -221,19 +221,27 @@ struct SeatLayerPickerMapCover: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let rect = geometry.frame(in: .named(seatLayerPickerMapCoordinateSpace))
+            // ONE value, and every report is the value the change delivered.
+            //
+            // It used to be a rectangle and a flag read back off `self` inside
+            // the action. An action closure outlives the body that made it, so
+            // the read could answer with the flag the cover was raised on — and
+            // the pass that LOWERED it re-registered the cover instead of
+            // clearing it. A cover over the whole map that never lifts is a map
+            // that takes no taps, pans or pinches ever again, which is what a
+            // buyer met the moment they dismissed their first seat card.
+            let cover = active
+                ? SeatLayerBlockedRegion(
+                    geometry.frame(in: .named(seatLayerPickerMapCoordinateSpace))
+                )
+                : nil
             Color.clear
-                .onAppear { report(rect) }
-                .onChange(of: active) { _ in report(rect) }
-                .onChange(of: rect) { report($0) }
+                .onAppear { regions?.cover(key, cover) }
+                .onChange(of: cover) { regions?.cover(key, $0) }
                 .onDisappear { regions?.cover(key, nil) }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-    }
-
-    private func report(_ rect: CGRect) {
-        regions?.cover(key, active ? SeatLayerBlockedRegion(rect) : nil)
     }
 }
 
