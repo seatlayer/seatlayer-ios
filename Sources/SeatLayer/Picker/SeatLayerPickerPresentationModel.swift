@@ -117,6 +117,18 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     /// Whether the buyer came back from a checkout handoff and may keep
     /// choosing seats against the hold they already have.
     @Published public private(set) var resumedAfterCheckout = false
+    /// Whether the host's own checkout handler is running right now.
+    ///
+    /// Narrower than `actionInFlight`, which also covers making the hold. The
+    /// two are different sentences to the buyer — "securing your seats" and
+    /// "opening checkout" — and a single flag could only say one of them.
+    @Published public private(set) var handoffInFlight = false
+    /// Seats the buyer has picked since the standing hold was made.
+    ///
+    /// Zero without a hold. With one it is what the checkout button offers to
+    /// fold into the hold the buyer already has, so it is counted against the
+    /// cart the hold was made from rather than against the whole cart.
+    @Published public private(set) var pendingCount = 0
 
     /// Whether the sheet is at its full height.
     ///
@@ -246,6 +258,8 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var answered = Set<String>()
     private var adoptedHoldSeats = false
+    /// The cart lines the standing hold was made from, by line key.
+    private var heldLineKeys: Set<String>?
     private var runtimeSessionId: String?
     private var latestRevision: Int?
     private var checkoutTask: Task<SeatLayerPickerCheckoutHandoff, Error>?
@@ -588,6 +602,8 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         let task = Task { @MainActor [weak self, controller, options] in
             let handoff = try await controller.checkout(ttlMs: options.normalizedHoldTtlMs)
             self?.checkoutContinuationSubject.send(handoff)
+            self?.handoffInFlight = true
+            defer { self?.handoffInFlight = false }
             do {
                 try await handler(handoff)
                 return handoff
@@ -720,6 +736,8 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             cardIntent = .add
             cartLanding = nil
             adoptedHoldSeats = false
+            heldLineKeys = nil
+            pendingCount = 0
             clearRemovalUndo()
             didClose = false
             return
@@ -736,6 +754,8 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             cardIntent = .add
             cartLanding = nil
             adoptedHoldSeats = false
+            heldLineKeys = nil
+            pendingCount = 0
             didClose = false
             clearRemovalUndo()
         }
@@ -751,9 +771,17 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         if snapshot.hold.active, !adoptedHoldSeats {
             adoptedHoldSeats = true
             answered.formUnion(present)
+            // The cart as it stood when the hold was made. Everything added
+            // after this is what the button offers to secure as well.
+            heldLineKeys = Set(snapshot.cartLines.map(\.lineKey))
         } else if !snapshot.hold.active {
             adoptedHoldSeats = false
+            heldLineKeys = nil
         }
+        pendingCount = heldLineKeys.map { held in
+            snapshot.cartLines.filter { !held.contains($0.lineKey) }
+                .reduce(0) { $0 + max(1, $1.quantity) }
+        } ?? 0
         answered = answered.intersection(present)
         if let candidate = candidateSeat,
            let identity = identity(of: candidate),

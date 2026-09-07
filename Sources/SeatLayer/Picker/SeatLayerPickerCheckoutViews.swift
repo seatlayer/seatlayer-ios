@@ -73,10 +73,10 @@ public struct SeatLayerPickerCheckoutButton: View {
             promptOpen: presentation.activePrompt != nil,
             seatCardOpen: presentation.pendingSeat != nil
                 || presentation.candidateSeat != nil,
-            creatingHold: presentation.actionInFlight,
-            handoffInFlight: false,
+            creatingHold: presentation.actionInFlight && !presentation.handoffInFlight,
+            handoffInFlight: presentation.handoffInFlight,
             ticketCount: presentation.confirmedTicketCount,
-            pendingCount: 0,
+            pendingCount: presentation.pendingCount,
             holdActive: snapshot?.hold.active == true,
             canOfferFind: canOfferFind,
             validity: snapshot?.selectionValidity

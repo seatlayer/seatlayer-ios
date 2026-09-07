@@ -575,6 +575,72 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.pendingSeat?.label, "A-3")
     }
 
+    func testSeatsPickedSinceTheHoldAreCountedForTheCheckoutButton() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+
+        var held = try XCTUnwrap(snapshot(revision: 1, labels: ["A-1", "A-2"]).objectValue)
+        held["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(held))
+        // The cart the hold was made from is not "picked since".
+        XCTAssertEqual(presentation.pendingCount, 0)
+
+        var later = try XCTUnwrap(
+            snapshot(revision: 2, labels: ["A-1", "A-2", "A-3", "A-4"]).objectValue
+        )
+        later["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(later))
+        XCTAssertEqual(presentation.pendingCount, 2)
+
+        // The hold goes and there is nothing left to fold into it.
+        controller.accept(snapshot: snapshot(revision: 3, labels: ["A-1", "A-2", "A-3"]))
+        XCTAssertEqual(presentation.pendingCount, 0)
+    }
+
+    func testTheButtonSaysOpeningCheckoutOnlyWhileTheHostIsRunning() async throws {
+        let strings = SeatLayerPickerStrings(localeIdentifier: "en")
+        let securing = seatLayerCheckoutCtaState(
+            SeatLayerPickerCheckoutCtaInput(
+                label: "Hold seats",
+                canCheckout: false,
+                creatingHold: true,
+                ticketCount: 2
+            ),
+            strings: strings
+        )
+        XCTAssertEqual(securing.label, strings.text(.securingSeats))
+        XCTAssertTrue(securing.busy)
+
+        let opening = seatLayerCheckoutCtaState(
+            SeatLayerPickerCheckoutCtaInput(
+                label: "Hold seats",
+                canCheckout: false,
+                handoffInFlight: true,
+                ticketCount: 2
+            ),
+            strings: strings
+        )
+        XCTAssertEqual(opening.label, strings.text(.openingCheckout))
+        XCTAssertTrue(opening.busy)
+
+        let more = seatLayerCheckoutCtaState(
+            SeatLayerPickerCheckoutCtaInput(
+                label: "Hold seats",
+                canCheckout: true,
+                ticketCount: 4,
+                pendingCount: 2,
+                holdActive: true
+            ),
+            strings: strings
+        )
+        XCTAssertEqual(
+            more.label,
+            strings.text(.secureMoreAndCheckout, replacing: ["count": "2"])
+        )
+        XCTAssertTrue(more.enabled)
+    }
+
     func testCheckoutCanResumeAfterTheHostHandsTheBuyerBack() async throws {
         let transport = PresentationTransportSpy(
             responses: ["picker.continue": checkoutResponse()]
