@@ -41,6 +41,24 @@ public struct SeatLayerChartLoadTrace: Sendable, Equatable {
     public var succeeded: Bool { outcome == nil || outcome == "success" }
 }
 
+/// The code a failed render attempt is reported under, or nil for one that
+/// worked.
+///
+/// The runtime names the stage it got to before it gave up; the outcome is the
+/// fallback for a trace that reports a failure without saying where, and the
+/// constant is the last resort so a failure is never surfaced nameless.
+public func seatLayerPickerChartLoadFailureCode(
+    _ trace: SeatLayerChartLoadTrace
+) -> String? {
+    guard !trace.succeeded else { return nil }
+    for candidate in [trace.stage, trace.outcome] {
+        if let candidate, !candidate.trimmingCharacters(in: .whitespaces).isEmpty {
+            return candidate
+        }
+    }
+    return "chart_load_failed"
+}
+
 /// Runtime and native halves of one render attempt.
 public struct SeatLayerChartLoad: Sendable, Equatable {
     public let trace: SeatLayerChartLoadTrace

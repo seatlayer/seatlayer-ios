@@ -30,6 +30,13 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public internal(set) var availabilityOutcome: SeatLayerPickerAvailabilityOutcome?
     @Published public internal(set) var holdLapse: SeatLayerPickerHoldLapse?
     @Published public internal(set) var generalAdmissionCandidate: GAArea?
+    /// The code the venue failed to draw under, or nil while it is drawable.
+    ///
+    /// A chart that will not load is not a handshake that failed: the runtime
+    /// comes up, answers, and reports the failure as a trace, leaving the
+    /// picker ready over an empty map. Native chrome reads this so a buyer
+    /// gets the error surface and its Retry rather than a blank venue.
+    @Published public internal(set) var chartLoadFailure: String?
     /// False until the first viewport-inset report settles with the runtime
     /// ready.
     ///
@@ -298,6 +305,7 @@ public final class SeatLayerPickerController: ObservableObject {
         chartLoadTapToReadyMs = nil
         chartLoadReady = nil
         pendingSuccessfulChartLoads.removeAll(keepingCapacity: false)
+        chartLoadFailure = nil
         lastPublishedSelectionValidity = nil
         bundleInfo = nil
         transport = nil
@@ -368,6 +376,9 @@ public final class SeatLayerPickerController: ObservableObject {
         // The hosted runtime reports a completed render immediately before
         // sys.ready. Hold only successful traces for that final native timing
         // edge; failures must remain observable even when ready never arrives.
+        // A later attempt that works is the venue arriving, so the surface the
+        // failure raised comes down with it.
+        chartLoadFailure = seatLayerPickerChartLoadFailureCode(trace)
         if trace.succeeded, chartLoadReady == nil {
             if pendingSuccessfulChartLoads.count == 4 {
                 pendingSuccessfulChartLoads.removeFirst()

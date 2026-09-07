@@ -670,7 +670,12 @@ private struct SeatLayerPickerReadyLayout: View {
         case .failed:
             SeatLayerPickerErrorView { reloadGeneration += 1 }
         case .ready:
-            if awaitingFraming {
+            if controller.chartLoadFailure != nil {
+                // Ready over a venue that never drew. The blank map it would
+                // otherwise leave is the one state a buyer cannot act on and
+                // cannot get out of.
+                SeatLayerPickerErrorView { reloadGeneration += 1 }
+            } else if awaitingFraming {
                 // Ready, but the renderer has not been told what the chrome
                 // covers yet: revealing now shows the venue at one framing and
                 // re-fits it in front of the buyer, which reads as the screen
