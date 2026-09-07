@@ -63,6 +63,10 @@ public protocol SeatLayerViewDelegate: AnyObject {
     /// The buyer tapped a floor in a multi-floor deck.
     func seatLayerView(_ view: SeatLayerView, didTapFloor floorId: String)
 
+    /// The buyer tapped a seat that is already selected. The runtime keeps the
+    /// seat; a second tap is a question for the host chrome to answer.
+    func seatLayerView(_ view: SeatLayerView, didRetapSeat seat: SelectedSeat)
+
     /// An event this build does not model — a bundle newer than the app.
     /// Delivered raw so it can be logged rather than silently lost.
     func seatLayerView(_ view: SeatLayerView, didReceiveUnknownEvent name: String, payload: JSONValue?)
@@ -85,6 +89,7 @@ public extension SeatLayerViewDelegate {
     func seatLayerView(_ view: SeatLayerView, didReceiveHint message: String?) {}
     func seatLayerView(_ view: SeatLayerView, didTapGAArea area: GAArea) {}
     func seatLayerView(_ view: SeatLayerView, seatHoverDidChange details: SeatHoverDetails?) {}
+    func seatLayerView(_ view: SeatLayerView, didRetapSeat seat: SelectedSeat) {}
     func seatLayerView(_ view: SeatLayerView, didTapFloor floorId: String) {}
     func seatLayerView(_ view: SeatLayerView, didReceiveUnknownEvent name: String, payload: JSONValue?) {}
 }

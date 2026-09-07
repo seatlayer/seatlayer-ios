@@ -40,39 +40,6 @@ final class PickerContractFixtureTests: XCTestCase {
                     id: fixture.id
                 )
 
-            case "denseRuns":
-                let display = SeatLayerPickerDenseDisplay(
-                    categoryLabel: fixture.input["display"]?["categoryLabel"]?.stringValue,
-                    amountText: fixture.input["display"]?["amountText"]?.stringValue
-                )
-                let runs = SeatLayerPickerProjections.denseRuns(
-                    try lines(fixture.input["items"]).map {
-                        SeatLayerPickerProjections.denseLine($0, display: display)
-                    }
-                )
-                let expectedRuns = try XCTUnwrap(fixture.expected["runs"]?.arrayValue, fixture.id)
-                XCTAssertEqual(runs.count, expectedRuns.count, fixture.id)
-                for (run, expected) in zip(runs, expectedRuns) {
-                    XCTAssertEqual(
-                        run.members.map { $0.item.lineKey },
-                        expected["memberLineKeys"]?.arrayValue?.compactMap(\.stringValue),
-                        fixture.id
-                    )
-                    XCTAssertEqual(
-                        SeatLayerPickerProjections.membersInSeatOrder(run).map { $0.item.lineKey },
-                        expected["orderedMemberLineKeys"]?.arrayValue?.compactMap(\.stringValue),
-                        fixture.id
-                    )
-                    XCTAssertEqual(run.seatsLabel, expected["seatsLabel"]?.stringValue, fixture.id)
-                    XCTAssertEqual(run.quantity, expected["quantity"]?.intValue, fixture.id)
-                    XCTAssertEqual(
-                        run.total,
-                        try XCTUnwrap(expected["total"]?.doubleValue, fixture.id),
-                        accuracy: 0.000_001,
-                        fixture.id
-                    )
-                }
-
             case "seatRunLabel":
                 let labels = fixture.input["labels"]?.arrayValue?.compactMap(\.stringValue) ?? []
                 XCTAssertEqual(
@@ -137,11 +104,11 @@ final class PickerContractFixtureTests: XCTestCase {
         XCTAssertEqual(Set(ids).count, ids.count)
     }
 
-    func testPublicConceptContractMatchesTheShippingTwentyFivePartEnum() throws {
+    func testPublicConceptContractMatchesTheShippingTwentyEightPartEnum() throws {
         let root = try json(at: "Contracts/picker-public-concepts.v1.json")
         let identifiers = root["builderParts"]?.arrayValue?.compactMap { $0["id"]?.stringValue }
         XCTAssertEqual(identifiers, SeatLayerPickerPart.allCases.map(\.rawValue))
-        XCTAssertEqual(identifiers?.count, 25)
+        XCTAssertEqual(identifiers?.count, 28)
         XCTAssertEqual(
             root["builderContext"]?.arrayValue?.compactMap(\.stringValue),
             [
@@ -160,6 +127,12 @@ final class PickerContractFixtureTests: XCTestCase {
         XCTAssertEqual(strings(root["requiredCapabilities"]), core.requiredCapabilities)
         XCTAssertEqual(strings(root["requiredCommands"]), core.requiredCommands)
         XCTAssertEqual(strings(root["requiredEvents"]), core.requiredEvents)
+        XCTAssertTrue(core.requiredCommands.isEmpty)
+        XCTAssertTrue(core.requiredEvents.isEmpty)
+        // The command and event tables are documentation of what the wrapper
+        // sends and listens for; the handshake demands neither.
+        XCTAssertEqual(strings(root["usedCommands"]).count, 42)
+        XCTAssertTrue(strings(root["usedEvents"]).contains("seat.retap"))
         XCTAssertEqual(strings(root["optionalCapabilities"]), core.optionalCapabilities)
 
         let complete = SeatLayerBridgeProfile.picker()
@@ -169,12 +142,7 @@ final class PickerContractFixtureTests: XCTestCase {
                 + strings(root["conditionalRequirements"]?["enable3D"]?["capabilities"])
                 + strings(root["conditionalRequirements"]?["enableSeatView"]?["capabilities"])
         )
-        XCTAssertEqual(
-            complete.requiredCommands,
-            core.requiredCommands
-                + strings(root["conditionalRequirements"]?["enable3D"]?["commands"])
-                + strings(root["conditionalRequirements"]?["enableSeatView"]?["commands"])
-        )
+
         XCTAssertEqual(root["examples"]?["initialize"]?["p"]?["host"]?["sdk"]?.stringValue, SeatLayer.sdkVersion)
     }
 
@@ -258,7 +226,6 @@ final class PickerContractFixtureTests: XCTestCase {
         "ticket-identity-addressed-v1",
         "confirmed-cart-per-line-addressing-v1",
         "totals-mixed-currency-v1",
-        "dense-runs-adjacent-fold-and-order-v1",
         "seat-run-label-never-invents-gaps-v1",
         "undo-requires-same-session-absence-v1",
         "structural-seat-identity-v1",

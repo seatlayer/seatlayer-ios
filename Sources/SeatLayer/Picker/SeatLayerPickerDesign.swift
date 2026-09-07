@@ -6,87 +6,25 @@ import SwiftUI
 /// Hash of the canonical cross-platform picker token input used to generate
 /// this file. Flutter and React Native publish the same hash.
 public let seatLayerPickerTokenSourceSHA256 =
-    "0667fdddab037b3f63eaf18b4ba099f477cb630edc93f9ea90f90862609e492f"
+    "defb411c1dc94b1071a70bc92dfa7eff0c7ab443fc110dd86c1cfbd8f54182f4"
 
 /// Hash of the canonical locale input used by the native picker strings.
 public let seatLayerPickerLocaleSourceSHA256 =
-    "9401509eb3704d0ec1d61d9ec8a6a4126b0d76ad8f0c3c204c890f24d9a55048"
+    "340645082f4280ce445375fc1675601b78665cb8b0fadb3622bdc8d69561215f"
 
 /// Hash of the platform-neutral picker component catalogue.
 public let seatLayerPickerComponentSourceSHA256 =
-    "c091ace21b09f484dc516748d660f5d24ef4554826f8037ee30231addaa8e190"
+    "4b3b7b83e5502633cbbbbcfdb9e1be4cd07e86dc18e22d651dde3711b98b494d"
 
-public enum SeatLayerPickerSizeTokens {
-    public static let phoneBreakpoint = 640.0
-    public static let wideBreakpoint = 840.0
-    public static let headerHeight = 56.0
-    public static let headerLogoSize = 28.0
-    public static let dockBarHeight = 52.0
-    public static let peekHeight = 44.0
-    public static let sheetMaxHeightFraction = 0.6
-    public static let emptyTrayMaxHeight = 150.0
-    public static let denseLineHeight = 40.0
-    public static let denseVisibleLines = 5
-    public static let confirmCardGutter = 16.0
-    public static let confirmCardMaxWidth = 360.0
-    public static let confirmIdentityHeight = 44.0
-    public static let confirmPhotoHeight = 64.0
-    public static let confirmActionHeight = 40.0
-    public static let selectorHeight = 40.0
-    public static let accessibilityControlSize = 44.0
-    public static let mapControlSize = 36.0
-    public static let attributionHeight = 18.0
-    public static let legendChipFontSize = 11.0
-    public static let minimumHitTarget = 44.0
-}
+/// Hash of the platform-neutral picker specification.
+public let seatLayerPickerSpecSourceSHA256 =
+    "e54c71d029739b05f4d5cd6a34cc83c0fdcc21e926ae8552b14f129dd72cd984"
 
-public enum SeatLayerPickerRadiusTokens {
-    public static let base = 14.0
-    public static let card = 18.0
-    public static let sheet = 14.0
-    public static let button = 8.0
-    public static let chip = 999.0
-    public static let pill = 999.0
-}
+// Every number the native chrome draws now enters Swift through
+// `SeatLayerPickerTokens*.g.swift`, generated from `Design/tokens.json`. This
+// file keeps only the behaviour built on top of those constants.
 
-public enum SeatLayerPickerMotionTokens {
-    public static let budgetMilliseconds = 420
-    public static let enterMilliseconds = 260
-    public static let exitMilliseconds = 180
-    public static let dockMilliseconds = 240
-    public static let sheetMilliseconds = 300
-    public static let flyMilliseconds = 420
-    public static let popMilliseconds = 180
-    public static let staggerMilliseconds = 60
-    public static let crossfadeMilliseconds = 120
-    public static let toastMilliseconds = 200
-    public static let immersiveMilliseconds = 300
-    public static let undoWindowMilliseconds = 4_000
-
-    public static func duration(
-        _ effect: SeatLayerPickerMotionEffect
-    ) -> Int {
-        switch effect {
-        case .enter: return enterMilliseconds
-        case .exit: return exitMilliseconds
-        case .dock: return dockMilliseconds
-        case .sheet: return sheetMilliseconds
-        case .fly: return flyMilliseconds
-        case .pop: return popMilliseconds
-        case .stagger: return staggerMilliseconds
-        case .crossfade: return crossfadeMilliseconds
-        case .toast: return toastMilliseconds
-        case .immersive: return immersiveMilliseconds
-        }
-    }
-
-    public static var allDurations: [SeatLayerPickerMotionEffect: Int] {
-        Dictionary(uniqueKeysWithValues: SeatLayerPickerMotionEffect.allCases.map {
-            ($0, duration($0))
-        })
-    }
-}
-
+/// One animated moment in the native chrome.
 public enum SeatLayerPickerMotionEffect: String, Sendable, Equatable, CaseIterable {
     case enter
     case exit
@@ -96,10 +34,16 @@ public enum SeatLayerPickerMotionEffect: String, Sendable, Equatable, CaseIterab
     case pop
     case stagger
     case crossfade
+    case bump
+    case chevron
     case toast
     case immersive
+    case pressSweep
+    case cardEnter
+    case thumbOut
 }
 
+/// The named curves the picker animates along.
 public enum SeatLayerPickerMotionCurve: String, Sendable, Equatable, CaseIterable {
     case easeEnter
     case easeExit
@@ -117,6 +61,39 @@ public struct SeatLayerPickerCubicBezier: Sendable, Equatable {
         self.y1 = y1
         self.x2 = x2
         self.y2 = y2
+    }
+}
+
+/// Durations, in milliseconds, resolved from the generated motion tokens.
+///
+/// The generated namespace is `SeatLayerPickerMotionDurationTokens`; this one
+/// keeps the `…Milliseconds` spellings the chrome already uses and the
+/// effect-keyed lookup the motion resolver is built on.
+public enum SeatLayerPickerMotionTokens {
+    public static let budgetMilliseconds = SeatLayerPickerMotionDurationTokens.budgetMs
+    public static let enterMilliseconds = SeatLayerPickerMotionDurationTokens.enter
+    public static let exitMilliseconds = SeatLayerPickerMotionDurationTokens.exit
+    public static let dockMilliseconds = SeatLayerPickerMotionDurationTokens.dock
+    public static let sheetMilliseconds = SeatLayerPickerMotionDurationTokens.sheet
+    public static let flyMilliseconds = SeatLayerPickerMotionDurationTokens.fly
+    public static let popMilliseconds = SeatLayerPickerMotionDurationTokens.pop
+    public static let staggerMilliseconds = SeatLayerPickerMotionDurationTokens.stagger
+    public static let crossfadeMilliseconds = SeatLayerPickerMotionDurationTokens.crossfade
+    public static let toastMilliseconds = SeatLayerPickerMotionDurationTokens.toast
+    public static let immersiveMilliseconds = SeatLayerPickerMotionDurationTokens.immersive
+    public static let undoWindowMilliseconds = SeatLayerPickerMotionDurationTokens.undoWindow
+
+    public static func duration(
+        _ effect: SeatLayerPickerMotionEffect
+    ) -> Int {
+        SeatLayerPickerMotionDurationTokens.inBudget[effect.rawValue]
+            ?? SeatLayerPickerMotionDurationTokens.enter
+    }
+
+    public static var allDurations: [SeatLayerPickerMotionEffect: Int] {
+        Dictionary(uniqueKeysWithValues: SeatLayerPickerMotionEffect.allCases.map {
+            ($0, duration($0))
+        })
     }
 }
 
@@ -142,17 +119,40 @@ public struct SeatLayerPickerResolvedMotion: Sendable, Equatable {
 }
 
 public enum SeatLayerPickerMotion {
+    /// The canonical reduced-motion policy, as the token document words it.
+    public static let reducedMotionPolicy =
+        SeatLayerPickerMotionDurationTokens.reducedMotionPolicy
+
+    /// Whether the picker is being drawn for a capture rather than for a
+    /// buyer.
+    ///
+    /// A golden is a still of a surface, and a surface that is still moving
+    /// when the shutter opens is a golden that differs every time it is
+    /// recorded. Arrival motion — the error toast's shake, a row settling into
+    /// a list — is therefore skipped outright under a harness rather than
+    /// played fast, which is the same answer the picker already gives a viewer
+    /// who has asked for less movement.
+    ///
+    /// Set by the golden harness; it is not part of the buyer's path, and the
+    /// environment variable is here so a capture tool that cannot reach the
+    /// property still gets a still surface.
+    @MainActor
+    public static var capturing: Bool = {
+        let process = ProcessInfo.processInfo
+        return process.environment["SEATLAYER_DISABLE_ANIMATIONS"] == "1"
+            || process.arguments.contains("-disableAnimations")
+    }()
+
+    /// Motion with no reduced form: skipped rather than played instantly.
+    public static let skippedWhenReduced: Set<SeatLayerPickerMotionEffect> = [
+        .fly, .stagger,
+    ]
+
     public static func curve(
         _ curve: SeatLayerPickerMotionCurve
     ) -> SeatLayerPickerCubicBezier {
-        switch curve {
-        case .easeEnter:
-            return .init(x1: 0.215, y1: 0.61, x2: 0.355, y2: 1)
-        case .easeExit:
-            return .init(x1: 0.55, y1: 0.055, x2: 0.675, y2: 0.19)
-        case .spring:
-            return .init(x1: 0.34, y1: 1.56, x2: 0.64, y2: 1)
-        }
+        SeatLayerPickerCurveTokens.all[curve.rawValue]
+            ?? SeatLayerPickerCurveTokens.easeEnter
     }
 
     public static func resolve(
@@ -160,7 +160,7 @@ public enum SeatLayerPickerMotion {
         reduceMotion: Bool,
         curve curveName: SeatLayerPickerMotionCurve = .easeEnter
     ) -> SeatLayerPickerResolvedMotion {
-        let skipped = reduceMotion && [.fly, .stagger].contains(effect)
+        let skipped = reduceMotion && skippedWhenReduced.contains(effect)
         return .init(
             effect: effect,
             durationMilliseconds: reduceMotion
@@ -172,20 +172,44 @@ public enum SeatLayerPickerMotion {
     }
 }
 
+/// The platform strength each buyer-facing cue fires, resolved from the
+/// generated `SeatLayerPickerHapticNameTokens`.
 public enum SeatLayerPickerHapticTokens {
-    public static let selectionAdded = SeatLayerPickerHapticStrength.selection
-    public static let sectionFocused = SeatLayerPickerHapticStrength.light
-    public static let holdCreated = SeatLayerPickerHapticStrength.medium
-    public static let holdExpired = SeatLayerPickerHapticStrength.heavy
+    public static let selectionAdded =
+        strength(named: SeatLayerPickerHapticNameTokens.selectionAdded)
+    public static let sectionFocused =
+        strength(named: SeatLayerPickerHapticNameTokens.sectionFocused)
+    public static let holdCreated =
+        strength(named: SeatLayerPickerHapticNameTokens.holdCreated)
+    public static let holdExpired =
+        strength(named: SeatLayerPickerHapticNameTokens.holdExpired)
+    public static let ticketRemoved =
+        strength(named: SeatLayerPickerHapticNameTokens.ticketRemoved)
+    public static let holdEnding =
+        strength(named: SeatLayerPickerHapticNameTokens.holdEnding)
+    public static let cardArrived =
+        strength(named: SeatLayerPickerHapticNameTokens.cardArrived)
+    public static let seatConfirmed =
+        strength(named: SeatLayerPickerHapticNameTokens.seatConfirmed)
+    public static let cardCancelled =
+        strength(named: SeatLayerPickerHapticNameTokens.cardCancelled)
 
     public static func strength(
         for cue: SeatLayerPickerHapticCue
     ) -> SeatLayerPickerHapticStrength {
-        switch cue {
-        case .selectionAdded: return selectionAdded
-        case .sectionFocused: return sectionFocused
-        case .holdCreated: return holdCreated
-        case .holdExpired: return holdExpired
+        strength(named: SeatLayerPickerHapticNameTokens.all[cue.rawValue] ?? "")
+    }
+
+    /// A token strength name this platform cannot fire natively degrades to
+    /// the nearest impact rather than falling silent.
+    static func strength(named name: String) -> SeatLayerPickerHapticStrength {
+        switch name {
+        case "selection": return .selection
+        case "light": return .light
+        case "medium": return .medium
+        case "heavy": return .heavy
+        case "warning": return .warning
+        default: return .light
         }
     }
 }
@@ -243,123 +267,58 @@ extension View {
             design: design
         ))
     }
+
+    /// Draws text at one role from the generated type ramp.
+    func seatLayerPickerFont(_ token: SeatLayerPickerTypeToken) -> some View {
+        seatLayerPickerFont(
+            size: token.size,
+            weight: .seatLayerPickerWeight(token.weight)
+        )
+    }
+}
+
+extension Font.Weight {
+    /// The nearest platform weight to a token's 100–950 numeric weight.
+    static func seatLayerPickerWeight(_ value: Double) -> Font.Weight {
+        switch value {
+        case ..<250: return .ultraLight
+        case ..<350: return .light
+        case ..<450: return .regular
+        case ..<550: return .medium
+        case ..<650: return .semibold
+        case ..<750: return .bold
+        case ..<850: return .heavy
+        default: return .black
+        }
+    }
 }
 #endif
-
-public enum SeatLayerPickerElevationTokens {
-    public static let header = 0.0
-    public static let dockBar = 8.0
-    public static let sheet = 12.0
-    public static let confirmCard = 18.0
-    public static let pill = 0.0
-}
-
-public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
-    case accessCart
-    case accessCompanion
-    case accessDesignatedAisle
-    case accessHearing
-    case accessLiftArmrest
-    case accessLowVision
-    case accessNeedWithCount
-    case accessPlusSize
-    case accessSemiAmbulatory
-    case accessSensoryFriendly
-    case accessSignLanguage
-    case accessStepFree
-    case accessWheelchair
-    case accessiblePlace
-    case accessibility
-    case accessibilityTitle
-    case addTickets
-    case allFloors
-    case anyTicketType
-    case anyVenueZone
-    case applyFilters
-    case backToVenue
-    case bestSeats
-    case cancel
-    case chooseSeats
-    case chooseTickets
-    case chooseGuests
-    case close
-    case collapseCart
-    case colorblindSafe
-    case continueWithTotal
-    case continueWord
-    case emptyTrayHint
-    case errorMessage
-    case dismiss
-    case expandCart
-    case fitVenue
-    case fromPrice
-    case generalAdmission
-    case holdExpired
-    case heldFor
-    case hideLimitedView
-    case holdAndCheckout
-    case limitedViewNotice
-    case loading
-    case mapView
-    case moreTickets
-    case moveVenue
-    case nextSeat
-    case nextSection
-    case orbitMode
-    case overview
-    case panMode
-    case poweredBy
-    case previousSeat
-    case previousSection
-    case recentre
-    case removeSeat
-    case removeTable
-    case recoverSeats
-    case retry
-    case select
-    case selectTicketTier
-    case seatsLeft
-    case showLess
-    case row
-    case salesClosed
-    case seat
-    case seatRemoved
-    case section
-    case testMode
-    case testModeDescription
-    case ticket
-    case noTicketsAvailable
-    case place
-    case placesAvailable
-    case confirmTable
-    case ticketCount
-    case tierCompanionGuidance
-    case ticketType
-    case undo
-    case venue3D
-    case viewFromHere
-    case viewFromYourSeat
-    case viewInformation
-    case wheelchairAccessibleSeating
-    case wheelchairSpaceNoFixedChair
-    case zoomIn
-    case zoomOut
-}
 
 /// Buyer-facing wording for the native chrome. Host overrides use the same
 /// stable keys as Flutter and React Native and may replace one string without
 /// forking a component.
 public struct SeatLayerPickerStrings: Sendable, Equatable {
+    /// Per-key overrides. The keys are `SeatLayerPickerStringKey` raw values;
+    /// prefer the typed `init(overrides:localeIdentifier:)` and
+    /// `subscript(_:)` to writing raw names.
     public var overrides: [String: String]
     /// BCP-47 locale. Nil follows the buyer's first preferred language.
     public var localeIdentifier: String?
 
     public init(
-        overrides: [String: String] = [:],
+        overrides: [SeatLayerPickerStringKey: String] = [:],
         localeIdentifier: String? = nil
     ) {
-        self.overrides = overrides
+        self.overrides = Dictionary(
+            uniqueKeysWithValues: overrides.map { ($0.key.rawValue, $0.value) }
+        )
         self.localeIdentifier = localeIdentifier
+    }
+
+    /// Reads or replaces the override for one key.
+    public subscript(key: SeatLayerPickerStringKey) -> String? {
+        get { overrides[key.rawValue] }
+        set { overrides[key.rawValue] = newValue }
     }
 
     public static var supportedLocales: [String] { generatedLocales.keys.sorted() }
@@ -379,36 +338,36 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         replacing values: [String: String] = [:]
     ) -> String {
         let template = overrides[key.rawValue]
+            ?? overrides[key.localeKey]
+            ?? localized[key.localeKey]
             ?? localized[key.rawValue]
-            ?? Self.english[key]
-            ?? key.rawValue
+            ?? key.englishDefault
         return values.reduce(template) { result, entry in
             result.replacingOccurrences(of: "{\(entry.key)}", with: entry.value)
         }
     }
 
+    /// The wording for `count`, choosing the singular or plural form.
+    public func text(
+        _ plural: SeatLayerPickerPluralKey,
+        count: Int,
+        replacing values: [String: String] = [:]
+    ) -> String {
+        var merged = values
+        merged["count"] = String(count)
+        return text(plural.form(count), replacing: merged)
+    }
+
     public func ticketCount(_ count: Int) -> String {
-        let pluralKey = count == 1 ? "ticketCount.one" : "ticketCount.other"
-        if let exact = overrides[pluralKey] ?? localized[pluralKey] {
-            return exact.replacingOccurrences(of: "{count}", with: String(count))
-        }
-        return count == 1 ? "1 ticket" : "\(count) tickets"
+        text(SeatLayerPickerPluralKeys.ticketCount, count: count)
     }
 
     public func findBestSeats(_ count: Int) -> String {
-        let pluralKey = count == 1 ? "findBestSeats.one" : "findBestSeats.other"
-        let template = overrides[pluralKey]
-            ?? localized[pluralKey]
-            ?? (count == 1 ? "Find {count} best seat" : "Find {count} best seats")
-        return template.replacingOccurrences(of: "{count}", with: String(count))
+        text(SeatLayerPickerPluralKeys.findBestSeats, count: count)
     }
 
     public func seatsLeft(_ count: Int) -> String {
-        text(.seatsLeft, replacing: ["count": String(count)])
-    }
-
-    public func fromPrice(_ price: String) -> String {
-        text(.fromPrice, replacing: ["price": price])
+        text(SeatLayerPickerPluralKeys.seatsLeftInSection, count: count)
     }
 
     public func continueWithTotal(_ money: String) -> String {
@@ -440,6 +399,7 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             : String(words.prefix(1)).uppercased(with: resolvedLocale) + words.dropFirst()
         let label = overrides["accessNeeds.\(key)"]
             ?? overrides["accessNeeds.\(canonicalKey)"]
+            ?? localized["accessNeeds.\(canonicalKey)"]
             ?? known[canonicalKey].map { text($0) }
             ?? fallback
         guard let count else { return label }
@@ -449,8 +409,17 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         )
     }
 
+    /// The reviewed dictionary to consult, or nothing.
+    ///
+    /// The token table holds the English wording every surface is designed
+    /// around, and it answers unless a host has named a locale. A reviewed
+    /// dictionary is a starting point a host opts into, exactly as
+    /// `SeatLayerPickerStrings.forLocale` is on the other native SDKs — so a
+    /// buyer whose device is English still reads the wording the components
+    /// were drawn with, and a locale with no dictionary keeps it too rather
+    /// than borrowing the reviewed English.
     private var localized: [String: String] {
-        let requested = requestedLocaleIdentifier
+        guard let requested = namedLocaleIdentifier else { return [:] }
         if let exact = Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(requested) == .orderedSame
         })?.value { return exact }
@@ -463,7 +432,16 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         }
         return Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(language) == .orderedSame
-        })?.value ?? Self.generatedLocales["en"] ?? [:]
+        })?.value ?? [:]
+    }
+
+    /// The locale a host asked for, if it asked for one.
+    private var namedLocaleIdentifier: String? {
+        guard let named = localeIdentifier else { return nil }
+        let candidate = named
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: "-")
+        return candidate.isEmpty ? nil : candidate
     }
 
     private var requestedLocaleIdentifier: String {
@@ -472,98 +450,6 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             .replacingOccurrences(of: "_", with: "-")
         return candidate.isEmpty ? "en" : candidate
     }
-
-    private static let english: [SeatLayerPickerStringKey: String] = [
-        .accessCart: "Mobility cart",
-        .accessCompanion: "Companion",
-        .accessDesignatedAisle: "Aisle seat",
-        .accessHearing: "Hearing support",
-        .accessLiftArmrest: "Lift armrest",
-        .accessLowVision: "Low vision",
-        .accessNeedWithCount: "{need} · {count}",
-        .accessPlusSize: "Plus-size seat",
-        .accessSemiAmbulatory: "Semi-ambulatory",
-        .accessSensoryFriendly: "Sensory-friendly",
-        .accessSignLanguage: "Sign language view",
-        .accessStepFree: "Step-free",
-        .accessWheelchair: "Wheelchair",
-        .accessiblePlace: "Accessible place",
-        .accessibility: "Accessibility and view filters",
-        .accessibilityTitle: "Accessibility and view",
-        .addTickets: "Add tickets",
-        .allFloors: "All floors",
-        .anyTicketType: "Any ticket type",
-        .anyVenueZone: "Any venue zone",
-        .applyFilters: "Apply filters",
-        .backToVenue: "Back to venue",
-        .bestSeats: "Best seats",
-        .cancel: "Cancel",
-        .chooseSeats: "Choose your seats",
-        .chooseTickets: "Choose tickets",
-        .chooseGuests: "Choose the number of guests for this table",
-        .close: "Close seat selection",
-        .collapseCart: "Collapse cart",
-        .colorblindSafe: "Colourblind-friendly colours",
-        .continueWithTotal: "Continue · {money}",
-        .continueWord: "Continue",
-        .emptyTrayHint: "Tap a seat on the map, or let us pick the best available for you.",
-        .errorMessage: "The seat map could not be loaded.",
-        .dismiss: "Dismiss",
-        .expandCart: "Expand cart",
-        .fitVenue: "Fit venue",
-        .fromPrice: "From {price}",
-        .generalAdmission: "General admission",
-        .holdExpired: "Your seat hold expired",
-        .heldFor: "{clock}",
-        .hideLimitedView: "Hide limited-view seats",
-        .holdAndCheckout: "Hold seats & checkout",
-        .limitedViewNotice: "This seat may have a limited or obstructed view.",
-        .loading: "Loading seat map…",
-        .mapView: "Seat map",
-        .moreTickets: "More tickets",
-        .moveVenue: "Drag to move venue",
-        .nextSeat: "Next seat",
-        .nextSection: "Next section",
-        .orbitMode: "Rotate venue",
-        .overview: "Venue",
-        .panMode: "Move venue",
-        .poweredBy: "Powered by SeatLayer",
-        .previousSeat: "Previous seat",
-        .previousSection: "Previous section",
-        .recentre: "Recentre on this seat",
-        .removeSeat: "Remove ticket",
-        .removeTable: "Remove table",
-        .recoverSeats: "Recover seats",
-        .retry: "Try again",
-        .select: "Select",
-        .selectTicketTier: "Select a ticket type",
-        .seatsLeft: "{count} left",
-        .showLess: "Show less",
-        .row: "Row",
-        .salesClosed: "Ticket sales for this event have ended.",
-        .seat: "Seat",
-        .seatRemoved: "Ticket removed.",
-        .section: "Section",
-        .testMode: "TEST MODE",
-        .testModeDescription: "Test event. No real booking will be made.",
-        .ticket: "Ticket",
-        .noTicketsAvailable: "No tickets are currently available.",
-        .place: "Place",
-        .placesAvailable: "{count} places currently available",
-        .confirmTable: "Confirm table",
-        .ticketCount: "{count} tickets",
-        .tierCompanionGuidance: "Requires the adjacent wheelchair place.",
-        .ticketType: "Ticket type",
-        .undo: "Undo",
-        .venue3D: "3D",
-        .viewFromHere: "View from here",
-        .viewFromYourSeat: "view from your seat",
-        .viewInformation: "View information",
-        .wheelchairAccessibleSeating: "Wheelchair-accessible seating.",
-        .wheelchairSpaceNoFixedChair: "Wheelchair space without a fixed chair.",
-        .zoomIn: "Zoom in",
-        .zoomOut: "Zoom out",
-    ]
 }
 
 /// Deliberately derives buyer copy from stable error classification, never
@@ -583,7 +469,7 @@ func seatLayerPickerBuyerErrorText(
         "no_inventory",
     ]
     if unavailableCodes.contains(error.code) {
-        return strings.text(.noTicketsAvailable)
+        return strings.text(.noSelectableSeats)
     }
     return error.isRetryable ? strings.text(.retry) : strings.text(.errorMessage)
 }

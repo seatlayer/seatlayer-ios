@@ -40,7 +40,7 @@ for origin-bound private buyer sessions; no event key or bearer is put in the
 page URL.
 
 - Swift package (SPM), iOS 15+
-- Hosted runtime: `seatlayer-js@0.71.5/mobile.html`
+- Hosted runtime: `seatlayer-js@0.84.1/mobile.html`
 - Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
 - Raw chart protocol: 1 (unchanged)
 - Native picker protocol: 2 with snapshot contract 1
@@ -88,7 +88,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.3.4")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.4.0")
 ]
 ```
 

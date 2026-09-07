@@ -28,6 +28,11 @@ struct SeatLayerPickerPalette {
     let divider: Color
     let error: Color
     let warning: Color
+    let warnText: Color
+    let premium: Color
+    let premiumText: Color
+    let chrome: Color
+    let chromeLine: Color
     let accent: Color
     let onAccent: Color
     let mapBackground: Color
@@ -36,6 +41,25 @@ struct SeatLayerPickerPalette {
     let mapSelection: Color
     let mapTheme: SeatLayerPickerMapTheme
     let dark: Bool
+
+    /// Immersive chrome floats over a rendered venue and is dark in both
+    /// appearances, so its glass reads from the dark palette either way.
+    static let immersiveGlass = pickerColor(SeatLayerPickerDarkColorTokens.immersiveGlass)
+    static let immersiveGlassBorder =
+        pickerColor(SeatLayerPickerDarkColorTokens.immersiveGlassBorder)
+    static let immersiveGlassInk =
+        pickerColor(SeatLayerPickerDarkColorTokens.immersiveGlassInk)
+    static let immersiveCaption =
+        pickerColor(SeatLayerPickerDarkColorTokens.immersiveCaption)
+    static let immersiveCaptionBorder =
+        pickerColor(SeatLayerPickerDarkColorTokens.immersiveCaptionBorder)
+    static let immersiveCaptionInk =
+        pickerColor(SeatLayerPickerDarkColorTokens.immersiveCaptionInk)
+}
+
+/// One canonical token hex as a SwiftUI colour.
+func pickerColor(_ hex: String) -> Color {
+    Color(uiColor: UIColor(slHex: hex) ?? .clear)
 }
 
 func resolveSeatLayerPickerPalette(
@@ -71,6 +95,11 @@ func resolveSeatLayerPickerPalette(
     let onAccent = brandRole(style.theme.onAccent, brand?.accentInk, defaults.onAccent)
     let error = role(style.theme.error, defaults.error)
     let warning = role(style.theme.warning, defaults.warning)
+    let warnText = defaults.warnText
+    let premium = defaults.premium
+    let premiumText = defaults.premiumText
+    let chrome = defaults.chrome
+    let chromeLine = defaults.chromeLine
     let mapBackground = role(style.theme.map.background, defaults.mapBackground)
     let mapRow = role(style.theme.map.rowLabelColor, defaults.mapRowLabel)
     let mapText = role(style.theme.map.textColor, defaults.mapText)
@@ -88,6 +117,11 @@ func resolveSeatLayerPickerPalette(
         divider: Color(uiColor: UIColor(slHex: divider) ?? .separator),
         error: Color(uiColor: UIColor(slHex: error) ?? .systemRed),
         warning: Color(uiColor: UIColor(slHex: warning) ?? .systemOrange),
+        warnText: pickerColor(warnText),
+        premium: pickerColor(premium),
+        premiumText: pickerColor(premiumText),
+        chrome: pickerColor(chrome),
+        chromeLine: pickerColor(chromeLine),
         accent: Color(uiColor: UIColor(slHex: accent) ?? .systemIndigo),
         onAccent: Color(uiColor: UIColor(slHex: onAccent) ?? .white),
         mapBackground: Color(uiColor: UIColor(slHex: mapBackground) ?? .systemBackground),
@@ -148,37 +182,35 @@ extension UIColor {
     }
 }
 
+/// The default palettes, read straight from the generated design tokens.
 private enum PickerHex {
     struct Values {
-        let background: String
-        let surface: String
-        let text: String
-        let muted: String
-        let divider: String
-        let error: String
-        let warning: String
-        let accent: String
-        let onAccent: String
-        let mapBackground: String
-        let mapRowLabel: String
-        let mapText: String
-        let mapSelection: String
+        let mode: [String: String]
+
+        subscript(role: String) -> String { mode[role] ?? "#000000" }
+
+        var background: String { self["background"] }
+        var surface: String { self["surface"] }
+        var text: String { self["text"] }
+        var muted: String { self["mutedText"] }
+        var divider: String { self["divider"] }
+        var error: String { self["error"] }
+        var warning: String { self["warning"] }
+        var warnText: String { self["warnText"] }
+        var premium: String { self["premium"] }
+        var premiumText: String { self["premiumText"] }
+        var chrome: String { self["chrome"] }
+        var chromeLine: String { self["chromeLine"] }
+        var accent: String { self["accent"] }
+        var onAccent: String { self["onAccent"] }
+        var mapBackground: String { self["mapBackground"] }
+        var mapRowLabel: String { self["mapRowLabel"] }
+        var mapText: String { self["mapText"] }
+        var mapSelection: String { self["mapSelection"] }
     }
 
-    static let light = Values(
-        background: "#F6F7FB", surface: "#FFFFFF", text: "#172033",
-        muted: "#667085", divider: "#29172033", error: "#B42318",
-        warning: "#F4B740", accent: "#5B4B8A", onAccent: "#FFFFFF",
-        mapBackground: "#E9EDF4", mapRowLabel: "#334155",
-        mapText: "#172033", mapSelection: "#5B4B8A"
-    )
-
-    static let dark = Values(
-        background: "#0F1522", surface: "#1A2234", text: "#EEF1F8",
-        muted: "#A5AEC2", divider: "#3DA5AEC2", error: "#FF6B6B",
-        warning: "#F4B740", accent: "#9B8AFB", onAccent: "#110D20",
-        mapBackground: "#0F1522", mapRowLabel: "#D7DEEA",
-        mapText: "#F4F7FB", mapSelection: "#9B8AFB"
-    )
+    static let light = Values(mode: SeatLayerPickerLightColorTokens.all)
+    static let dark = Values(mode: SeatLayerPickerDarkColorTokens.all)
 }
+
 #endif

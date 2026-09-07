@@ -86,6 +86,11 @@ public struct SeatLayerPickerSectionSummary: Sendable, Equatable {
     public let color: String?
     public let dominantCategoryKey: String?
     public let seatsLeft: Int?
+    /// Free spaces matching the active accessibility filter, under
+    /// `section-access-counts-v1`. Nil means nobody counted — never zero:
+    /// chrome that read a missing count as none would tell a buyer a section
+    /// is full when the truth is that it was not measured.
+    public let accessibleFree: Int?
     public let priceMin: Double?
     public let priceMax: Double?
 }
@@ -253,7 +258,12 @@ public struct SeatLayerPickerFloorInfo: Sendable, Equatable {
 
 public struct SeatLayerPickerAccessNeed: Sendable, Equatable {
     public let key: String
-    public let count: Int
+    /// How many spaces of this kind are free, where the runtime counts them.
+    ///
+    /// Absent is not zero. A runtime that reports a provision without a figure
+    /// is saying the venue has it, not that none is left — dimming that row
+    /// like a sold-out one hid provisions the buyer could still ask for.
+    public let count: Int?
 }
 
 public struct SeatLayerPickerMapState: Sendable, Equatable {
@@ -282,6 +292,12 @@ public struct SeatLayerPickerMapState: Sendable, Equatable {
     public let hideLimitedView: Bool
     public let canZoomIn: Bool
     public let canZoomOut: Bool
+    /// Whether the camera is already showing the whole venue, so a fit control
+    /// can rest rather than repeat a move that changes nothing.
+    ///
+    /// Absent on a runtime that does not report its pose at all, which is not
+    /// the same fact as a runtime saying the camera is somewhere else.
+    public let atVenueFit: Bool?
     public let categoryFilter: [String]
     public let accessibilityFilter: [String]
     public let accessNeeds: [SeatLayerPickerAccessNeed]

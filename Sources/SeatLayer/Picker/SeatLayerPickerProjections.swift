@@ -1,5 +1,47 @@
 import Foundation
 
+/// The ONE identity of a cart line, used by every surface that has to say
+/// which ticket it means.
+///
+/// `lineKey` comes from the runtime and is NOT an identity: a chart that keys
+/// its lines by ROW hands both seats of row 102-A the same key. A list keyed
+/// on it drew one card twice; a removal keyed on it faded the wrong card and
+/// blocked the undo of the right one. So the line's own seat id answers first,
+/// its inventory label — the address `picker.removeCartLine` itself takes —
+/// second, and the runtime's key only when a line names nothing else.
+///
+/// Order-independent by construction: the identity of a line does not move
+/// when a sibling above it leaves.
+public func seatLayerPickerCartRowIdentity(
+    _ line: SeatLayerPickerCartLine
+) -> String {
+    let identity = SeatLayerPickerProjections.ticketIdentity(of: line)
+    if let seatId = identity.seatId { return "seat:\(seatId)" }
+    if let label = identity.removalLabel { return "label:\(label)" }
+    if let objectId = identity.objectId { return "object:\(objectId)" }
+    return "line:\(identity.lineKey ?? "")"
+}
+
+/// A stable, unique row identity for each cart line, in the list's own order.
+///
+/// The identity above, with the list position appended only for lines that
+/// name nothing to tell them apart — two identical rows are indistinguishable
+/// inventory, and the position is the only thing left that separates them.
+public func seatLayerPickerCartRowIdentities(
+    _ lines: [SeatLayerPickerCartLine]
+) -> [String] {
+    var used: Set<String> = []
+    var identities: [String] = []
+    identities.reserveCapacity(lines.count)
+    for (index, line) in lines.enumerated() {
+        var identity = seatLayerPickerCartRowIdentity(line)
+        if used.contains(identity) { identity = "\(identity)#\(index)" }
+        used.insert(identity)
+        identities.append(identity)
+    }
+    return identities
+}
+
 /// Exact inventory identity used by remove, undo, and pending-cart projection.
 public struct SeatLayerPickerTicketIdentity: Sendable, Equatable {
     public let lineKey: String?
@@ -39,58 +81,6 @@ public struct SeatLayerPickerConfirmedCartProjection: Sendable, Equatable {
     }
 }
 
-public struct SeatLayerPickerDenseDisplay: Sendable, Equatable {
-    public let section: String?
-    public let rowLabel: String?
-    public let seatLabel: String?
-    public let categoryLabel: String?
-    public let amountText: String?
-
-    public init(
-        section: String? = nil,
-        rowLabel: String? = nil,
-        seatLabel: String? = nil,
-        categoryLabel: String? = nil,
-        amountText: String? = nil
-    ) {
-        self.section = section
-        self.rowLabel = rowLabel
-        self.seatLabel = seatLabel
-        self.categoryLabel = categoryLabel
-        self.amountText = amountText
-    }
-}
-
-public struct SeatLayerPickerDenseLine: Sendable, Equatable {
-    public let item: SeatLayerPickerCartLine
-    public let identity: SeatLayerPickerTicketIdentity
-    public let section: String
-    public let rowLabel: String
-    public let seatLabel: String
-    public let categoryLabel: String
-    public let amountText: String
-    public let quantity: Int
-    public let total: Double
-    public let held: Bool
-    public let groupable: Bool
-}
-
-public struct SeatLayerPickerDenseRun: Sendable, Equatable {
-    public let members: [SeatLayerPickerDenseLine]
-    public let seatsLabel: String
-    public let total: Double
-    public let quantity: Int
-
-    public var isGroup: Bool { members.count > 1 }
-    public var id: String {
-        members.first?.identity.lineKey
-            ?? members.first?.identity.removalLabel
-            ?? members.first?.identity.objectId
-            ?? members.first?.identity.seatId
-            ?? "empty-run"
-    }
-}
-
 public enum SeatLayerPickerRemovalPhase: String, Sendable, Equatable, CaseIterable {
     case awaitingRemove
     case undoWindow
@@ -110,22 +100,69 @@ public enum SeatLayerPickerProjections {
         )
     }
 
+    /// Whether two cart lines are the same ticket.
+    ///
+    /// Ordered exactly as the identity is: a seat id decides when both lines
+    /// name one, then the inventory label, and the runtime's row-scoped
+    /// `lineKey` only as the last resort. Comparing the key first is what made
+    /// dropping one seat of a row look like dropping the row.
+    public static func sameTicket(
+        _ a: SeatLayerPickerCartLine,
+        _ b: SeatLayerPickerCartLine
+    ) -> Bool {
+        sameTicket(ticketIdentity(of: a), ticketIdentity(of: b))
+    }
+
+    public static func sameTicket(
+        _ a: SeatLayerPickerTicketIdentity,
+        _ b: SeatLayerPickerTicketIdentity
+    ) -> Bool {
+        if let left = a.seatId, let right = b.seatId { return left == right }
+        if let left = a.removalLabel, let right = b.removalLabel { return left == right }
+        if let left = a.objectId, let right = b.objectId { return left == right }
+        if let left = a.lineKey, let right = b.lineKey { return left == right }
+        return false
+    }
+
+    /// Whether `line` is still one of `lines`, by ticket identity.
+    public static func containsTicket(
+        _ lines: [SeatLayerPickerCartLine],
+        _ line: SeatLayerPickerCartLine
+    ) -> Bool {
+        let wanted = ticketIdentity(of: line)
+        return lines.contains { sameTicket(ticketIdentity(of: $0), wanted) }
+    }
+
     /// Excludes the unanswered seat independently per line: addressed lines
     /// compare seat id; legacy lines compare the exact inventory label.
     public static func confirmedCart(
         _ items: [SeatLayerPickerCartLine],
         pending: SelectedSeat?
     ) -> SeatLayerPickerConfirmedCartProjection {
-        guard let pending else {
+        confirmedCart(items, excluding: [pending].compactMap { $0 })
+    }
+
+    /// The cart with every unanswered seat taken out of it.
+    ///
+    /// A seat a card is still asking about is in the runtime's selection from
+    /// the moment it is tapped, but the buyer has not agreed to it: counting it
+    /// would show a ticket and a price for a question that has not been
+    /// answered.
+    public static func confirmedCart(
+        _ items: [SeatLayerPickerCartLine],
+        excluding unanswered: [SelectedSeat]
+    ) -> SeatLayerPickerConfirmedCartProjection {
+        guard !unanswered.isEmpty else {
             return .init(items: items, totals: totals(items))
         }
-        let pendingId = nonBlank(pending.id)
-        let pendingLabel = nonBlank(pending.label)
+        let ids = Set(unanswered.compactMap { nonBlank($0.id) })
+        let labels = Set(unanswered.compactMap { nonBlank($0.label) })
         let kept = items.filter { line in
             let identity = ticketIdentity(of: line)
-            return identity.seatId == nil
-                ? identity.removalLabel != pendingLabel
-                : identity.seatId != pendingId
+            guard let seatId = identity.seatId else {
+                return identity.removalLabel.map { !labels.contains($0) } ?? true
+            }
+            return !ids.contains(seatId)
         }
         return .init(items: kept, totals: totals(kept))
     }
@@ -139,75 +176,6 @@ public enum SeatLayerPickerProjections {
             currency: currencies.count == 1 ? currencies.first : nil,
             hasMixedCurrencies: currencies.count > 1
         )
-    }
-
-    public static func denseLine(
-        _ item: SeatLayerPickerCartLine,
-        selection: [SelectedSeat] = [],
-        display: SeatLayerPickerDenseDisplay = .init(),
-        held: Bool = false
-    ) -> SeatLayerPickerDenseLine {
-        let identity = ticketIdentity(of: item)
-        let selected = uniqueSelection(for: identity, in: selection)
-        let section = firstKnown(display.section, item.sectionLabel, selected?.sectionLabel,
-                                 display.categoryLabel, item.categoryKey,
-                                 item.displayLabel, identity.removalLabel) ?? ""
-        let row = firstKnown(display.rowLabel, item.rowLabel, selected?.rowLabel) ?? ""
-        let seat = firstKnown(display.seatLabel, item.seatNumber, selected?.seatNumber,
-                              item.displayLabel, identity.removalLabel, identity.objectId) ?? ""
-        let category = firstKnown(display.categoryLabel, item.categoryKey) ?? ""
-        let quantity = validQuantity(item.quantity)
-        let amount = firstKnown(display.amountText, "\(item.currency) · \(item.unitPrice * Double(quantity))") ?? ""
-        return SeatLayerPickerDenseLine(
-            item: item,
-            identity: identity,
-            section: section,
-            rowLabel: row,
-            seatLabel: seat,
-            categoryLabel: category,
-            amountText: amount,
-            quantity: quantity,
-            total: item.unitPrice * Double(quantity),
-            held: held,
-            groupable: item.objectType != "ga"
-                && quantity <= 1
-                && (selected?.tiers?.count ?? 0) <= 1
-                && identity.removalLabel != nil
-        )
-    }
-
-    /// Folds only adjacent lines whose complete buyer-facing run key matches.
-    public static func denseRuns(_ lines: [SeatLayerPickerDenseLine]) -> [SeatLayerPickerDenseRun] {
-        var groups: [[SeatLayerPickerDenseLine]] = []
-        for line in lines {
-            if let last = groups.indices.last,
-               let first = groups[last].first,
-               canJoin(first, line) {
-                groups[last].append(line)
-            } else {
-                groups.append([line])
-            }
-        }
-        return groups.map { members in
-            SeatLayerPickerDenseRun(
-                members: members,
-                seatsLabel: seatRunLabel(members.map(\.seatLabel)),
-                total: members.reduce(0) { $0 + $1.total },
-                quantity: members.reduce(0) { $0 + $1.quantity }
-            )
-        }
-    }
-
-    public static func membersInSeatOrder(
-        _ run: SeatLayerPickerDenseRun
-    ) -> [SeatLayerPickerDenseLine] {
-        let numbered = run.members.map { seatNumber($0.seatLabel) }
-        guard numbered.allSatisfy({ $0 != nil }) else { return run.members }
-        return run.members.enumerated().sorted {
-            let left = numbered[$0.offset] ?? 0
-            let right = numbered[$1.offset] ?? 0
-            return left == right ? $0.offset < $1.offset : left < right
-        }.map(\.element)
     }
 
     public static func seatRunLabel(_ labels: [String]) -> String {
@@ -247,18 +215,6 @@ public enum SeatLayerPickerProjections {
                 .replacingOccurrences(of: "\"", with: "\\\"")
             return escaped.map { "\"\($0)\"" } ?? "null"
         }.joined(separator: ",").withJSONArrayBrackets
-    }
-
-    private static func canJoin(
-        _ left: SeatLayerPickerDenseLine,
-        _ right: SeatLayerPickerDenseLine
-    ) -> Bool {
-        left.groupable && right.groupable
-            && left.held == right.held
-            && left.section == right.section
-            && left.rowLabel == right.rowLabel
-            && left.categoryLabel == right.categoryLabel
-            && left.amountText == right.amountText
     }
 
     private static func uniqueSelection(

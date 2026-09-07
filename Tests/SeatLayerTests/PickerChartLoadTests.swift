@@ -41,7 +41,7 @@ final class PickerChartLoadTests: XCTestCase {
                 "transform": 12,
                 "host": "webview",
                 "platform": "ios",
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": 2,
                 "chromeOwner": "native",
                 "bootMs": 1_018,
@@ -185,6 +185,48 @@ final class PickerChartLoadTests: XCTestCase {
         XCTAssertNil(loads[0].tapToReadyMs)
     }
 
+    func testAVenueThatNeverDrewRaisesAnErrorSurfaceWithACode() {
+        let controller = chartController(capability: true, event: true)
+        XCTAssertNil(controller.chartLoadFailure)
+
+        controller.accept(chartLoad: ["trace": [
+            "outcome": "failed",
+            "stage": "api",
+        ]])
+        // The stage the runtime got to, so the surface can say which failure
+        // it is without the trace leaving the SDK.
+        XCTAssertEqual(controller.chartLoadFailure, "api")
+
+        // A later attempt that works is the venue arriving: the surface comes
+        // back down rather than pinning the buyer on an error.
+        controller.accept(chartLoad: ["trace": ["outcome": "success"]])
+        XCTAssertNil(controller.chartLoadFailure)
+
+        // And a reload starts from a clean sheet.
+        controller.accept(chartLoad: ["trace": ["outcome": "failed"]])
+        XCTAssertEqual(controller.chartLoadFailure, "failed")
+        controller.beginLoading(startedAtMilliseconds: 900)
+        XCTAssertNil(controller.chartLoadFailure)
+    }
+
+    func testAFailureCodeIsNeverNameless() {
+        // The stage the runtime got to is the most useful name it has.
+        let staged = decodeSeatLayerChartLoadTrace(["outcome": "failed", "stage": "r2"])
+        XCTAssertEqual(staged.flatMap(seatLayerPickerChartLoadFailureCode), "r2")
+        // A blank stage is not a name, so the outcome answers instead.
+        let blank = decodeSeatLayerChartLoadTrace(["outcome": "failed", "stage": "  "])
+        XCTAssertEqual(blank.flatMap(seatLayerPickerChartLoadFailureCode), "failed")
+        // A trace that says nothing but "not success" still gets a name.
+        let nameless = decodeSeatLayerChartLoadTrace(["outcome": "", "stage": ""])
+        XCTAssertEqual(
+            nameless.flatMap(seatLayerPickerChartLoadFailureCode),
+            "chart_load_failed"
+        )
+        // A render that worked has nothing to report.
+        let fine = decodeSeatLayerChartLoadTrace(["outcome": "success", "stage": "api"])
+        XCTAssertNil(fine.flatMap(seatLayerPickerChartLoadFailureCode))
+    }
+
     func testTraceRequiresBothExactCapabilityAndEvent() {
         for (capability, event, expected) in [
             (false, false, 0),
@@ -212,7 +254,7 @@ final class PickerChartLoadTests: XCTestCase {
         controller.connect(
             transport: PickerChartLoadTransport(),
             bundleInfo: BundleInfo([
-                "bundle": "0.71.5",
+                "bundle": "0.84.1",
                 "protocol": ["min": 2, "max": 2],
                 "capabilities": .array(
                     capability ? ["chart-load-trace-v1"] : []

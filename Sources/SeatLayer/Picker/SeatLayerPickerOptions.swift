@@ -47,6 +47,9 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     public var map3D: Bool
     public var accessibility: Bool
     public var cartSheet: Bool
+    /// Off by default at every width: the ticket panel already names the
+    /// section the buyer is in, and a second bar under the map takes height
+    /// the map needs more.
     public var dock: Bool
     public var confirmCard: Bool
     public var holdPill: Bool
@@ -56,13 +59,44 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     public var venue3D: Bool
     public var seatViewChrome: Bool
     public var systemBars: Bool
+    /// Whether the map behind an open seat card is put behind blurred glass
+    /// with a clear hole around the seat.
+    public var seatCardGlass: Bool
+    /// Whether a hold running down offers the buyer more time.
+    ///
+    /// Off on the phone: the countdown itself is the prompt there, and a
+    /// second surface over a map the buyer is working in is one interruption
+    /// too many. Set `phoneExtendHoldPrompt` to show it anyway.
+    public var extendHoldPrompt: Bool
+    public var phoneExtendHoldPrompt: Bool
     /// Dense phone chrome keeps these controls in their native sheets by
     /// default. Set the corresponding flag to expose the enabled control on
     /// the map as well; the original `overview`, `zoom`, and `colorblind`
     /// switches remain source-compatible master gates.
     public var phoneOverview: Bool
-    public var phoneZoom: Bool
     public var phoneColorblind: Bool
+
+    /// Retired. The phone's control column now carries `+` and the whole-venue
+    /// disc for every buyer, so there is nothing left for this to reveal.
+    ///
+    /// Still stored and still read by `showsZoom(wide:)` for a host composing
+    /// its own controls; the ready-made picker no longer consults it.
+    @available(*, deprecated, message: "The phone column always carries the zoom controls.")
+    public var phoneZoom: Bool {
+        get { storedPhoneZoom }
+        set { storedPhoneZoom = newValue }
+    }
+
+    /// Retired for the same reason as `phoneZoom`: the whole-venue disc is
+    /// part of the phone column rather than an opt-in.
+    @available(*, deprecated, message: "The phone column always carries the whole-venue control.")
+    public var phoneFit: Bool {
+        get { storedPhoneFit }
+        set { storedPhoneFit = newValue }
+    }
+
+    private var storedPhoneZoom: Bool
+    private var storedPhoneFit: Bool
 
     public init(
         header: Bool = true,
@@ -77,16 +111,20 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
         map3D: Bool = true,
         accessibility: Bool = true,
         cartSheet: Bool = true,
-        dock: Bool = true,
+        dock: Bool = false,
         confirmCard: Bool = true,
         holdPill: Bool = true,
         attribution: Bool = true,
+        seatCardGlass: Bool = true,
+        extendHoldPrompt: Bool = true,
+        phoneExtendHoldPrompt: Bool = false,
         venue3D: Bool = true,
         seatViewChrome: Bool = true,
         systemBars: Bool = true,
         phoneOverview: Bool = false,
         phoneZoom: Bool = false,
-        phoneColorblind: Bool = false
+        phoneColorblind: Bool = false,
+        phoneFit: Bool = false
     ) {
         self.header = header
         self.priceLegend = priceLegend
@@ -104,17 +142,25 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
         self.confirmCard = confirmCard
         self.holdPill = holdPill
         self.attribution = attribution
+        self.seatCardGlass = seatCardGlass
+        self.extendHoldPrompt = extendHoldPrompt
+        self.phoneExtendHoldPrompt = phoneExtendHoldPrompt
         self.venue3D = venue3D
         self.seatViewChrome = seatViewChrome
         self.systemBars = systemBars
         self.phoneOverview = phoneOverview
-        self.phoneZoom = phoneZoom
+        self.storedPhoneZoom = phoneZoom
         self.phoneColorblind = phoneColorblind
+        self.storedPhoneFit = phoneFit
     }
 
     public func showsOverview(wide: Bool) -> Bool { overview && (wide || phoneOverview) }
-    public func showsZoom(wide: Bool) -> Bool { zoom && (wide || phoneZoom) }
+    public func showsZoom(wide: Bool) -> Bool { zoom && (wide || storedPhoneZoom) }
     public func showsColorblind(wide: Bool) -> Bool { colorblind && (wide || phoneColorblind) }
+    public func showsFit(wide: Bool) -> Bool { fit && (wide || storedPhoneFit) }
+    public func showsExtendHoldPrompt(wide: Bool) -> Bool {
+        extendHoldPrompt && (wide || phoneExtendHoldPrompt)
+    }
 }
 
 /// Runtime behaviour shared by the ready-made and headless picker surfaces.
@@ -130,6 +176,15 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
     public var initialHoldId: String?
     public var max3DSeats: Int?
     public var hideEventDetails: Bool
+    /// The event's name, for chrome that has nothing else to print while the
+    /// first snapshot is still on its way.
+    public var eventName: String?
+    /// Whether a seat someone else has already booked is drawn as booked
+    /// rather than simply absent.
+    public var showBookedOverlay: Bool
+    /// Whether the buyer's colourblind-safe choice is remembered between
+    /// sessions rather than asked for again each time.
+    public var persistColorblindPreference: Bool
     public var panelInitiallyCollapsed: Bool
     public var refreshOnResume: Bool
     public var announceHoldLapse: Bool
@@ -149,6 +204,9 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         initialHoldId: String? = nil,
         max3DSeats: Int? = nil,
         hideEventDetails: Bool = false,
+        eventName: String? = nil,
+        showBookedOverlay: Bool = true,
+        persistColorblindPreference: Bool = true,
         panelInitiallyCollapsed: Bool = true,
         refreshOnResume: Bool = true,
         announceHoldLapse: Bool = true,
@@ -167,6 +225,9 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         self.initialHoldId = initialHoldId
         self.max3DSeats = max3DSeats
         self.hideEventDetails = hideEventDetails
+        self.eventName = eventName
+        self.showBookedOverlay = showBookedOverlay
+        self.persistColorblindPreference = persistColorblindPreference
         self.panelInitiallyCollapsed = panelInitiallyCollapsed
         self.refreshOnResume = refreshOnResume
         self.announceHoldLapse = announceHoldLapse

@@ -5,6 +5,12 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      record_goldens:
+        description: Re-record the chrome goldens on the CI simulator and upload them as an artifact
+        type: boolean
+        default: false
 
 jobs:
   test-and-build:
@@ -15,6 +21,8 @@ jobs:
         run: bash Scripts/check-public-repository.sh
       - name: Verify generated picker design inputs
         run: node Scripts/validate-picker-design.mjs
+      - name: Verify the generated picker token files are current
+        run: node Scripts/generate-picker-tokens.mjs --check
       - name: Test bridge and payload contracts
         run: swift test
       - name: Build the iOS library
@@ -31,6 +39,29 @@ jobs:
           -sdk iphonesimulator
           -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
+      # The goldens are pinned to the runner image's iPhone 16 simulator and its
+      # iOS runtime. Recording them on any other runtime moves pixels that are
+      # not chrome changes, so they are recorded here, on the configuration
+      # that verifies them: dispatch the workflow with `record_goldens` and
+      # commit the uploaded artifact. Naming the OS in the destination made the
+      # test host abort before bootstrapping on this image, so it is left to
+      # the image; a runner-image change shows up as a golden diff, which is
+      # the signal to re-record.
+      - name: Run the chrome golden tests on a simulator
+        env:
+          TEST_RUNNER_SEATLAYER_RECORD_GOLDENS: ${{ inputs.record_goldens == true && '1' || '' }}
+        run: >-
+          xcodebuild test
+          -project Example/SeatLayerDemo.xcodeproj
+          -scheme SeatLayerDemo
+          -destination 'platform=iOS Simulator,name=iPhone 16'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Upload the recorded goldens
+        if: ${{ always() && inputs.record_goldens == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-goldens
+          path: Example/SeatLayerDemoTests/Goldens
       - name: Verify hosted runtime and legacy fixture metadata
         run: |
           source=Sources/SeatLayer/SeatLayerConfiguration.swift

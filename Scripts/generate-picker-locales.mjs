@@ -22,7 +22,7 @@ export function renderLocales(source) {
   }
   const lines = [
     "// This file is generated. Do not edit by hand.",
-    "// Canonical locale input SHA-256: 9401509eb3704d0ec1d61d9ec8a6a4126b0d76ad8f0c3c204c890f24d9a55048",
+    "// Canonical locale input SHA-256: 340645082f4280ce445375fc1675601b78665cb8b0fadb3622bdc8d69561215f",
     "import Foundation",
     "",
     "extension SeatLayerPickerStrings {",

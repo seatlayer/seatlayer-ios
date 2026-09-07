@@ -30,28 +30,6 @@ final class PickerProjectionTests: XCTestCase {
         XCTAssertTrue(projection.hasMixedCurrencies)
     }
 
-    func testDenseRunsFoldAdjacentSeatsAndSortMembers() throws {
-        let lines = [
-            line(key: "three", label: "A-3", seatNumber: "3"),
-            line(key: "one", label: "A-1", seatNumber: "1"),
-            line(key: "two", label: "A-2", seatNumber: "2"),
-        ].map {
-            SeatLayerPickerProjections.denseLine(
-                $0,
-                display: .init(categoryLabel: "Adult", amountText: "€25")
-            )
-        }
-
-        let run = try XCTUnwrap(SeatLayerPickerProjections.denseRuns(lines).first)
-
-        XCTAssertEqual(run.seatsLabel, "1–3")
-        XCTAssertEqual(run.total, 75)
-        XCTAssertEqual(
-            SeatLayerPickerProjections.membersInSeatOrder(run).map(\.seatLabel),
-            ["1", "2", "3"]
-        )
-    }
-
     func testSeatRunLabelsNeverInventGaps() {
         XCTAssertEqual(
             SeatLayerPickerProjections.seatRunLabel(["1", "2", "4", "5", "6"]),
@@ -134,7 +112,7 @@ final class PickerProjectionTests: XCTestCase {
 
         XCTAssertEqual(
             seatLayerPickerBuyerErrorText(bridge, strings: strings),
-            strings.text(.noTicketsAvailable)
+            strings.text(.noSelectableSeats)
         )
         XCTAssertEqual(
             seatLayerPickerBuyerErrorText(host, strings: strings),
@@ -144,10 +122,10 @@ final class PickerProjectionTests: XCTestCase {
         XCTAssertFalse(seatLayerPickerBuyerErrorText(host, strings: strings).contains(opaque))
     }
 
-    func testCanonicalBuilderMatrixHasExactlyTwentyFiveUniqueParts() {
+    func testCanonicalBuilderMatrixHasExactlyTwentyEightUniqueParts() {
 #if canImport(SwiftUI) && canImport(UIKit)
-        XCTAssertEqual(SeatLayerPickerPart.allCases.count, 25)
-        XCTAssertEqual(Set(SeatLayerPickerPart.allCases.map { $0.rawValue }).count, 25)
+        XCTAssertEqual(SeatLayerPickerPart.allCases.count, 28)
+        XCTAssertEqual(Set(SeatLayerPickerPart.allCases.map { $0.rawValue }).count, 28)
 #endif
     }
 

@@ -35,8 +35,37 @@ struct CustomSwiftUIPickerExample: View {
                     SeatLayerPickerDockBar()
                     SeatLayerPickerCartSheet(onCheckout: onCheckout)
                 }
+                SeatLayerPickerToastBand()
+                SeatLayerPickerAccessPanel()
             }
         }
+    }
+}
+
+/// The ready picker, recomposed through the public part builders and reporting
+/// the sale back to the host.
+///
+/// Every part the picker draws can be replaced or wrapped by name, including
+/// the three buyer states added in this round; `onBooked` fires once, when the
+/// handed-off hold has actually become a sale rather than when checkout opened.
+struct ComposedReadyPickerExample: View {
+    let configuration: SeatLayerConfiguration
+    let onCheckout: SeatLayerPickerCheckoutHandler
+    @State private var bookedReference: String?
+
+    var body: some View {
+        SeatLayerPicker(
+            configuration: configuration,
+            builders: SeatLayerPickerBuilders(
+                accessPanel: { context in AnyView(context.defaultContent) },
+                bookedOverlay: { context in AnyView(context.defaultContent) },
+                toast: { context in AnyView(context.defaultContent) }
+            ),
+            callbacks: SeatLayerPickerCallbacks(
+                onBooked: { handoff in bookedReference = handoff.holdId }
+            ),
+            onCheckout: onCheckout
+        )
     }
 }
 

@@ -23,6 +23,38 @@ public enum SeatLayerPickerBackStep: String, Sendable, Equatable, CaseIterable {
     case close
 }
 
+/// What the seat card is asking about the seat it stands over.
+public enum SeatLayerPickerCardIntent: String, Sendable, Equatable, CaseIterable {
+    /// A seat the buyer has just tapped: the card offers to add it.
+    case add
+    /// A seat already in the cart, tapped again: the card offers to take it
+    /// back out. A second tap is a question, never a silent removal.
+    case remove
+}
+
+/// How far the ticket sheet is open.
+///
+/// Three rests, not two: `mini` is the step-down the sheet takes while a seat
+/// card is up, so the card is never argued with by a sheet standing at its
+/// full height.
+public enum SeatLayerPickerSheetDetent: String, Sendable, Equatable, CaseIterable {
+    case mini
+    case peek
+    case open
+}
+
+/// The order of the cart-landing choreography.
+///
+/// The add lands before anything else moves: the card goes, then the chip
+/// arrives in the tray, and only then may the map re-frame. Publishing one
+/// "moment" let all three happen at once, which read as the map bolting while
+/// the buyer was still looking at the card.
+public enum SeatLayerPickerCartLanding: String, Sendable, Equatable, CaseIterable {
+    case cardDismissed
+    case chipLanded
+    case mapMayMove
+}
+
 public enum SeatLayerPickerPrompt: Sendable, Equatable {
     case generalAdmission(GAArea)
     case table(SelectedSeat)
@@ -70,7 +102,42 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     @Published public private(set) var lastActionError: SeatLayerError?
     @Published public private(set) var selectionFlight: SeatLayerPickerSelectionFlightMoment?
     @Published public private(set) var removalUndo: SeatLayerPickerRemovalUndo?
-    @Published public var cartSheetExpanded: Bool
+    /// The seat a card is asking about but the buyer has not agreed to.
+    ///
+    /// Deliberately not the same thing as `pendingSeat`: a candidate is never
+    /// counted in the cart, and it can be a seat that is already in the cart
+    /// and is being asked about again.
+    @Published public private(set) var candidateSeat: SelectedSeat?
+    /// What the card over `candidateSeat` is offering to do.
+    @Published public private(set) var cardIntent: SeatLayerPickerCardIntent = .add
+    /// How far the ticket sheet is open.
+    @Published public var sheetDetent: SeatLayerPickerSheetDetent
+    /// Where the add choreography has got to, or nil when nothing is landing.
+    @Published public private(set) var cartLanding: SeatLayerPickerCartLanding?
+    /// Whether the buyer came back from a checkout handoff and may keep
+    /// choosing seats against the hold they already have.
+    @Published public private(set) var resumedAfterCheckout = false
+    /// Whether the host's own checkout handler is running right now.
+    ///
+    /// Narrower than `actionInFlight`, which also covers making the hold. The
+    /// two are different sentences to the buyer — "securing your seats" and
+    /// "opening checkout" — and a single flag could only say one of them.
+    @Published public private(set) var handoffInFlight = false
+    /// Seats the buyer has picked since the standing hold was made.
+    ///
+    /// Zero without a hold. With one it is what the checkout button offers to
+    /// fold into the hold the buyer already has, so it is counted against the
+    /// cart the hold was made from rather than against the whole cart.
+    @Published public private(set) var pendingCount = 0
+
+    /// Whether the sheet is at its full height.
+    ///
+    /// Kept as the binary the existing chrome reads; `sheetDetent` is the
+    /// three-rest truth and the one to write against.
+    public var cartSheetExpanded: Bool {
+        get { sheetDetent == .open }
+        set { sheetDetent = newValue ? .open : .peek }
+    }
 
     public let controller: SeatLayerPickerController
     public private(set) var options: SeatLayerPickerOptions
@@ -78,7 +145,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public var confirmedCartLines: [SeatLayerPickerCartLine] {
         SeatLayerPickerProjections.confirmedCart(
             controller.snapshot?.cartLines ?? [],
-            pending: pendingSeat
+            excluding: unansweredSeats
         ).items
     }
 
@@ -94,16 +161,35 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         SeatLayerPickerProjections.totals(confirmedCartLines)
     }
 
+    /// Every seat the buyer has been asked about and has not answered.
+    var unansweredSeats: [SelectedSeat] {
+        var seats: [SelectedSeat] = []
+        if let pendingSeat { seats.append(pendingSeat) }
+        if let candidateSeat, cardIntent == .add,
+           identity(of: candidateSeat) != pendingSeat.flatMap(identity) {
+            seats.append(candidateSeat)
+        }
+        return seats
+    }
+
     public var canCheckout: Bool {
         guard controller.isReady,
               !options.readOnly,
               !actionInFlight,
-              checkoutHandoff == nil,
+              checkoutHandoff == nil || resumedAfterCheckout,
               activePrompt == nil,
               pendingSeat == nil,
               !confirmedCartLines.isEmpty,
               controller.snapshot?.event.salesClosed != true,
-              controller.snapshot?.hold.owner != "host" else { return false }
+              // A hold the host owns closes the till — that is the handoff
+              // having happened. `resumeAfterCheckout()` is the host saying the
+              // buyer came back and may keep going against that same hold, so
+              // it opens the till again; without this the button offers
+              // "Continue to checkout" and can never do it, for the rest of the
+              // session. The hold is NOT taken back: checking out again hands
+              // the host the same hold with whatever the buyer has added.
+              controller.snapshot?.hold.owner != "host" || resumedAfterCheckout
+        else { return false }
         return controller.snapshot?.selectionValidity?.isValid != false
     }
 
@@ -115,11 +201,17 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     }
 
     /// Picker-owned cart mutations are unavailable in read-only mode and after
-    /// a handoff gives the active hold to the host application.
+    /// a handoff gives the active hold to the host application — until the host
+    /// says the buyer came back and may keep going against that same hold.
+    ///
+    /// Without the last clause the picker's own controls stayed shut while the
+    /// runtime kept accepting taps, so a seat tapped after a handoff joined the
+    /// cart with no card and no question asked: `confirmSelection` silently
+    /// stopped meaning anything.
     public var canMutateCart: Bool {
         guard controller.isReady, !options.readOnly, !actionInFlight else { return false }
         guard let hold = controller.snapshot?.hold, hold.active else { return true }
-        return hold.owner == "picker"
+        return hold.owner == "picker" || resumedAfterCheckout
     }
 
     /// New buyer inventory choices are additionally closed when the runtime
@@ -133,8 +225,11 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
               undo.expiresAt > Date(),
               undo.sessionId == controller.snapshot?.sessionId,
               canMutateCart else { return false }
-        let present = Set((controller.snapshot?.cartLines ?? []).map(\.lineKey))
-        return undo.lines.allSatisfy { !present.contains($0.lineKey) }
+        // By ticket identity, never by `lineKey`: a row-keyed chart gives both
+        // seats of a row one key, and the sibling still in the cart would
+        // stand in for the seat that left and shut the undo down.
+        let present = controller.snapshot?.cartLines ?? []
+        return undo.lines.allSatisfy { !SeatLayerPickerProjections.containsTicket(present, $0) }
     }
 
     /// Non-replaying observations of buyer actions owned by native chrome.
@@ -160,9 +255,9 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     public var nextBackStep: SeatLayerPickerBackStep {
         if activePrompt != nil { return .prompt }
-        if cartSheetExpanded { return .cart }
+        if sheetDetent == .open { return .cart }
         if controller.snapshot?.map.buyerView != "map" { return .venue }
-        if pendingSeat != nil { return .confirmation }
+        if pendingSeat != nil || candidateSeat != nil { return .confirmation }
         if controller.snapshot?.map.focusedSectionId != nil
             || (controller.snapshot?.map.rung ?? "zones") != "zones" { return .section }
         return .close
@@ -179,6 +274,9 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     private var cancellables: Set<AnyCancellable> = []
     private var answered = Set<String>()
+    private var adoptedHoldSeats = false
+    /// The cart lines the standing hold was made from, by line key.
+    private var heldTickets: Set<String>?
     private var runtimeSessionId: String?
     private var latestRevision: Int?
     private var checkoutTask: Task<SeatLayerPickerCheckoutHandoff, Error>?
@@ -197,13 +295,16 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     ) {
         self.controller = controller
         self.options = options
-        self.cartSheetExpanded = !options.panelInitiallyCollapsed
+        self.sheetDetent = options.panelInitiallyCollapsed ? .peek : .open
 
         controller.$snapshot
             .sink { [weak self] snapshot in self?.apply(snapshot) }
             .store(in: &cancellables)
         controller.$lastError
             .sink { [weak self] error in self?.lastActionError = error }
+            .store(in: &cancellables)
+        controller.seatRetaps
+            .sink { [weak self] seat in self?.acceptRetap(seat) }
             .store(in: &cancellables)
     }
 
@@ -220,6 +321,10 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public func confirmPending(animateToCart: Bool = true) {
         guard let pendingSeat, let identity = identity(of: pendingSeat) else { return }
         if animateToCart { publishSelectionFlight(for: pendingSeat) }
+        beginCartLanding()
+        candidateSeat = nil
+        cardIntent = .add
+        if sheetDetent == .mini { sheetDetent = .peek }
         answered.insert(identity)
         setPendingSeat(nextPending(in: controller.snapshot))
         seatSelectionSubject.send(pendingSeat)
@@ -414,6 +519,85 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         return true
     }
 
+    // MARK: - The card's candidate seat
+
+    /// The buyer tapped a seat that is already theirs.
+    ///
+    /// A second tap is a question, never a silent removal: the card comes back
+    /// over the seat offering to take it out. A retap of a seat that has not
+    /// been agreed to yet simply re-opens the add card.
+    func acceptRetap(_ seat: SelectedSeat) {
+        guard !options.readOnly, controller.isReady else { return }
+        let isAnswered = identity(of: seat).map { answered.contains($0) } ?? false
+        if isAnswered {
+            askAboutRemoving(seat)
+        } else {
+            askAbout(seat)
+        }
+    }
+
+    /// Put a card over `seat`, asking to add it.
+    ///
+    /// The seat is already in the runtime's selection — it was tapped — but it
+    /// stays out of the cart's count and total until the buyer answers.
+    public func askAbout(_ seat: SelectedSeat) {
+        candidateSeat = seat
+        cardIntent = .add
+        if sheetDetent == .open { sheetDetent = .mini }
+    }
+
+    /// Put a card over a seat the buyer tapped a second time, asking whether
+    /// to take it back out of the cart.
+    public func askAboutRemoving(_ seat: SelectedSeat) {
+        candidateSeat = seat
+        cardIntent = .remove
+        if sheetDetent == .open { sheetDetent = .mini }
+    }
+
+    /// Take the card away without answering it. A candidate the buyer never
+    /// agreed to is still selected in the runtime; answering is the chrome's
+    /// job, and `cancelPending()` is what removes it.
+    public func dismissCandidate() {
+        candidateSeat = nil
+        cardIntent = .add
+        if sheetDetent == .mini { sheetDetent = .peek }
+    }
+
+    // MARK: - The add choreography
+
+    /// The card has gone. Nothing else may move until `chipDidLand()`.
+    public func beginCartLanding() {
+        cartLanding = .cardDismissed
+    }
+
+    /// The chip has arrived in the tray.
+    public func chipDidLand() {
+        guard cartLanding == .cardDismissed else { return }
+        cartLanding = .chipLanded
+    }
+
+    /// The landing is over and the map may re-frame.
+    public func endCartLanding() {
+        guard cartLanding != nil else { return }
+        cartLanding = .mapMayMove
+    }
+
+    /// Whether the map is free to move right now.
+    public var mapMayMove: Bool {
+        cartLanding == nil || cartLanding == .mapMayMove
+    }
+
+    /// Let the buyer keep choosing after a checkout handoff came back.
+    ///
+    /// The handoff is not undone — the hold still belongs to the host — but
+    /// the picker stops treating the session as finished, so a seat added
+    /// afterwards is counted and the checkout action works again.
+    public func resumeAfterCheckout() {
+        guard checkoutHandoff != nil else { return }
+        resumedAfterCheckout = true
+        cartLanding = nil
+    }
+
     /// Record a successful native inspection action without changing selection.
     public func recordSeatViewOpened(_ seat: SelectedSeat) {
         seatViewOpeningSubject.send(seat)
@@ -426,12 +610,17 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     public func checkout(
         using handler: @escaping SeatLayerPickerCheckoutHandler
     ) async throws -> SeatLayerPickerCheckoutHandoff {
-        if let checkoutHandoff { return checkoutHandoff }
+        // A handoff already given back is reused — except after the buyer has
+        // resumed and added more seats, where continuing must ask the runtime
+        // again so the hold is replaced with one covering the whole cart.
+        if let checkoutHandoff, !resumedAfterCheckout { return checkoutHandoff }
         if let checkoutTask { return try await checkoutTask.value }
 
         let task = Task { @MainActor [weak self, controller, options] in
             let handoff = try await controller.checkout(ttlMs: options.normalizedHoldTtlMs)
             self?.checkoutContinuationSubject.send(handoff)
+            self?.handoffInFlight = true
+            defer { self?.handoffInFlight = false }
             do {
                 try await handler(handoff)
                 return handoff
@@ -449,6 +638,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         do {
             let handoff = try await task.value
             checkoutHandoff = handoff
+            resumedAfterCheckout = false
             return handoff
         } catch let error as SeatLayerError {
             lastActionError = error
@@ -514,9 +704,13 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
                 break
             }
         case .cart:
-            cartSheetExpanded = false
+            sheetDetent = .peek
         case .confirmation:
-            _ = await cancelPending()
+            if candidateSeat != nil, cardIntent == .remove {
+                dismissCandidate()
+            } else {
+                _ = await cancelPending()
+            }
         case .section:
             do { try await controller.zoomOut() }
             catch let error as SeatLayerError { controller.record(error) }
@@ -553,7 +747,14 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             setPendingSeat(nil)
             pendingTable = nil
             checkoutHandoff = nil
+            resumedAfterCheckout = false
             selectionFlight = nil
+            candidateSeat = nil
+            cardIntent = .add
+            cartLanding = nil
+            adoptedHoldSeats = false
+            heldTickets = nil
+            pendingCount = 0
             clearRemovalUndo()
             didClose = false
             return
@@ -564,7 +765,14 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             runtimeSessionId = snapshot.sessionId
             answered.removeAll()
             checkoutHandoff = nil
+            resumedAfterCheckout = false
             selectionFlight = nil
+            candidateSeat = nil
+            cardIntent = .add
+            cartLanding = nil
+            adoptedHoldSeats = false
+            heldTickets = nil
+            pendingCount = 0
             didClose = false
             clearRemovalUndo()
         }
@@ -573,22 +781,52 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             controller.dismissGeneralAdmissionCandidate()
         }
         let present = Set(snapshot.selection.compactMap(identity))
+        // A hold the session ARRIVES with was agreed to before this picker
+        // opened — a resumed session, a hold handed over by the host — so its
+        // seats are already answered and no card asks about them. Every seat
+        // tapped afterwards is asked about as usual.
+        if snapshot.hold.active, !adoptedHoldSeats {
+            adoptedHoldSeats = true
+            answered.formUnion(present)
+            // The cart as it stood when the hold was made. Everything added
+            // after this is what the button offers to secure as well.
+            heldTickets = Set(snapshot.cartLines.map(seatLayerPickerCartRowIdentity))
+        } else if !snapshot.hold.active {
+            adoptedHoldSeats = false
+            heldTickets = nil
+        }
+        pendingCount = heldTickets.map { held in
+            snapshot.cartLines.filter { !held.contains(seatLayerPickerCartRowIdentity($0)) }
+                .reduce(0) { $0 + max(1, $1.quantity) }
+        } ?? 0
         answered = answered.intersection(present)
+        if let candidate = candidateSeat,
+           let identity = identity(of: candidate),
+           !present.contains(identity) {
+            candidateSeat = nil
+            cardIntent = .add
+        }
         setPendingSeat(nextPending(in: snapshot))
         pendingTable = nextTable(in: snapshot)
         if let undo = removalUndo {
-            let present = Set(snapshot.cartLines.map(\.lineKey))
-            if undo.lines.contains(where: { present.contains($0.lineKey) }) {
+            let present = snapshot.cartLines
+            if undo.lines.contains(where: {
+                SeatLayerPickerProjections.containsTicket(present, $0)
+            }) {
                 clearRemovalUndo()
             }
         }
     }
 
     private func nextPending(in snapshot: SeatLayerPickerSnapshot?) -> SelectedSeat? {
+        // A live hold no longer silences the card. Seats the hold ARRIVED with
+        // are adopted as answered above; a seat tapped afterwards is a new
+        // question, and a hold owned by the host is the only one the buyer
+        // cannot add to.
         guard let snapshot,
               options.confirmSelection,
               !options.readOnly,
-              !snapshot.hold.active else { return nil }
+              !snapshot.hold.active || snapshot.hold.owner != "host" else { return nil }
         return snapshot.selection.reversed().first { seat in
             guard seat.objectType?.rawValue != "table" || seat.bookingMode != "variable",
                   let identity = identity(of: seat) else { return false }
@@ -599,7 +837,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     private func nextTable(in snapshot: SeatLayerPickerSnapshot?) -> SelectedSeat? {
         guard let snapshot,
               !options.readOnly,
-              !snapshot.hold.active else { return nil }
+              !snapshot.hold.active || snapshot.hold.owner != "host" else { return nil }
         return snapshot.selection.reversed().first { seat in
             guard seat.objectType?.rawValue == "table",
                   seat.bookingMode == "variable",

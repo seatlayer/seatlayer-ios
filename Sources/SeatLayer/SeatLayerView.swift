@@ -499,6 +499,14 @@ public final class SeatLayerView: UIView {
             let details = payload?["details"].flatMap { $0.isNull ? nil : try? $0.decode(SeatHoverDetails.self) }
             delegate?.seatLayerView(self, seatHoverDidChange: details)
 
+        case "seat.retap":
+            if let seat = try? payload?["seat"]?.decode(SelectedSeat.self) {
+                if bridgeProfile.isPicker {
+                    pickerController?.accept(seatRetap: seat, owner: runtimeOwner)
+                }
+                delegate?.seatLayerView(self, didRetapSeat: seat)
+            }
+
         case "deck.tap":
             if let floorId = payload?["floorId"]?.stringValue {
                 delegate?.seatLayerView(self, didTapFloor: floorId)

@@ -103,7 +103,7 @@ final class DemoViewController: UIViewController {
                 "Accessibility, visibility, and colour-assistance preferences"
             strings.overrides[SeatLayerPickerStringKey.emptyTrayHint.rawValue] =
                 "Choose a place on the seating map, or ask us to find the best available option for your whole party."
-            strings.overrides[SeatLayerPickerStringKey.testModeDescription.rawValue] =
+            strings.overrides[SeatLayerPickerStringKey.testModeExplained.rawValue] =
                 "This is a controlled demonstration event. No real reservation, payment, or booking will be created."
         }
         let callbacks = SeatLayerPickerCallbacks(

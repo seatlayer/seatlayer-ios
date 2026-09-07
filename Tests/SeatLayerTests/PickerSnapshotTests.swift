@@ -83,6 +83,7 @@ final class PickerSnapshotTests: XCTestCase {
                 ["unitPrice": 999],
             ]),
         ]
+        raw["selection"] = ["seats": .array([])]
 
         let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(.object(raw)))
         XCTAssertEqual(snapshot.categories.map(\.key), ["balcony"])
@@ -93,6 +94,38 @@ final class PickerSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.cartLines.count, 1)
         XCTAssertEqual(snapshot.cartTotal, 20)
         XCTAssertEqual(snapshot.currency, "EUR")
+    }
+
+    func testACartMissingASelectedSeatIsCompletedAndRecounted() throws {
+        // A runtime holding seats reports the HOLD's lines as the cart, so a
+        // seat added after checkout came back is drawn selected and missing
+        // from the cart. The seat carries its own price and address; nothing
+        // is invented, only counted.
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            pickerSnapshot(additions: ["cart": [
+                "currency": "EUR",
+                "quantity": .int(1),
+                "total": .double(45),
+                "items": .array([
+                    ["label": "A-1", "unitPrice": .double(45), "currency": "EUR", "quantity": .int(1)],
+                ]),
+            ]])
+        ))
+
+        XCTAssertEqual(snapshot.cartLines.map(\.label), ["A-1", "A-2"])
+        XCTAssertEqual(snapshot.cartLines.last?.unitPrice, 75)
+        XCTAssertEqual(snapshot.cartLines.last?.seatId, "seat-2")
+        XCTAssertEqual(snapshot.cartLines.last?.currency, "EUR")
+        XCTAssertEqual(snapshot.ticketCount, 2)
+        XCTAssertEqual(snapshot.cartTotal, 120)
+    }
+
+    func testACompleteCartIsLeftExactlyAsTheRuntimeCountedIt() throws {
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot()))
+
+        XCTAssertEqual(snapshot.cartLines.count, 2)
+        XCTAssertEqual(snapshot.ticketCount, 2)
+        XCTAssertEqual(snapshot.cartTotal, 120)
     }
 
     func testMissingAvailabilityNeverInventsSoldOutState() throws {
@@ -265,6 +298,137 @@ final class PickerSnapshotTests: XCTestCase {
     func testAvailabilityOutcomeRequiresEvidenceThatAvailabilityWasRead() {
         XCTAssertNil(decodeSeatLayerPickerAvailabilityOutcome(["state": "background"]))
         XCTAssertNil(decodeSeatLayerPickerAvailabilityOutcome(nil))
+    }
+
+    func testMapReportsVenueFitAndFallsBackToTheOverviewRung() throws {
+        let complete = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            pickerSnapshot(additions: ["map": ["atVenueFit": true]])
+        ))
+        XCTAssertEqual(complete.map.atVenueFit, true)
+        // A runtime that names no rung is showing the venue, not its seats.
+        XCTAssertEqual(complete.map.rung, "overview")
+
+        let older = try XCTUnwrap(decodeSeatLayerPickerSnapshot(pickerSnapshot()))
+        // Absent, not false: nobody reported the pose.
+        XCTAssertNil(older.map.atVenueFit)
+    }
+
+    func testSectionAccessCountIsAbsentRatherThanZeroWhenNobodyCounted() throws {
+        let counted = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            pickerSnapshot(additions: ["catalog": ["sections": .array([
+                ["id": "section-a", "label": "Stalls A", "accessibleFree": 3],
+                ["id": "section-b", "label": "Stalls B", "accessibleFree": 0],
+                ["id": "section-c", "label": "Stalls C"],
+            ])]])
+        ))
+
+        XCTAssertEqual(counted.sections.map(\.accessibleFree), [3, 0, nil])
+    }
+
+    func testSeatViewTruthDecodesAndHalfAPointIsNoPoint() throws {
+        let snapshot = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            pickerSnapshot(additions: ["selection": ["seats": .array([
+                [
+                    "id": "seat-1",
+                    "label": "A-1",
+                    "status": "free",
+                    "screenPoint": ["x": .double(120.5), "y": .double(340.25)],
+                    "seatViewThumb": ["reference": "/pub/a.jpg"],
+                    "sightlineMetres": .double(18.5),
+                    "seatViewKind": "photo",
+                    "seatViewConfidence": [
+                        "headline": "Photographed from this seat",
+                        "coverage": "Every tier",
+                        "freshness": "This season",
+                        "provenance": "Venue survey",
+                        "model": "Measured",
+                        "reality": "Real",
+                        "modeledTarget": "stage",
+                        "reference": "/pub/evidence.json",
+                        "limitations": .array(["Rig moves"]),
+                    ],
+                ],
+                [
+                    "id": "seat-2",
+                    "label": "A-2",
+                    "screenPoint": ["x": .double(10)],
+                    "seatViewThumb": ["reference": "  "],
+                ],
+            ])]])
+        ))
+
+        let first = try XCTUnwrap(snapshot.selection.first)
+        XCTAssertEqual(first.status, .free)
+        XCTAssertEqual(first.mapPoint?.x, 120.5)
+        XCTAssertEqual(first.mapPoint?.y, 340.25)
+        XCTAssertEqual(first.sightlineMetres, 18.5)
+        XCTAssertEqual(first.seatViewKind, "photo")
+        XCTAssertEqual(first.usableSeatViewThumb?.reference, "/pub/a.jpg")
+        // Nothing here may justify drawing a generated stand-in, so an
+        // unnamed kind still reads as a real photograph.
+        XCTAssertEqual(first.usableSeatViewThumb?.authoredKind, "real")
+        XCTAssertTrue(first.seatViewConfidence?.isDisclosed == true)
+        XCTAssertEqual(first.seatViewConfidence?.limitations, ["Rig moves"])
+        XCTAssertEqual(first.seatViewConfidence?.reference, "/pub/evidence.json")
+
+        let second = try XCTUnwrap(snapshot.selection.last)
+        // Half a point would aim native chrome at the map's corner.
+        XCTAssertNil(second.mapPoint)
+        XCTAssertNil(second.usableSeatViewThumb)
+        XCTAssertNil(second.status)
+    }
+
+    func testSeatNotesReadInAFixedOrderAndExplainTheFirstMark() {
+        let strings = SeatLayerPickerStrings(localeIdentifier: "en")
+        let rows = seatLayerSeatNoteRows(
+            strings: strings,
+            accessibility: ["wheelchair", "companion"],
+            wheelchairSpaceType: "no-seat",
+            commercial: SeatCommercialAttributes(
+                restrictedView: true,
+                obstructedView: true,
+                premium: true,
+                note: "  Pillar at the aisle end  "
+            )
+        )
+
+        XCTAssertEqual(rows.map(\.key), [
+            // The provision replaces the bare wheelchair accommodation.
+            "access:companion",
+            "wheelchair:no-seat",
+            // Restricted and obstructed are separate rows, never one line.
+            "mark:restrictedView",
+            "mark:obstructedView",
+            "mark:premium",
+        ])
+        XCTAssertEqual(
+            rows.map(\.tone),
+            [
+                SeatLayerSeatNoteTone.access, .access, .warn, .warn, .premium,
+            ]
+        )
+        // The organizer's sentence explains the first mark rather than
+        // standing as an unrelated fact of its own.
+        XCTAssertEqual(rows[2].note, "Pillar at the aisle end")
+        XCTAssertNil(rows[3].note)
+    }
+
+    func testAnOrganizerNoteWithNoMarkToExplainIsItsOwnRow() {
+        let rows = seatLayerSeatNoteRows(
+            strings: SeatLayerPickerStrings(localeIdentifier: "en"),
+            commercial: SeatCommercialAttributes(note: "Bring the confirmation")
+        )
+
+        XCTAssertEqual(rows.map(\.key), ["note"])
+        XCTAssertEqual(rows.first?.tone, .note)
+        XCTAssertEqual(rows.first?.note, "Bring the confirmation")
+    }
+
+    func testASeatWithNothingToSayEarnsNoRows() {
+        XCTAssertTrue(seatLayerSeatNoteRows(
+            strings: SeatLayerPickerStrings(localeIdentifier: "en"),
+            commercial: SeatCommercialAttributes(note: "   ")
+        ).isEmpty)
     }
 
     private func pickerSnapshot(
