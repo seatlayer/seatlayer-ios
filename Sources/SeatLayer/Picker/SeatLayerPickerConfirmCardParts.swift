@@ -259,18 +259,31 @@ struct SeatLayerPickerPhotoStrip: View {
                 endPoint: .bottomTrailing
             )
             if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+                // Drawn as an overlay on a view that takes the strip's own
+                // size. `scaledToFill` on a bare Image makes the picture's own
+                // aspect the stack's height, and the strip's clip then took
+                // the difference off the pills — the sightline badge lost its
+                // top and the two ways in lost their bottom the moment a
+                // photograph actually arrived.
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .clipped()
                     // The picture is what the pills open, and the pills say
                     // what they open: a second name would be read out twice.
                     .accessibilityHidden(true)
                     .transition(.opacity)
             }
             if let sightlineMetres {
+                // Padded first, THEN expanded: padding a view that already
+                // fills the strip pushes it 6 pt past both edges, and the
+                // strip's own clip took that 6 pt off the pills.
                 SeatLayerPickerSightlinePill(metres: sightlineMetres, strings: strings)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(6)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
             HStack {
                 SeatLayerPickerPhotoPill(
@@ -291,8 +304,8 @@ struct SeatLayerPickerPhotoStrip: View {
                     )
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             .padding(6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .frame(height: SeatLayerPickerSizeTokens.confirmPhotoHeight)
         .clipped()

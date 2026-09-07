@@ -46,7 +46,7 @@ final class SeatCardGoldenTests: XCTestCase {
     /// The photograph, the two pills that open it, and the sight line in the
     /// trailing top corner. With a strip there is no 3D square in the decision
     /// row.
-    func testCardWithPhotographGolden() throws {
+    func testCardWithPhotographGolden() async throws {
         let fixture = makeFixture(photograph: true)
         // Drawn once, here on the main actor, so the fetch itself is a plain
         // handover of bytes rather than a second rendering pass.
@@ -56,6 +56,10 @@ final class SeatCardGoldenTests: XCTestCase {
             token: BuyerAccessToken(token: "golden"),
             fetch: { _, _ in bytes }
         )
+        // Warmed before the render, so the strip is drawn from the loader's
+        // cache in the first layout pass. Without this the picture arrives
+        // some renders later than others and the golden is a coin toss.
+        _ = await loader.load("/pub/events/golden-event/assets/seat-a11.png")
         try renderBothSchemes(named: "seat-card-photo", fixture: fixture) {
             SeatLayerPickerSeatConfirmation()
                 .environment(\.seatLayerBuyerAssetLoader, loader)
@@ -158,7 +162,8 @@ final class SeatCardGoldenTests: XCTestCase {
             "label": "A-11",
             "objectId": "row-a",
             "objectType": "seat",
-            // Written with the section's own prefix, which the card strips.
+            // Printed exactly as the runtime writes it, prefix and all: the
+            // card never edits a label the venue authored.
             "rowLabel": "STL-A",
             "seatNumber": "11",
             "sectionLabel": "Stalls",

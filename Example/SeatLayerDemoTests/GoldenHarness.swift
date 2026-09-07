@@ -10,7 +10,14 @@ enum GoldenCanvas {
     /// Rendering is not bit-identical across simulator runtimes, so a golden
     /// fails on a visible change rather than on font rasterisation noise.
     static let channelTolerance = 16
+    /// For a golden that fills the canvas. Two per cent of 390 × 844 is still
+    /// nearly seven thousand pixels, which is enough rope for a font's edges
+    /// and not enough to hide a moved surface.
     static let allowedDifferingFraction = 0.02
+    /// For a golden whose subject is one small piece of chrome on an otherwise
+    /// empty canvas. The same two per cent there is larger than the control,
+    /// so a disc could vanish entirely and the golden would still pass.
+    static let smallChromeDifferingFraction = 0.002
 }
 
 @available(iOS 16.0, *)
@@ -74,8 +81,18 @@ enum GoldenStore {
             .appendingPathComponent("Goldens", isDirectory: true)
     }
 
+    /// Recording is a deliberate act, asked for in one of two ways.
+    ///
+    /// The scheme's test action carries the environment variable, disabled, so
+    /// it can be switched on in Xcode; from the command line xcodebuild
+    /// forwards `TEST_RUNNER_SEATLAYER_RECORD_GOLDENS=1` into the runner. The
+    /// launch argument is the third door, for a runner that inherits neither.
+    ///
+    /// Deliberately NOT "the PNG is missing": a golden that writes itself the
+    /// first time it runs is a golden that can never fail on a new surface.
     static var isRecording: Bool {
         ProcessInfo.processInfo.environment["SEATLAYER_RECORD_GOLDENS"] == "1"
+            || ProcessInfo.processInfo.arguments.contains("-recordGoldens")
     }
 
     static func url(for name: String) -> URL {
@@ -108,6 +125,7 @@ func assertGolden<Content: View>(
     name: String,
     colorScheme: ColorScheme,
     _ view: Content,
+    allowedDifferingFraction: Double = GoldenCanvas.allowedDifferingFraction,
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws {
@@ -122,7 +140,7 @@ func assertGolden<Content: View>(
     let data = try XCTUnwrap(rendered.pngData(), "\(key) produced no PNG", file: file, line: line)
     let url = GoldenStore.url(for: key)
 
-    guard !GoldenStore.isRecording, FileManager.default.fileExists(atPath: url.path) else {
+    if GoldenStore.isRecording {
         try FileManager.default.createDirectory(
             at: GoldenStore.directory,
             withIntermediateDirectories: true
@@ -130,6 +148,14 @@ func assertGolden<Content: View>(
         try data.write(to: url)
         // Recording is a deliberate act, so it never passes silently.
         XCTFail("recorded golden \(key); re-run without recording to verify", file: file, line: line)
+        return
+    }
+    guard FileManager.default.fileExists(atPath: url.path) else {
+        XCTFail(
+            "\(key) has no golden; record one with SEATLAYER_RECORD_GOLDENS=1",
+            file: file,
+            line: line
+        )
         return
     }
 
@@ -159,7 +185,7 @@ func assertGolden<Content: View>(
     let fraction = total > 0 ? Double(differing) / total : 0
     XCTAssertLessThanOrEqual(
         fraction,
-        GoldenCanvas.allowedDifferingFraction,
+        allowedDifferingFraction,
         "\(key) differs from its golden in \(Int(fraction * 100))% of pixels",
         file: file,
         line: line

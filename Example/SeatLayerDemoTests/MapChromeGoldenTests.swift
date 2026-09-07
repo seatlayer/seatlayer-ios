@@ -26,6 +26,7 @@ final class MapChromeGoldenTests: XCTestCase {
 
     private struct Fixture {
         let controller: SeatLayerPickerController
+        let presentation: SeatLayerPickerPresentationModel
         let style: SeatLayerPickerStyleEnvironment
     }
 
@@ -47,14 +48,27 @@ final class MapChromeGoldenTests: XCTestCase {
             }
         }
         .environmentObject(fixture.controller)
+        .environmentObject(fixture.presentation)
         .environment(\.seatLayerPickerStyle, fixture.style)
         // The canvas is captured one run-loop turn in, and the rail's chips
         // stagger in over several. Nothing here is a motion golden, so the
         // whole tree settles without animating.
         .transaction { $0.disablesAnimations = true }
 
-        try assertGolden(name: name, colorScheme: .light, view)
-        try assertGolden(name: name, colorScheme: .dark, view)
+        // Chrome on an empty canvas: the loose whole-canvas fraction would be
+        // larger than the discs this golden exists to watch.
+        try assertGolden(
+            name: name,
+            colorScheme: .light,
+            view,
+            allowedDifferingFraction: GoldenCanvas.smallChromeDifferingFraction
+        )
+        try assertGolden(
+            name: name,
+            colorScheme: .dark,
+            view,
+            allowedDifferingFraction: GoldenCanvas.smallChromeDifferingFraction
+        )
     }
 
     private func makeFixture(
@@ -107,7 +121,14 @@ final class MapChromeGoldenTests: XCTestCase {
 
         var style = SeatLayerPickerStyleEnvironment()
         style.options = options
-        return Fixture(controller: controller, style: style)
+        return Fixture(
+            controller: controller,
+            presentation: SeatLayerPickerPresentationModel(
+                controller: controller,
+                options: options
+            ),
+            style: style
+        )
     }
 
     private func snapshot(rung: String, focusedSection: Bool) -> JSONValue {

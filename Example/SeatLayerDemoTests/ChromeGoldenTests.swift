@@ -10,7 +10,13 @@ import XCTest
 final class ChromeGoldenTests: XCTestCase {
     func testHeaderGolden() throws {
         let fixture = makeFixture()
-        try renderBothSchemes(named: "header", fixture: fixture) {
+        try renderBothSchemes(
+            named: "header",
+            fixture: fixture,
+            // One bar on an empty canvas: the loose whole-canvas
+            // fraction is larger than the subject itself.
+            allowedDifferingFraction: GoldenCanvas.smallChromeDifferingFraction
+        ) {
             VStack {
                 SeatLayerPickerHeader(onClose: {}, compact: true)
                 Spacer()
@@ -82,7 +88,13 @@ final class ChromeGoldenTests: XCTestCase {
                 id: UUID(uuidString: "00000000-0000-0000-0000-0000000000C1")!
             )
         )
-        try renderBothSchemes(named: "toast", fixture: fixture) {
+        try renderBothSchemes(
+            named: "toast",
+            fixture: fixture,
+            // One bar on an empty canvas: the loose whole-canvas
+            // fraction is larger than the subject itself.
+            allowedDifferingFraction: GoldenCanvas.smallChromeDifferingFraction
+        ) {
             SeatLayerPickerToastBandBody(
                 queue: queue,
                 bottomInset: 0,
@@ -93,7 +105,13 @@ final class ChromeGoldenTests: XCTestCase {
 
     func testMapControlsColumnGolden() throws {
         let fixture = makeFixture()
-        try renderBothSchemes(named: "map-controls", fixture: fixture) {
+        try renderBothSchemes(
+            named: "map-controls",
+            fixture: fixture,
+            // One bar on an empty canvas: the loose whole-canvas
+            // fraction is larger than the subject itself.
+            allowedDifferingFraction: GoldenCanvas.smallChromeDifferingFraction
+        ) {
             SeatLayerPickerMapControls()
         }
     }
@@ -101,7 +119,15 @@ final class ChromeGoldenTests: XCTestCase {
     func testAccessibilityPanelGolden() throws {
         let fixture = makeFixture()
         try renderBothSchemes(named: "accessibility-panel", fixture: fixture) {
+            // The live sheet sizes itself against the key window, which the
+            // hosted canvas is not; a fixed frame makes the render repeatable.
             SeatLayerPickerAccessibilityFilters()
+                .frame(width: GoldenCanvas.size.width, height: 520)
+                .frame(
+                    width: GoldenCanvas.size.width,
+                    height: GoldenCanvas.size.height,
+                    alignment: .bottom
+                )
         }
     }
 
@@ -116,14 +142,25 @@ final class ChromeGoldenTests: XCTestCase {
     private func renderBothSchemes<Content: View>(
         named name: String,
         fixture: Fixture,
+        allowedDifferingFraction: Double = GoldenCanvas.allowedDifferingFraction,
         @ViewBuilder content: () -> Content
     ) throws {
         let view = content()
             .environmentObject(fixture.controller)
             .environmentObject(fixture.presentation)
             .environment(\.seatLayerPickerStyle, fixture.style)
-        try assertGolden(name: name, colorScheme: .light, view)
-        try assertGolden(name: name, colorScheme: .dark, view)
+        try assertGolden(
+            name: name,
+            colorScheme: .light,
+            view,
+            allowedDifferingFraction: allowedDifferingFraction
+        )
+        try assertGolden(
+            name: name,
+            colorScheme: .dark,
+            view,
+            allowedDifferingFraction: allowedDifferingFraction
+        )
     }
 
     private func makeFixture(

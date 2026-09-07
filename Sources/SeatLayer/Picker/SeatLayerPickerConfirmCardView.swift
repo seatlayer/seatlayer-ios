@@ -101,6 +101,14 @@ func seatLayerPickerCardQuestion(
     return subject
 }
 
+/// How tall the card's body would be if nothing capped it.
+private struct SeatLayerPickerCardBodyHeightKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 struct SeatLayerPickerConfirmationCard: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
@@ -132,6 +140,8 @@ struct SeatLayerPickerConfirmationCard: View {
     /// depends on it: a photograph that fails takes the strip with it and the
     /// 3D square has to appear in its place.
     @State private var photoMissed = false
+    /// How tall the card's body wants to be, once it has been laid out.
+    @State private var bodyHeight: Double?
     @AccessibilityFocusState private var focusOnPrimary: Bool
 
     var body: some View {
@@ -198,11 +208,28 @@ struct SeatLayerPickerConfirmationCard: View {
                                     .padding(.bottom, 9)
                             }
                         }
+                        // A scroll view takes every point it is offered, so a
+                        // card with two notes on it would otherwise be as tall
+                        // as a card with twelve, with the answers stranded at
+                        // the foot of a field of empty ground. The body is
+                        // measured and the card takes exactly that much.
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(
+                                    key: SeatLayerPickerCardBodyHeightKey.self,
+                                    value: geometry.size.height
+                                )
+                            }
+                        }
                     }
                     // The body gives way before the answers do: a card that
                     // grows past the screen must never push its own decision
                     // row off the bottom of it.
-                    .frame(maxHeight: bodyCeiling)
+                    .frame(maxHeight: min(bodyHeight ?? bodyCeiling, bodyCeiling))
+                    .onPreferenceChange(SeatLayerPickerCardBodyHeightKey.self) { measured in
+                        guard measured.isFinite, measured > 0 else { return }
+                        bodyHeight = measured
+                    }
                 }
                 // A disclosure with nowhere to open stays the teaser it has
                 // always been: the headline and the detail ARE the information.
