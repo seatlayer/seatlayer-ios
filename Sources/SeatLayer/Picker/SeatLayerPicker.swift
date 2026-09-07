@@ -548,7 +548,12 @@ private struct SeatLayerPickerReadyLayout: View {
         if style.options.chrome.mapControls, chromeVisibility.mapControls {
             SeatLayerPickerPartHost(.mapControls) {
                 SeatLayerPickerMapControls(
-                    bottomInset: decision.anchorPlan.bottomLift,
+                    // Everything the ready layout draws along the bottom of
+                    // the map — the phone's ticket sheet, a mounted dock and
+                    // the safe inset one of them absorbed. The column stands
+                    // clear of all of it; a plan that counted only the dock
+                    // put the whole-venue disc on top of the sheet.
+                    bottomInset: bottomChromeHeight,
                     includeBuyerViewControl: showsBuyerViewControl
                 )
             }
