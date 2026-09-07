@@ -1,9 +1,8 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 
-/// Where a seat lands when a cart card is tapped: the middle of the map, so
-/// the buyer can see it without the sheet having to move out of the way.
-public let seatLayerSheetRestoreFraction = 0.5
+// A tapped cart card frames its seat at `seatLayerSheetRestoreFraction`,
+// declared with the seat lift so the card and the lift agree on one resting place.
 
 extension Font.Weight {
     /// The nearest platform weight to a token's 100–950 numeric weight.
