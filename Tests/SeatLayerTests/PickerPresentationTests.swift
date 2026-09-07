@@ -758,12 +758,32 @@ final class PickerPresentationTests: XCTestCase {
         controller.accept(snapshot: snapshot(
             revision: 2,
             labels: ["A-1"],
-            hold: ["active": true, "owner": "host"]
+            hold: ["active": true, "ownership": "host"]
         ))
         XCTAssertFalse(presentation.canCheckout)
 
         presentation.resumeAfterCheckout()
         XCTAssertTrue(presentation.canCheckout)
+        // And the picker's own controls with it: a seat tapped afterwards must
+        // still raise its card rather than joining the cart unasked.
+        XCTAssertTrue(presentation.canMutateCart)
+        XCTAssertTrue(presentation.canMutateInventory)
+    }
+
+    /// Until the host says so, a host-owned hold keeps the picker's controls shut.
+    func testAHostOwnedHoldStillClosesThePickersOwnControls() {
+        let controller = readyController(transport: PresentationTransportSpy(), commands: [])
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["A-1"],
+            hold: ["active": true, "ownership": "host"]
+        ))
+        XCTAssertFalse(presentation.canMutateCart)
+        XCTAssertFalse(presentation.canCheckout)
     }
 
     private func snapshot(

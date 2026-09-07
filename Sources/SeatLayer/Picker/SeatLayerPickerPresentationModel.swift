@@ -201,11 +201,17 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     }
 
     /// Picker-owned cart mutations are unavailable in read-only mode and after
-    /// a handoff gives the active hold to the host application.
+    /// a handoff gives the active hold to the host application — until the host
+    /// says the buyer came back and may keep going against that same hold.
+    ///
+    /// Without the last clause the picker's own controls stayed shut while the
+    /// runtime kept accepting taps, so a seat tapped after a handoff joined the
+    /// cart with no card and no question asked: `confirmSelection` silently
+    /// stopped meaning anything.
     public var canMutateCart: Bool {
         guard controller.isReady, !options.readOnly, !actionInFlight else { return false }
         guard let hold = controller.snapshot?.hold, hold.active else { return true }
-        return hold.owner == "picker"
+        return hold.owner == "picker" || resumedAfterCheckout
     }
 
     /// New buyer inventory choices are additionally closed when the runtime
