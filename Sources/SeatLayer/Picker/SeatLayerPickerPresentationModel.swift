@@ -181,7 +181,15 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
               pendingSeat == nil,
               !confirmedCartLines.isEmpty,
               controller.snapshot?.event.salesClosed != true,
-              controller.snapshot?.hold.owner != "host" else { return false }
+              // A hold the host owns closes the till — that is the handoff
+              // having happened. `resumeAfterCheckout()` is the host saying the
+              // buyer came back and may keep going against that same hold, so
+              // it opens the till again; without this the button offers
+              // "Continue to checkout" and can never do it, for the rest of the
+              // session. The hold is NOT taken back: checking out again hands
+              // the host the same hold with whatever the buyer has added.
+              controller.snapshot?.hold.owner != "host" || resumedAfterCheckout
+        else { return false }
         return controller.snapshot?.selectionValidity?.isValid != false
     }
 

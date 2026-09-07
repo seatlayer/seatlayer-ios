@@ -736,6 +736,36 @@ final class PickerPresentationTests: XCTestCase {
         return controller
     }
 
+    /// The buyer came back from the host's checkout with the hold still theirs.
+    ///
+    /// `resumeAfterCheckout()` says so, and its whole point is that the action
+    /// works again — a "Continue to checkout" that can never check out is a
+    /// dead end for the rest of the session.
+    func testComingBackFromCheckoutOpensTheTillAgain() async throws {
+        let transport = PresentationTransportSpy(
+            responses: ["picker.continue": checkoutResponse()]
+        )
+        let controller = readyController(transport: transport, commands: ["picker.continue"])
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+        XCTAssertTrue(presentation.canCheckout)
+
+        _ = try await presentation.checkout(using: { _ in })
+        controller.accept(snapshot: snapshot(
+            revision: 2,
+            labels: ["A-1"],
+            hold: ["active": true, "owner": "host"]
+        ))
+        XCTAssertFalse(presentation.canCheckout)
+
+        presentation.resumeAfterCheckout()
+        XCTAssertTrue(presentation.canCheckout)
+    }
+
     private func snapshot(
         revision: Int,
         labels: [String],
@@ -746,7 +776,8 @@ final class PickerPresentationTests: XCTestCase {
         seatPrice: Int = 25,
         tierId: String? = nil,
         tiers: [JSONValue]? = nil,
-        salesClosed: Bool = false
+        salesClosed: Bool = false,
+        hold: [String: JSONValue] = ["active": false]
     ) -> JSONValue {
         let seats: [JSONValue] = labels.enumerated().map { index, label in
             var seat: [String: JSONValue] = [
@@ -812,7 +843,7 @@ final class PickerPresentationTests: XCTestCase {
                 "total": .int(labels.count * seatPrice),
                 "items": .array(items),
             ],
-            "hold": ["active": false],
+            "hold": .object(hold),
         ]
     }
 
