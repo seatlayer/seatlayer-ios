@@ -225,8 +225,11 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
               undo.expiresAt > Date(),
               undo.sessionId == controller.snapshot?.sessionId,
               canMutateCart else { return false }
-        let present = Set((controller.snapshot?.cartLines ?? []).map(\.lineKey))
-        return undo.lines.allSatisfy { !present.contains($0.lineKey) }
+        // By ticket identity, never by `lineKey`: a row-keyed chart gives both
+        // seats of a row one key, and the sibling still in the cart would
+        // stand in for the seat that left and shut the undo down.
+        let present = controller.snapshot?.cartLines ?? []
+        return undo.lines.allSatisfy { !SeatLayerPickerProjections.containsTicket(present, $0) }
     }
 
     /// Non-replaying observations of buyer actions owned by native chrome.
@@ -273,7 +276,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     private var answered = Set<String>()
     private var adoptedHoldSeats = false
     /// The cart lines the standing hold was made from, by line key.
-    private var heldLineKeys: Set<String>?
+    private var heldTickets: Set<String>?
     private var runtimeSessionId: String?
     private var latestRevision: Int?
     private var checkoutTask: Task<SeatLayerPickerCheckoutHandoff, Error>?
@@ -750,7 +753,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             cardIntent = .add
             cartLanding = nil
             adoptedHoldSeats = false
-            heldLineKeys = nil
+            heldTickets = nil
             pendingCount = 0
             clearRemovalUndo()
             didClose = false
@@ -768,7 +771,7 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             cardIntent = .add
             cartLanding = nil
             adoptedHoldSeats = false
-            heldLineKeys = nil
+            heldTickets = nil
             pendingCount = 0
             didClose = false
             clearRemovalUndo()
@@ -787,13 +790,13 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             answered.formUnion(present)
             // The cart as it stood when the hold was made. Everything added
             // after this is what the button offers to secure as well.
-            heldLineKeys = Set(snapshot.cartLines.map(\.lineKey))
+            heldTickets = Set(snapshot.cartLines.map(seatLayerPickerCartRowIdentity))
         } else if !snapshot.hold.active {
             adoptedHoldSeats = false
-            heldLineKeys = nil
+            heldTickets = nil
         }
-        pendingCount = heldLineKeys.map { held in
-            snapshot.cartLines.filter { !held.contains($0.lineKey) }
+        pendingCount = heldTickets.map { held in
+            snapshot.cartLines.filter { !held.contains(seatLayerPickerCartRowIdentity($0)) }
                 .reduce(0) { $0 + max(1, $1.quantity) }
         } ?? 0
         answered = answered.intersection(present)
@@ -806,8 +809,10 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         setPendingSeat(nextPending(in: snapshot))
         pendingTable = nextTable(in: snapshot)
         if let undo = removalUndo {
-            let present = Set(snapshot.cartLines.map(\.lineKey))
-            if undo.lines.contains(where: { present.contains($0.lineKey) }) {
+            let present = snapshot.cartLines
+            if undo.lines.contains(where: {
+                SeatLayerPickerProjections.containsTicket(present, $0)
+            }) {
                 clearRemovalUndo()
             }
         }

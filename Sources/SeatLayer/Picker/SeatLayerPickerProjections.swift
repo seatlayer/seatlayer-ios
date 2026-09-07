@@ -1,13 +1,32 @@
 import Foundation
 
+/// The ONE identity of a cart line, used by every surface that has to say
+/// which ticket it means.
+///
+/// `lineKey` comes from the runtime and is NOT an identity: a chart that keys
+/// its lines by ROW hands both seats of row 102-A the same key. A list keyed
+/// on it drew one card twice; a removal keyed on it faded the wrong card and
+/// blocked the undo of the right one. So the line's own seat id answers first,
+/// its inventory label — the address `picker.removeCartLine` itself takes —
+/// second, and the runtime's key only when a line names nothing else.
+///
+/// Order-independent by construction: the identity of a line does not move
+/// when a sibling above it leaves.
+public func seatLayerPickerCartRowIdentity(
+    _ line: SeatLayerPickerCartLine
+) -> String {
+    let identity = SeatLayerPickerProjections.ticketIdentity(of: line)
+    if let seatId = identity.seatId { return "seat:\(seatId)" }
+    if let label = identity.removalLabel { return "label:\(label)" }
+    if let objectId = identity.objectId { return "object:\(objectId)" }
+    return "line:\(identity.lineKey ?? "")"
+}
+
 /// A stable, unique row identity for each cart line, in the list's own order.
 ///
-/// `lineKey` comes from the runtime and is NOT guaranteed unique: a chart that
-/// keys its lines by ROW hands two seats in the same row the same key, and a
-/// `ForEach` identified by a key it shares with its neighbour draws the first
-/// card twice — two tickets, one seat shown, the other invisible. So the key is
-/// the starting point and the line's own label, then its position, break the
-/// ties. Pure, so the rule is tested rather than watched for.
+/// The identity above, with the list position appended only for lines that
+/// name nothing to tell them apart — two identical rows are indistinguishable
+/// inventory, and the position is the only thing left that separates them.
 public func seatLayerPickerCartRowIdentities(
     _ lines: [SeatLayerPickerCartLine]
 ) -> [String] {
@@ -15,9 +34,8 @@ public func seatLayerPickerCartRowIdentities(
     var identities: [String] = []
     identities.reserveCapacity(lines.count)
     for (index, line) in lines.enumerated() {
-        var identity = line.lineKey
-        if used.contains(identity) { identity = "\(line.lineKey)#\(line.label)" }
-        if used.contains(identity) { identity = "\(line.lineKey)#\(line.label)#\(index)" }
+        var identity = seatLayerPickerCartRowIdentity(line)
+        if used.contains(identity) { identity = "\(identity)#\(index)" }
         used.insert(identity)
         identities.append(identity)
     }
@@ -80,6 +98,39 @@ public enum SeatLayerPickerProjections {
             objectId: nonBlank(line.objectId),
             seatId: line.seatId.flatMap(nonBlank)
         )
+    }
+
+    /// Whether two cart lines are the same ticket.
+    ///
+    /// Ordered exactly as the identity is: a seat id decides when both lines
+    /// name one, then the inventory label, and the runtime's row-scoped
+    /// `lineKey` only as the last resort. Comparing the key first is what made
+    /// dropping one seat of a row look like dropping the row.
+    public static func sameTicket(
+        _ a: SeatLayerPickerCartLine,
+        _ b: SeatLayerPickerCartLine
+    ) -> Bool {
+        sameTicket(ticketIdentity(of: a), ticketIdentity(of: b))
+    }
+
+    public static func sameTicket(
+        _ a: SeatLayerPickerTicketIdentity,
+        _ b: SeatLayerPickerTicketIdentity
+    ) -> Bool {
+        if let left = a.seatId, let right = b.seatId { return left == right }
+        if let left = a.removalLabel, let right = b.removalLabel { return left == right }
+        if let left = a.objectId, let right = b.objectId { return left == right }
+        if let left = a.lineKey, let right = b.lineKey { return left == right }
+        return false
+    }
+
+    /// Whether `line` is still one of `lines`, by ticket identity.
+    public static func containsTicket(
+        _ lines: [SeatLayerPickerCartLine],
+        _ line: SeatLayerPickerCartLine
+    ) -> Bool {
+        let wanted = ticketIdentity(of: line)
+        return lines.contains { sameTicket(ticketIdentity(of: $0), wanted) }
     }
 
     /// Excludes the unanswered seat independently per line: addressed lines

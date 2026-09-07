@@ -58,7 +58,10 @@ public struct SeatLayerPickerCartList: View {
         .scrollDisabledIfPossible(lines.count <= 1)
         .accessibilityIdentifier("seatlayer-cart-list")
         .onAppear { noteArrivals() }
-        .onChange(of: lines.map(\.lineKey)) { _ in noteArrivals() }
+        // The identities the list draws under, not the runtime's keys: a
+        // row-keyed chart repeats one key across a row, so a swap inside that
+        // row moved no key and no card was ever landed.
+        .onChange(of: rows.map(\.id)) { _ in noteArrivals() }
     }
 
     /// Works out which cards are new, so the next redraw lands them in order.

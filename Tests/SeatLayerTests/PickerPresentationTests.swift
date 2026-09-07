@@ -786,6 +786,106 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertFalse(presentation.canCheckout)
     }
 
+    /// A chart that keys its cart lines by ROW gives both seats of 102-A one
+    /// `lineKey`. Dropping seat 5 leaves seat 6 standing — and the cart still
+    /// holding seat 6 must not read as seat 5 never having left, which is what
+    /// shut the undo down and what would have faded the wrong card.
+    func testRemovingOneSeatOfARowKeyedRowLeavesTheOtherAlone() async throws {
+        let transport = PresentationTransportSpy(
+            responses: [
+                "picker.removeCartLine": [
+                    "snapshot": snapshot(
+                        revision: 2,
+                        labels: ["A-2"],
+                        rowLineKey: "row_1",
+                        seatIds: ["seat-2"]
+                    ),
+                ],
+            ]
+        )
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.removeCartLine"]
+        )
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(
+            revision: 1,
+            labels: ["A-1", "A-2"],
+            rowLineKey: "row_1"
+        ))
+        XCTAssertEqual(
+            presentation.confirmedCartLines.map(\.lineKey),
+            ["row_1", "row_1"]
+        )
+
+        try await presentation.removeCartLine("A-1")
+
+        // Only the seat that was asked for, named by ITS label.
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), ["picker.removeCartLine"])
+        XCTAssertEqual(calls.last?.payload, ["label": "A-1"])
+        // The sibling stayed.
+        XCTAssertEqual(presentation.confirmedCartLines.map(\.label), ["A-2"])
+        // And the undo is for the seat that left, not shut down by the one
+        // that did not.
+        XCTAssertEqual(presentation.removalUndo?.labels, ["A-1"])
+        XCTAssertTrue(presentation.canUndoRemoval)
+    }
+
+    /// The list identifies each card by its own seat, so exactly one card is
+    /// the one that is on its way out.
+    func testExactlyOneCardOfARowKeyedRowIsMarkedRemoving() {
+        let lines = ["A-1", "A-2"].map { label in
+            SeatLayerPickerCartLine(
+                lineKey: "row_1",
+                label: label,
+                displayLabel: nil,
+                displayType: nil,
+                objectId: "row-a",
+                objectType: "seat",
+                categoryKey: "standard",
+                tierId: nil,
+                tierName: nil,
+                unitPrice: 25,
+                currency: "EUR",
+                quantity: 1,
+                seatId: "seat-\(label)",
+                sectionLabel: "102",
+                rowLabel: "A",
+                seatNumber: label
+            )
+        }
+        let identities = seatLayerPickerCartRowIdentities(lines)
+        let removing: Set<String> = [identities[0]]
+        XCTAssertEqual(identities.filter { removing.contains($0) }.count, 1)
+        XCTAssertFalse(removing.contains(identities[1]))
+    }
+
+    /// A seat added after the hold is "picked since" even when it lands in a
+    /// row the hold already owns and so carries that row's key.
+    func testASeatAddedIntoAHeldRowIsStillCountedForTheButton() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+
+        var held = try XCTUnwrap(
+            snapshot(revision: 1, labels: ["A-1"], rowLineKey: "row_1").objectValue
+        )
+        held["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(held))
+        XCTAssertEqual(presentation.pendingCount, 0)
+
+        var later = try XCTUnwrap(
+            snapshot(revision: 2, labels: ["A-1", "A-2"], rowLineKey: "row_1").objectValue
+        )
+        later["hold"] = ["active": true, "ownership": "picker"]
+        controller.accept(snapshot: .object(later))
+        XCTAssertEqual(presentation.pendingCount, 1)
+    }
+
     private func snapshot(
         revision: Int,
         labels: [String],
@@ -797,11 +897,16 @@ final class PickerPresentationTests: XCTestCase {
         tierId: String? = nil,
         tiers: [JSONValue]? = nil,
         salesClosed: Bool = false,
-        hold: [String: JSONValue] = ["active": false]
+        hold: [String: JSONValue] = ["active": false],
+        rowLineKey: String? = nil,
+        seatIds: [String]? = nil
     ) -> JSONValue {
+        func seatId(_ index: Int) -> String {
+            seatIds?[index] ?? "seat-\(index + 1)"
+        }
         let seats: [JSONValue] = labels.enumerated().map { index, label in
             var seat: [String: JSONValue] = [
-                "id": .string("seat-\(index + 1)"),
+                "id": .string(seatId(index)),
                 "label": .string(label),
                 "objectId": .string("row-a"),
                 "objectType": .string("seat"),
@@ -814,7 +919,7 @@ final class PickerPresentationTests: XCTestCase {
         }
         let items: [JSONValue] = labels.enumerated().map { index, label in
             var item: [String: JSONValue] = [
-                "lineKey": .string("line-\(index + 1)"),
+                "lineKey": .string(rowLineKey ?? "line-\(index + 1)"),
                 "label": .string(label),
                 "objectId": .string("row-a"),
                 "objectType": .string("seat"),
@@ -822,7 +927,7 @@ final class PickerPresentationTests: XCTestCase {
                 "unitPrice": .int(seatPrice),
                 "currency": .string("EUR"),
                 "quantity": .int(1),
-                "seatId": .string("seat-\(index + 1)"),
+                "seatId": .string(seatId(index)),
             ]
             if let tierId { item["tierId"] = .string(tierId) }
             return .object(item)
