@@ -149,6 +149,81 @@ public func seatLayerPickerSectionCode(
     }?.id
 }
 
+/// What one cart card prints: its name, and the seat's own address under it.
+///
+/// The card stands for ONE ticket, but the facts it is handed are not
+/// necessarily one ticket's: a runtime that keys its cart lines by ROW gives
+/// every seat in that row the same `lineKey`, so nothing shared — the key, the
+/// card's place in the list — can be allowed to decide what a card says. Every
+/// field here comes from the line's own seat facts, with the seat behind the
+/// line as the only fallback, and two tickets in one row therefore print two
+/// different addresses.
+public struct SeatLayerPickerCartCardWords: Sendable, Equatable {
+    /// The card's title: the venue section, and the one fact here that can be
+    /// longer than the panel.
+    public let name: String
+    /// Row, seat and ticket type, in that order, on the muted line under it.
+    public let position: String
+
+    public init(name: String, position: String) {
+        self.name = name
+        self.position = position
+    }
+}
+
+/// Works out what a cart card says, from the line and the seat behind it.
+///
+/// The row prints SHORT. A chart that names its rows `211-Q` has already had
+/// `211` printed as the card's title, and `211-Q · 12` under it says the
+/// section twice and leaves the buyer reading a code — the same rule the seat
+/// card's identity grid uses, from the same helper.
+public func seatLayerPickerCartCardWords(
+    line: SeatLayerPickerCartLine,
+    seat: SelectedSeat?,
+    sectionCode: String?,
+    typeLabel: String?
+) -> SeatLayerPickerCartCardWords {
+    // The line's own address first, the selected seat's second: a line the
+    // buyer never tapped — a best-available result, a resumed hold — is in no
+    // selection at all, and only the line knows where its seat is.
+    let section = seatLayerPickerFirstWord(line.sectionLabel, seat?.sectionLabel)
+    let row = seatLayerPickerFirstWord(line.rowLabel, seat?.rowLabel)
+    let number = seatLayerPickerFirstWord(line.seatNumber, seat?.seatNumber)
+    let type = typeLabel?.trimmingCharacters(in: .whitespaces) ?? ""
+    let buyerFacing = (line.displayLabel ?? line.label)
+        .trimmingCharacters(in: .whitespaces)
+
+    // Where a chart has no sections the ticket type names the card instead:
+    // `Q · 12` on its own names nothing a buyer can find in a venue.
+    let name = section ?? (type.isEmpty ? buyerFacing : type)
+    let shortRow = seatLayerPickerRowLabel(row, section: section, sectionCode: sectionCode)
+    let seatWord = number ?? buyerFacing
+
+    var parts: [String] = []
+    if !shortRow.isEmpty { parts.append(shortRow) }
+    // Each of these is dropped when it is already the name of the card: on a
+    // chart with no sections the two are the same string, and "Standard ·
+    // Standard" is a stutter.
+    if !seatWord.isEmpty, seatWord.lowercased() != name.lowercased() {
+        parts.append(seatWord)
+    }
+    if !type.isEmpty, type.lowercased() != name.lowercased() {
+        parts.append(type)
+    }
+    return SeatLayerPickerCartCardWords(
+        name: name,
+        position: parts.joined(separator: " · ")
+    )
+}
+
+/// The first of two facts that says anything at all, trimmed.
+func seatLayerPickerFirstWord(_ primary: String?, _ fallback: String?) -> String? {
+    let first = primary?.trimmingCharacters(in: .whitespaces) ?? ""
+    if !first.isEmpty { return first }
+    let second = fallback?.trimmingCharacters(in: .whitespaces) ?? ""
+    return second.isEmpty ? nil : second
+}
+
 /// The characters a chart puts between a section's name and a row's.
 let seatLayerPickerRowPrefixSeparators: Set<Character> = ["-", "–", "—", "_", " ", "·", "/"]
 

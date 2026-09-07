@@ -135,29 +135,29 @@ public struct SeatLayerPickerCartCard: View {
 
     // MARK: - Words
 
-    /// The card's name is the venue section — the one fact here that can be
-    /// longer than the panel, and the only part that ellipsizes.
-    private var name: String {
-        let section = line.sectionLabel ?? ""
-        if !section.isEmpty { return section }
-        if let type = ticketTypeLabel, !type.isEmpty { return type }
-        return line.displayLabel ?? line.label
+    /// What this card says, worked out once from THIS line's own seat facts.
+    ///
+    /// The rule is pure and lives with the card's other judgements, so a row
+    /// that arrives qualified — `211-Q` under a card already titled `211` —
+    /// is printed short in a test rather than watched for on a screen.
+    private var words: SeatLayerPickerCartCardWords {
+        seatLayerPickerCartCardWords(
+            line: line,
+            seat: seat,
+            sectionCode: seatLayerPickerSectionCode(
+                controller.snapshot,
+                sectionLabel: line.sectionLabel ?? seat?.sectionLabel
+            ),
+            typeLabel: ticketTypeLabel
+        )
     }
 
-    /// Where the seat is, and what kind it is. The type is dropped when it is
-    /// already the name of the card: on a chart with no sections the two are
-    /// the same string, and "Standard · Standard" is a stutter.
-    private var position: String {
-        var parts: [String] = []
-        if let row = line.rowLabel, !row.isEmpty { parts.append(row) }
-        if let seat = line.seatNumber, !seat.isEmpty { parts.append(seat) }
-        if let type = ticketTypeLabel,
-           !type.isEmpty,
-           type.lowercased() != name.lowercased() {
-            parts.append(type)
-        }
-        return parts.joined(separator: " · ")
-    }
+    /// The card's name is the venue section — the one fact here that can be
+    /// longer than the panel, and the only part that ellipsizes.
+    private var name: String { words.name }
+
+    /// Where the seat is, and what kind it is.
+    private var position: String { words.position }
 
     private var amount: String {
         seatLayerPickerMoney(line.total, currency: line.currency, style: style)

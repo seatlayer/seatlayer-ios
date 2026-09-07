@@ -230,7 +230,7 @@ final class ChromeGoldenTests: XCTestCase {
                 "label": .string(label),
                 "objectId": "row-a",
                 "objectType": "seat",
-                "rowLabel": "A",
+                "rowLabel": "Stalls-A",
                 "seatNumber": .string("\(index + 11)"),
                 "sectionLabel": "Stalls",
                 "categoryKey": "standard",
@@ -240,7 +240,10 @@ final class ChromeGoldenTests: XCTestCase {
         }
         let items: [JSONValue] = labels.enumerated().map { index, label in
             .object([
-                "lineKey": .string("line-\(index + 1)"),
+                // ONE key for the whole row, as a runtime that keys its
+                // cart lines by row hands them over: four tickets under one
+                // `lineKey` must still be four cards.
+                "lineKey": "line-row-a",
                 "label": .string(label),
                 "objectId": "row-a",
                 "objectType": "seat",
@@ -250,7 +253,10 @@ final class ChromeGoldenTests: XCTestCase {
                 "quantity": 1,
                 "seatId": .string("seat-\(index + 1)"),
                 "sectionLabel": "Stalls",
-                "rowLabel": "A",
+                // The row arrives QUALIFIED, the way a chart that names its
+                // rows after their section reports it. The card is titled
+                // `Stalls` already, so it must print `A`.
+                "rowLabel": "Stalls-A",
                 "seatNumber": .string("\(index + 11)"),
             ])
         }
