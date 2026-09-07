@@ -253,27 +253,35 @@ private struct SeatLayerPickerReadyLayout: View {
                     .allowsHitTesting(!interactionBlocked)
                     .accessibilityHidden(interactionBlocked)
 
-                if presentation.pendingSeat != nil,
-                   !immersiveInspectionVisible,
-                   style.options.chrome.confirmCard {
-                    palette.background.opacity(SeatLayerPickerTransparency.scrimOpacity(
-                        requested: 0.48,
-                        reduceTransparency: reduceTransparency
-                    ))
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .accessibilityHidden(true)
-                    decisionSurface {
-                        SeatLayerPickerPartHost(usesWideLayout ? .seatConfirmation : .confirmCard) {
-                            if usesWideLayout {
-                                SeatLayerPickerSeatConfirmation()
-                            } else {
-                                SeatLayerConfirmCard()
+                if !immersiveInspectionVisible, style.options.chrome.confirmCard {
+                    if usesWideLayout {
+                        if presentation.pendingSeat != nil {
+                            palette.background.opacity(SeatLayerPickerTransparency.scrimOpacity(
+                                requested: 0.48,
+                                reduceTransparency: reduceTransparency
+                            ))
+                                .ignoresSafeArea()
+                                .contentShape(Rectangle())
+                                .accessibilityHidden(true)
+                            decisionSurface {
+                                SeatLayerPickerPartHost(.seatConfirmation) {
+                                    SeatLayerPickerSeatConfirmation()
+                                }
                             }
+                            .transition(.scale(scale: 0.96).combined(with: .opacity))
+                            .accessibilitySortPriority(100)
                         }
+                    } else {
+                        // The phone card is a fixed sheet at the foot of the
+                        // map, over a veil with a hole where the seat is, and
+                        // the map lifts the seat into the band it leaves. All
+                        // three belong to one another, so one layer owns them.
+                        SeatLayerPickerSeatCardLayer(
+                            topInset: topChromeHeight,
+                            bottomInset: bottomChromeHeight
+                        )
+                        .accessibilitySortPriority(100)
                     }
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                    .accessibilitySortPriority(100)
                 }
 
                 if let prompt = presentation.activePrompt {
