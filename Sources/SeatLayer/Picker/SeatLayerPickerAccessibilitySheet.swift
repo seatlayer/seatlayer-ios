@@ -63,7 +63,10 @@ public struct SeatLayerPickerAccessibilityFilters: View {
             grabber(palette: palette)
                 .measureSeatLayerAccessSheetBlock()
             Text(style.strings.text(.accessibilityTitle))
-                .seatLayerPickerFont(size: titleFontSize, weight: .bold)
+                .seatLayerPickerFont(
+                    size: titleFontSize,
+                    weight: .seatLayerPickerWeight(titleWeight)
+                )
                 .foregroundColor(palette.text)
                 .accessibilityAddTraits(.isHeader)
                 .padding(.horizontal, sheetPadX)
@@ -442,7 +445,13 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     private let sheetPadX = 20.0
     private let sheetPadBottom = 20.0
     private let titleGap = 12.0
-    private let titleFontSize = 16.0
+    // tokens.json gap: the sheet's own title has no role in the type ramp.
+    // Flutter draws it at Material's `titleLarge`, which is 22 pt; the ramp's
+    // nearest role is `headerTitle` at 16, which is the picker's own header
+    // and a rung too quiet for the surface a buyer opened deliberately. 22 at
+    // the ramp's heading weight until a `sheetTitle` role exists.
+    private let titleFontSize = 22.0
+    private let titleWeight = 700.0
     // tokens.json gap: the grabber's ink. Flutter takes Material's own drag
     // handle, which is the muted ink at this weight; the bar's width, height
     // and the block it centres in are all tokens.
