@@ -345,10 +345,9 @@ struct SeatLayerPickerConfirmationCard: View {
                     style: slots.secondaryButton,
                     action: busy ? nil : { cancel() }
                 )
-                .frame(width: max(
-                    0,
-                    (geometry.size.width - (show3DSquare ? actionHeight + 8 : 0) - 8)
-                        * seatLayerPickerCardCancelShare
+                .frame(width: seatLayerPickerCancelWidth(
+                    available: geometry.size.width,
+                    reservedFor3D: show3DSquare ? CGFloat(actionHeight) + 8 : 0
                 ))
                 SeatLayerPickerAddSeatButton(
                     label: added ? style.strings.text(.added) : primaryLabel,
@@ -736,5 +735,13 @@ func seatLayerPickerTypeScale(_ size: DynamicTypeSize) -> Double {
     case .accessibility5: return 3.12
     @unknown default: return 1.0
     }
+}
+/// The cancel button's share of the decision row, once the 3D square and the
+/// gutter between the two answers have taken theirs. Spelled out with one
+/// numeric type so every toolchain reads the arithmetic the same way.
+func seatLayerPickerCancelWidth(available: CGFloat, reservedFor3D: CGFloat) -> CGFloat {
+    let gutter: CGFloat = 8
+    let share = CGFloat(seatLayerPickerCardCancelShare)
+    return max(0, (available - reservedFor3D - gutter) * share)
 }
 #endif
