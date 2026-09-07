@@ -123,6 +123,26 @@ public enum SeatLayerPickerMotion {
     public static let reducedMotionPolicy =
         SeatLayerPickerMotionDurationTokens.reducedMotionPolicy
 
+    /// Whether the picker is being drawn for a capture rather than for a
+    /// buyer.
+    ///
+    /// A golden is a still of a surface, and a surface that is still moving
+    /// when the shutter opens is a golden that differs every time it is
+    /// recorded. Arrival motion — the error toast's shake, a row settling into
+    /// a list — is therefore skipped outright under a harness rather than
+    /// played fast, which is the same answer the picker already gives a viewer
+    /// who has asked for less movement.
+    ///
+    /// Set by the golden harness; it is not part of the buyer's path, and the
+    /// environment variable is here so a capture tool that cannot reach the
+    /// property still gets a still surface.
+    @MainActor
+    public static var capturing: Bool = {
+        let process = ProcessInfo.processInfo
+        return process.environment["SEATLAYER_DISABLE_ANIMATIONS"] == "1"
+            || process.arguments.contains("-disableAnimations")
+    }()
+
     /// Motion with no reduced form: skipped rather than played instantly.
     public static let skippedWhenReduced: Set<SeatLayerPickerMotionEffect> = [
         .fly, .stagger,

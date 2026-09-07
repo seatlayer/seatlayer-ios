@@ -32,6 +32,10 @@ enum GoldenRenderer {
         of view: Content,
         colorScheme: ColorScheme
     ) -> UIImage? {
+        // Arrival motion is skipped rather than played: a surface still
+        // moving when the shutter opens records differently every time.
+        SeatLayerPickerMotion.capturing = true
+
         let host = ZStack {
             Color(colorScheme == .dark ? UIColor.black : UIColor.white)
             view

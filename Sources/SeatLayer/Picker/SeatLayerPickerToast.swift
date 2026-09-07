@@ -54,6 +54,40 @@ public struct SeatLayerPickerToast: Sendable, Equatable, Identifiable {
     }
 }
 
+/// The one shake an error-tone toast arrives with.
+///
+/// A toast that only tells is a sentence appearing; a toast that says
+/// something did not work has to be noticed, and the picker has no second
+/// colour to spend on it — only the border changes between tones. So the
+/// error tone moves once and settles.
+///
+// tokens.json gap: the shake itself is not in the token document — only its
+// duration is (`motion.duration.bump`). The travel and the number of passes
+// are named here so the integrator can lift them.
+public enum SeatLayerPickerToastShake {
+    /// How far the card travels at the widest point of the shake, in points.
+    /// Far enough to be a movement, near enough that the sentence stays
+    /// readable through it.
+    public static let amplitude: Double = 6
+    /// How many times it crosses centre.
+    public static let passes: Double = 3
+}
+
+/// How far a shaking toast stands from centre at `progress` — 0 at the start,
+/// 1 once it has settled.
+///
+/// Damped by design: the movement is largest as the card arrives and is gone
+/// by the end, so the toast never sits vibrating under a sentence the buyer is
+/// still reading.
+public func seatLayerPickerToastShakeOffset(
+    progress: Double,
+    amplitude: Double = SeatLayerPickerToastShake.amplitude
+) -> Double {
+    let travel = min(1, max(0, progress))
+    let decay = 1 - travel
+    return amplitude * decay * sin(travel * SeatLayerPickerToastShake.passes * 2 * .pi)
+}
+
 /// How long one toast stays up before it takes itself away.
 public let seatLayerPickerToastDwell = TimeInterval(
     SeatLayerPickerMotionDurationTokens.toastDwell
@@ -176,6 +210,10 @@ public struct SeatLayerPickerToastCard: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 0 before the shake, 1 once it has settled. A card that never shakes
+    /// stays at 1, which is the resting place either way.
+    @State private var shake: Double = 1
     private let toast: SeatLayerPickerToast
     private let onAct: () -> Void
 
@@ -223,8 +261,27 @@ public struct SeatLayerPickerToastCard: View {
             radius: SeatLayerPickerToastMetrics.shadowRadius,
             y: SeatLayerPickerToastMetrics.shadowY
         )
+        .modifier(SeatLayerPickerToastShakeEffect(progress: shake))
+        .onAppear { shakeIfSomethingDidNotWork() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("seatlayer-toast")
+    }
+
+    /// One shake, on arrival, for the error tone only — and none at all for a
+    /// viewer who has asked for less movement, which is a shake with no
+    /// reduced form rather than a shorter one.
+    private func shakeIfSomethingDidNotWork() {
+        guard toast.tone == .error,
+              !reduceMotion,
+              !SeatLayerPickerMotion.capturing else { return }
+        shake = 0
+        withAnimation(
+            .linear(
+                duration: Double(SeatLayerPickerMotionDurationTokens.bump) / 1_000
+            )
+        ) {
+            shake = 1
+        }
     }
 
     /// Tones change only the border. The picker has no green of its own, and a
@@ -258,6 +315,23 @@ public struct SeatLayerPickerToastCard: View {
         .buttonStyle(.plain)
         .frame(height: SeatLayerPickerSizeTokens.minimumHitTarget)
         .accessibilityIdentifier("seatlayer-toast-action")
+    }
+}
+
+/// Moves a card along the shake, once.
+struct SeatLayerPickerToastShakeEffect: GeometryEffect {
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(
+            translationX: seatLayerPickerToastShakeOffset(progress: progress),
+            y: 0
+        ))
     }
 }
 
