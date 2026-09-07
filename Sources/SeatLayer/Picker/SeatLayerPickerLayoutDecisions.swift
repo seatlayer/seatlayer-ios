@@ -17,6 +17,12 @@ enum SeatLayerPickerReadyMetrics {
 /// Every immutable fact the ready layout needs in order to decide what the
 /// picker shows. Kept free of SwiftUI so the decisions can be exercised by the
 /// macOS unit suite, which never compiles a view file.
+/// How long the venue may be held back waiting to be framed.
+///
+/// The insets normally settle on the frame after the first snapshot; this is
+/// the backstop for a runtime that never answers.
+public let seatLayerPickerMapFramingGraceMs = 700
+
 struct SeatLayerPickerLayoutContext: Sendable, Equatable {
     var snapshot: SeatLayerPickerSnapshot?
     var bundle: BundleInfo?

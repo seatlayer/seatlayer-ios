@@ -4,6 +4,29 @@ import XCTest
 
 @MainActor
 final class PickerControllerTests: XCTestCase {
+    func testTheMapCountsAsFramedOnceTheChromeHasBeenReported() async throws {
+        let transport = PickerTransportSpy(responses: ["picker.setViewportInsets": [:]])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.setViewportInsets"],
+            capabilities: ["viewport-insets-v1", "native-chrome-contract-v1"]
+        )
+        XCTAssertFalse(controller.mapFramed)
+
+        try await controller.setViewportInsets(.init(top: 44, bottom: 72))
+        XCTAssertTrue(controller.mapFramed)
+    }
+
+    func testARuntimeThatTakesNoViewportReportStillCountsAsFramed() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+
+        try await controller.setViewportInsets(.init(top: 44))
+        XCTAssertTrue(controller.mapFramed)
+        let calls = await transport.recordedCalls()
+        XCTAssertTrue(calls.isEmpty)
+    }
+
     func testMutationUsesThePickerContractAndPublishesReturnedSnapshot() async throws {
         let response: JSONValue = ["snapshot": pickerSnapshot(revision: 2)]
         let transport = PickerTransportSpy(responses: [

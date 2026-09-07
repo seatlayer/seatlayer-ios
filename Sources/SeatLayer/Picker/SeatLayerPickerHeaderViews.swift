@@ -37,7 +37,11 @@ public struct SeatLayerPickerHeader: View {
                 .fixedSize()
             if !style.options.hideEventDetails {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(controller.snapshot?.event.name ?? style.strings.text(.chooseSeats))
+                    // The host's own name for the event first: it is known
+                    // before the chart is, so the header reads as this event
+                    // from the first frame rather than as a generic heading
+                    // that changes under the buyer.
+                    Text(eventName ?? style.strings.text(.chooseSeats))
                         .seatLayerPickerFont(size: compact ? 14 : 16, weight: .bold)
                         .foregroundColor(palette.text)
                         .lineLimit(1)
@@ -95,6 +99,19 @@ public struct SeatLayerPickerHeader: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isHeader)
         .accessibilitySortPriority(headerReadingOrder)
+    }
+
+    /// What the header calls this event.
+    ///
+    /// The host's own name wins over the chart's: it is the name the buyer
+    /// already saw on the page that brought them here, and it is known before
+    /// the runtime has answered anything.
+    private var eventName: String? {
+        if let named = style.options.eventName,
+           !named.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return named
+        }
+        return controller.snapshot?.event.name
     }
 
     /// §4.10 reading order: the header is read first, at 800.

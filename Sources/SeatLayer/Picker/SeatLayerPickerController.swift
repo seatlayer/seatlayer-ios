@@ -30,6 +30,15 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public internal(set) var availabilityOutcome: SeatLayerPickerAvailabilityOutcome?
     @Published public internal(set) var holdLapse: SeatLayerPickerHoldLapse?
     @Published public internal(set) var generalAdmissionCandidate: GAArea?
+    /// False until the first viewport-inset report settles with the runtime
+    /// ready.
+    ///
+    /// The first snapshot arrives before the renderer has been told what the
+    /// native chrome covers, so a map revealed on that snapshot alone is drawn
+    /// once and re-fitted a frame later — which a buyer reads as the screen
+    /// loading twice. Presentation only: nothing waits on it, and the picker
+    /// is fully ready and callable while it is still false.
+    @Published public internal(set) var mapFramed = false
 
     /// Non-replaying stream of advertised runtime chart-load attempts.
     public var chartLoads: AnyPublisher<SeatLayerChartLoad, Never> {
@@ -283,6 +292,7 @@ public final class SeatLayerPickerController: ObservableObject {
         availabilityOutcome = nil
         holdLapse = nil
         generalAdmissionCandidate = nil
+        mapFramed = false
         hapticPolicy = SeatLayerPickerHaptics.initialState
         chartLoadStartedAtMs = startedAtMilliseconds ?? Self.monotonicMilliseconds()
         chartLoadTapToReadyMs = nil
@@ -450,6 +460,7 @@ public final class SeatLayerPickerController: ObservableObject {
         availabilityOutcome = nil
         holdLapse = nil
         generalAdmissionCandidate = nil
+        mapFramed = false
         hapticPolicy = SeatLayerPickerHaptics.initialState
         lastPublishedSelectionValidity = nil
         phase = .destroyed

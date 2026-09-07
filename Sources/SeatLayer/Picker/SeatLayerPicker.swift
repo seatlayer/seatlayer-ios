@@ -188,6 +188,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
     @State private var bookedTracker = SeatLayerPickerBookedTracker()
+    @State private var framingGraceLapsed = false
 
     var body: some View {
         let palette = resolveSeatLayerPickerPalette(
@@ -358,7 +359,11 @@ private struct SeatLayerPickerReadyLayout: View {
                 statusOverlay
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
-                    .allowsHitTesting(statusOverlayVisible)
+                    .allowsHitTesting(statusOverlayVisible || awaitingFraming)
+                    .animation(
+                        seatLayerPickerAnimation(.enter, reduceMotion: reduceMotion),
+                        value: awaitingFraming
+                    )
 
                 // A decision surface takes the whole map: its scrim covers the
                 // page, and on iOS the tap that dismisses it reaches the page
@@ -495,6 +500,13 @@ private struct SeatLayerPickerReadyLayout: View {
                     refreshOnResume: style.options.refreshOnResume
                 )
             }
+        }
+        .task(id: reloadGeneration) {
+            framingGraceLapsed = false
+            try? await Task.sleep(
+                nanoseconds: UInt64(seatLayerPickerMapFramingGraceMs) * 1_000_000
+            )
+            framingGraceLapsed = true
         }
         .task(id: viewportInsetKey) {
             guard controller.isReady else { return }
@@ -653,12 +665,28 @@ private struct SeatLayerPickerReadyLayout: View {
         case .failed:
             SeatLayerPickerErrorView { reloadGeneration += 1 }
         case .ready:
-            if inventoryStatus != .availableOrUnknown {
+            if awaitingFraming {
+                // Ready, but the renderer has not been told what the chrome
+                // covers yet: revealing now shows the venue at one framing and
+                // re-fits it in front of the buyer, which reads as the screen
+                // loading twice.
+                SeatLayerPickerPartHost(.loading) { SeatLayerPickerLoadingView() }
+                    .transition(.opacity)
+            } else if inventoryStatus != .availableOrUnknown {
                 SeatLayerPickerPartHost(.empty) { SeatLayerPickerEmptyView() }
             }
         case .destroyed:
             EmptyView()
         }
+    }
+
+    /// Whether the venue is being held back for its first framing.
+    ///
+    /// Bounded by `seatLayerPickerMapFramingGrace`, because a runtime that
+    /// never answers a viewport report must not be able to hold a buyer on a
+    /// loading screen.
+    private var awaitingFraming: Bool {
+        controller.isReady && !controller.mapFramed && !framingGraceLapsed
     }
 
     /// Immutable inputs for the layout decisions. Everything the ready layout

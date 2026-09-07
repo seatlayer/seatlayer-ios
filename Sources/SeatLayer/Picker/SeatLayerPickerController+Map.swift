@@ -197,6 +197,11 @@ extension SeatLayerPickerController {
     }
 
     public func setViewportInsets(_ insets: SeatLayerPickerViewportInsets?) async throws {
+        // Noted whatever the report does — including on a runtime that does
+        // not take one at all. This says the layout has finished measuring,
+        // not that the renderer agreed with it, and a buyer must never be held
+        // on a loading screen by a refinement the runtime cannot accept.
+        defer { noteMapFramed() }
         guard supportsViewportInsets else { return }
         let payload: JSONValue
         if let insets {
@@ -214,6 +219,17 @@ extension SeatLayerPickerController {
             payload = ["insets": .null]
         }
         try await presentation("picker.setViewportInsets", payload)
+    }
+
+    /// The renderer now knows what the chrome covers, so the map it draws next
+    /// is the one the buyer keeps.
+    ///
+    /// Set once per mounted runtime, and never a gate: a runtime that never
+    /// accepts a report leaves this false forever, and the layout's own
+    /// backstop is what stops that from holding a buyer on a loading screen.
+    func noteMapFramed() {
+        guard !mapFramed, isReady else { return }
+        mapFramed = true
     }
 
 }
