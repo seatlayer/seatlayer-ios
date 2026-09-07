@@ -119,10 +119,12 @@ final class ChromeGoldenTests: XCTestCase {
     func testAccessibilityPanelGolden() throws {
         let fixture = makeFixture()
         try renderBothSchemes(named: "accessibility-panel", fixture: fixture) {
-            // The live sheet sizes itself against the key window, which the
-            // hosted canvas is not; a fixed frame makes the render repeatable.
+            // No fixed height: the sheet sizes to its own content — two
+            // provisions and the VIEW group — and this golden is what proves
+            // it, rather than a frame that would hide a bound-tall sheet with
+            // a hole in the middle.
             SeatLayerPickerAccessibilityFilters()
-                .frame(width: GoldenCanvas.size.width, height: 520)
+                .frame(width: GoldenCanvas.size.width)
                 .frame(
                     width: GoldenCanvas.size.width,
                     height: GoldenCanvas.size.height,
