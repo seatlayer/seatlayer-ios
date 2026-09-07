@@ -82,6 +82,10 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                             palette: palette,
                             last: index == needs.count - 1
                         )
+                        // The sheet's provisions land one after the next, the
+                        // way the cart's cards do: a vocabulary that appears
+                        // whole reads as a page redraw.
+                        .seatLayerPickerArrivalPop(index: index)
                     }
                 }
                 .padding(.horizontal, sheetPadX)

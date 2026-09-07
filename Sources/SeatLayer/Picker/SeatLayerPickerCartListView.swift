@@ -17,6 +17,10 @@ public struct SeatLayerPickerCartList: View {
     @Environment(\.colorScheme) private var colorScheme
     /// Lines the buyer has dropped and the runtime has not answered for yet.
     @State private var removing: Set<String> = []
+    /// Lines that were already on screen the last time the list was measured.
+    @State private var seen: Set<String> = []
+    /// Where each newly arrived line sits in the order they land in.
+    @State private var arrivals: [String: Int] = [:]
 
     public init() {}
 
@@ -30,6 +34,7 @@ public struct SeatLayerPickerCartList: View {
                         removing: removing.contains(line.lineKey),
                         onRemove: { remove(line) }
                     )
+                    .seatLayerPickerArrivalPop(index: arrivals[line.lineKey] ?? -1)
                 }
             }
             .padding(.horizontal, SeatLayerPickerSizeTokens.cartTrayPadX)
@@ -46,6 +51,19 @@ public struct SeatLayerPickerCartList: View {
         }
         .scrollDisabledIfPossible(lines.count <= 1)
         .accessibilityIdentifier("seatlayer-cart-list")
+        .onAppear { noteArrivals() }
+        .onChange(of: lines.map(\.lineKey)) { _ in noteArrivals() }
+    }
+
+    /// Works out which cards are new, so the next redraw lands them in order.
+    ///
+    /// The order is taken once, from the list, and kept against the card's own
+    /// key: a removal that renumbered the rows would otherwise restart the
+    /// arrival of every card below it.
+    private func noteArrivals() {
+        let keys = lines.map(\.lineKey)
+        arrivals = seatLayerPickerArrivals(keys: keys, seen: seen)
+        seen = Set(keys)
     }
 
     private var lines: [SeatLayerPickerCartLine] {
