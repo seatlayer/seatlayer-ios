@@ -147,4 +147,59 @@ final class PickerSheetDetentTests: XCTestCase {
             rung: "zones"
         ))
     }
+
+    // MARK: - Pushing a ticket out of the list
+
+    func testASwipeCommitsWhenItIsCarriedFarEnough() {
+        let width: Double = 320
+        let commit = width * SeatLayerPickerPhysicsTokens.swipeCommitFraction
+        XCTAssertFalse(seatLayerPickerSwipeCommits(
+            travelled: commit - 1,
+            width: width,
+            velocity: 0
+        ))
+        XCTAssertTrue(seatLayerPickerSwipeCommits(
+            travelled: commit,
+            width: width,
+            velocity: 0
+        ))
+        // A card whose width has not been measured yet cannot be pushed out by
+        // a gesture that would otherwise have committed at zero.
+        XCTAssertFalse(seatLayerPickerSwipeCommits(travelled: 0, width: 0, velocity: 0))
+    }
+
+    func testASwipeCommitsWhenItIsThrown() {
+        let width: Double = 320
+        let fling = SeatLayerPickerPhysicsTokens.swipeFlingVelocity
+        XCTAssertTrue(seatLayerPickerSwipeCommits(
+            travelled: 20,
+            width: width,
+            velocity: fling
+        ))
+        XCTAssertFalse(seatLayerPickerSwipeCommits(
+            travelled: 20,
+            width: width,
+            velocity: fling - 1
+        ))
+        // Thrown back toward home is not an instruction to remove.
+        XCTAssertFalse(seatLayerPickerSwipeCommits(
+            travelled: 20,
+            width: width,
+            velocity: -fling * 4
+        ))
+    }
+
+    func testTheThrowIsReadBackOutOfTheProjection() {
+        XCTAssertEqual(
+            seatLayerPickerSwipeVelocity(translation: 40, predictedEnd: 215),
+            700,
+            accuracy: 0.001
+        )
+        // A finger that stopped is projected to where it already is.
+        XCTAssertEqual(
+            seatLayerPickerSwipeVelocity(translation: 40, predictedEnd: 40),
+            0,
+            accuracy: 0.001
+        )
+    }
 }

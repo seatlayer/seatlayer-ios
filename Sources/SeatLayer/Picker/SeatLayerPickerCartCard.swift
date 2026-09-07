@@ -19,6 +19,10 @@ enum SeatLayerPickerCartCardMetrics {
     static let amountGap: Double = 8
     static let padLeading: Double = 12
     static let padOther: Double = 4
+    /// The bin on the plate a swipe uncovers: a 16 pt glyph, 14 pt in from the
+    /// removing edge.
+    static let plateGlyph: Double = 16
+    static let plateGlyphInset: Double = 14
 }
 
 /// One ticket, on its own card.
@@ -103,9 +107,30 @@ public struct SeatLayerPickerCartCard: View {
             seatLayerPickerAnimation(.crossfade, reduceMotion: reduceMotion),
             value: removing
         )
+        .seatLayerPickerSwipeToRemove(
+            enabled: swipeable,
+            plate: palette.error,
+            glyph: palette.onAccent,
+            onRemove: onRemove
+        )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(spokenIdentity)
+        .accessibilityAction(named: Text(removeActionName)) { onRemove() }
         .accessibilityIdentifier("seatlayer-cart-card")
+    }
+
+    /// Whether this card may be pushed out of the list at all.
+    ///
+    /// A held card never is: those seats belong to a hold the host owns, and
+    /// the card says so with a lock. Nor is one already on its way out.
+    private var swipeable: Bool {
+        !held && !removing
+    }
+
+    /// What VoiceOver offers as the card's own action, so the rotor reaches
+    /// the removal without hunting for the ×.
+    private var removeActionName: String {
+        style.strings.text(.removeSeat)
     }
 
     // MARK: - Words
@@ -330,6 +355,164 @@ public struct SeatLayerPickerCartCard: View {
         Task { @MainActor in
             await controller.frameSeat(seatId, fraction: seatLayerSheetRestoreFraction)
         }
+    }
+}
+
+/// How wide the card the finger is on happens to be.
+private struct SeatLayerPickerCardWidthKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
+/// A ticket the buyer can push out of the list.
+///
+/// The native way out, beside the × rather than instead of it: the card
+/// follows the finger toward the removing edge, uncovers a red plate as it
+/// goes, and leaves once it has travelled far enough — or once it has been
+/// thrown, which is the same instruction given faster. Everything the × does
+/// afterwards, a swipe does too, down to the cue.
+///
+/// Deliberately not `.swipeActions`: that is a List's, the cart is a stack of
+/// cards, and the gap a removed card leaves is closed by the snapshot that no
+/// longer carries the line rather than by the gesture.
+private struct SeatLayerPickerSwipeToRemove: ViewModifier {
+    let enabled: Bool
+    let plate: Color
+    let glyph: Color
+    let onRemove: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    /// How far the card has travelled toward the removing edge, in points.
+    /// Always positive; which way that is on screen is the layout direction's
+    /// business.
+    @State private var travelled: Double = 0
+    @State private var width: Double = 0
+    @State private var committed = false
+
+    func body(content: Content) -> some View {
+        if enabled {
+            ZStack {
+                // The plate is drawn only while there is something to see, so
+                // a list at rest is the same list it has always been.
+                if travelled > 0 {
+                    RoundedRectangle(
+                        cornerRadius: SeatLayerPickerSizeTokens.cartCardRadius
+                    )
+                    .fill(plate)
+                    .overlay(alignment: .trailing) {
+                        Image(systemName: "trash")
+                            .seatLayerPickerFont(
+                                size: SeatLayerPickerCartCardMetrics.plateGlyph,
+                                weight: .semibold
+                            )
+                            .foregroundColor(glyph)
+                            .padding(
+                                .trailing,
+                                SeatLayerPickerCartCardMetrics.plateGlyphInset
+                            )
+                    }
+                    .accessibilityHidden(true)
+                }
+                content.offset(x: layoutDirection == .rightToLeft ? travelled : -travelled)
+            }
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: SeatLayerPickerCardWidthKey.self,
+                        value: Double(geometry.size.width)
+                    )
+                }
+            }
+            .onPreferenceChange(SeatLayerPickerCardWidthKey.self) { width = $0 }
+            .highPriorityGesture(swipe)
+        } else {
+            content
+        }
+    }
+
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                travelled = seatLayerPickerRubberBand(
+                    toward(Double(value.translation.width)),
+                    0,
+                    width
+                )
+            }
+            .onEnded { value in
+                let travel = toward(Double(value.translation.width))
+                let velocity = seatLayerPickerSwipeVelocity(
+                    translation: travel,
+                    predictedEnd: toward(Double(value.predictedEndTranslation.width))
+                )
+                guard seatLayerPickerSwipeCommits(
+                    travelled: travelled,
+                    width: width,
+                    velocity: velocity
+                ) else {
+                    returnHome()
+                    return
+                }
+                commit()
+            }
+    }
+
+    /// A horizontal translation as travel toward the removing edge.
+    private func toward(_ dx: Double) -> Double {
+        layoutDirection == .rightToLeft ? dx : -dx
+    }
+
+    private func returnHome() {
+        withAnimation(
+            seatLayerPickerAnimation(.sheet, reduceMotion: reduceMotion, curve: .spring)
+        ) {
+            travelled = 0
+        }
+    }
+
+    /// Out of the plate first, then gone: a card that vanishes under the
+    /// finger leaves the buyer unsure which ticket they removed.
+    private func commit() {
+        guard !committed else { return }
+        committed = true
+        guard let animation = seatLayerPickerAnimation(
+            .sheet,
+            reduceMotion: reduceMotion,
+            curve: .spring
+        ) else {
+            finish()
+            return
+        }
+        withAnimation(animation) { travelled = width }
+        let dwell = Double(SeatLayerPickerMotionDurationTokens.sheet) / 1_000
+        DispatchQueue.main.asyncAfter(deadline: .now() + dwell) { finish() }
+    }
+
+    private func finish() {
+        committed = false
+        travelled = 0
+        onRemove()
+    }
+}
+
+extension View {
+    /// Lets a finger push this card out of the list.
+    func seatLayerPickerSwipeToRemove(
+        enabled: Bool,
+        plate: Color,
+        glyph: Color,
+        onRemove: @escaping () -> Void
+    ) -> some View {
+        modifier(SeatLayerPickerSwipeToRemove(
+            enabled: enabled,
+            plate: plate,
+            glyph: glyph,
+            onRemove: onRemove
+        ))
     }
 }
 

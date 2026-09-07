@@ -203,3 +203,38 @@ public func seatLayerPickerScreenHeight() -> Double {
     return Double(UIScreen.main.bounds.height)
 }
 #endif
+
+// MARK: - Pushing a ticket out of the list
+
+/// How far ahead of the finger a drag's projection reaches, in seconds.
+///
+/// SwiftUI hands a drag back as where it would coast to, not as how fast it
+/// was travelling, and UIKit's own projection is the position plus a quarter
+/// of a second of velocity. Reading the throw back out of the projection gives
+/// the same answer on every iOS the package supports, which the newer
+/// `value.velocity` alone would not.
+public let seatLayerPickerDragProjectionSeconds: Double = 0.25
+
+/// The velocity behind a drag that travelled `translation` and is projected to
+/// end at `predictedEnd`, in points per second.
+public func seatLayerPickerSwipeVelocity(
+    translation: Double,
+    predictedEnd: Double
+) -> Double {
+    (predictedEnd - translation) / seatLayerPickerDragProjectionSeconds
+}
+
+/// Whether a swipe has said "remove this ticket".
+///
+/// Two ways to say it, which is the point: carried far enough across the card,
+/// or thrown — the same instruction given faster.
+public func seatLayerPickerSwipeCommits(
+    travelled: Double,
+    width: Double,
+    velocity: Double
+) -> Bool {
+    guard width > 0 else { return false }
+    let physics = SeatLayerPickerPhysicsTokens.self
+    return travelled >= width * physics.swipeCommitFraction
+        || velocity >= physics.swipeFlingVelocity
+}
