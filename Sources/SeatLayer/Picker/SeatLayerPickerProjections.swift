@@ -1,5 +1,29 @@
 import Foundation
 
+/// A stable, unique row identity for each cart line, in the list's own order.
+///
+/// `lineKey` comes from the runtime and is NOT guaranteed unique: a chart that
+/// keys its lines by ROW hands two seats in the same row the same key, and a
+/// `ForEach` identified by a key it shares with its neighbour draws the first
+/// card twice — two tickets, one seat shown, the other invisible. So the key is
+/// the starting point and the line's own label, then its position, break the
+/// ties. Pure, so the rule is tested rather than watched for.
+public func seatLayerPickerCartRowIdentities(
+    _ lines: [SeatLayerPickerCartLine]
+) -> [String] {
+    var used: Set<String> = []
+    var identities: [String] = []
+    identities.reserveCapacity(lines.count)
+    for (index, line) in lines.enumerated() {
+        var identity = line.lineKey
+        if used.contains(identity) { identity = "\(line.lineKey)#\(line.label)" }
+        if used.contains(identity) { identity = "\(line.lineKey)#\(line.label)#\(index)" }
+        used.insert(identity)
+        identities.append(identity)
+    }
+    return identities
+}
+
 /// Exact inventory identity used by remove, undo, and pending-cart projection.
 public struct SeatLayerPickerTicketIdentity: Sendable, Equatable {
     public let lineKey: String?

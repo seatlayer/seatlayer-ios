@@ -26,15 +26,21 @@ public struct SeatLayerPickerCartList: View {
 
     public var body: some View {
         ScrollView {
-            LazyVStack(spacing: SeatLayerPickerSizeTokens.cartCardGap) {
-                ForEach(lines, id: \.lineKey) { line in
+            // Not lazy. A cart is a handful of cards, so laziness buys nothing
+            // — and it cost the second one: the stack materialises rows against
+            // the scroll view's visible rect, and the sheet is still growing
+            // into its detent when the list is built, so a row below the fold
+            // of a box that had not finished opening was never built and never
+            // asked for again. Two tickets drew one card and a card-shaped hole.
+            VStack(spacing: SeatLayerPickerSizeTokens.cartCardGap) {
+                ForEach(rows, id: \.id) { row in
                     SeatLayerPickerCartCard(
-                        line: line,
+                        line: row.line,
                         held: held,
-                        removing: removing.contains(line.lineKey),
-                        onRemove: { remove(line) }
+                        removing: removing.contains(row.id),
+                        onRemove: { remove(row) }
                     )
-                    .seatLayerPickerArrivalPop(index: arrivals[line.lineKey] ?? -1)
+                    .seatLayerPickerArrivalPop(index: arrivals[row.id] ?? -1)
                 }
             }
             .padding(.horizontal, SeatLayerPickerSizeTokens.cartTrayPadX)
@@ -61,9 +67,15 @@ public struct SeatLayerPickerCartList: View {
     /// key: a removal that renumbered the rows would otherwise restart the
     /// arrival of every card below it.
     private func noteArrivals() {
-        let keys = lines.map(\.lineKey)
+        let keys = rows.map(\.id)
         arrivals = seatLayerPickerArrivals(keys: keys, seen: seen)
         seen = Set(keys)
+    }
+
+    /// The lines paired with the identity the list draws them under.
+    private var rows: [SeatLayerPickerCartRow] {
+        zip(seatLayerPickerCartRowIdentities(lines), lines)
+            .map(SeatLayerPickerCartRow.init)
     }
 
     private var lines: [SeatLayerPickerCartLine] {
@@ -80,18 +92,25 @@ public struct SeatLayerPickerCartList: View {
     /// Removal is optimistic and silent: the line fades and its × goes inert
     /// in the same frame, and only a failure speaks — through the sheet's own
     /// inline action error. There is no toast and no Undo.
-    private func remove(_ line: SeatLayerPickerCartLine) {
-        guard !removing.contains(line.lineKey) else { return }
+    private func remove(_ row: SeatLayerPickerCartRow) {
+        guard !removing.contains(row.id) else { return }
         // The cue is the answer to the press, so it fires on the press rather
         // than on the runtime's reply: the card is already fading by then.
         controller.emitHaptic(.ticketRemoved)
-        removing.insert(line.lineKey)
-        let key = line.lineKey
+        removing.insert(row.id)
+        let key = row.id
+        let label = row.line.label
         runPickerAction(controller) {
             defer { removing.remove(key) }
-            try await presentation.removeCartLine(line.label)
+            try await presentation.removeCartLine(label)
         }
     }
+}
+
+/// One cart line under the identity the list draws it with.
+struct SeatLayerPickerCartRow {
+    let id: String
+    let line: SeatLayerPickerCartLine
 }
 
 extension View {
