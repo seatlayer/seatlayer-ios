@@ -47,11 +47,29 @@ public final class SeatLayerPickerBlockedRegionsReporter: ObservableObject {
     private var interactionReport: SeatLayerPickerCoalescedReport<Bool>?
     private weak var controller: SeatLayerPickerController?
     private var present: [AnyHashable] = []
+    /// Keys the layout has taken away and the registry has not dropped yet.
+    ///
+    /// A lowered key is on its way out, and a measurement that names it again
+    /// is a LATE LAYOUT PASS until proven otherwise: preference values are
+    /// delivered a frame behind, and a re-attach replays the last list it was
+    /// given. Re-registering on one of those revived a cover that had already
+    /// been lowered — a rectangle over the whole map that never lifts, which is
+    /// a map that takes no tap, pan or pinch ever again. So a measurement for a
+    /// lowered key is ignored, and only the registry saying the key is gone —
+    /// or an authoritative `cover(_:_:)` raise, which carries the value its own
+    /// change delivered — takes it off this list.
+    private var lowering: Set<AnyHashable> = []
 
-    public init() {
-        registry = SeatLayerPickerBlockedRegionRegistry { [weak self] regions in
-            self?.regionReport?.report(regions)
-        }
+    public init(linger: TimeInterval = seatLayerBlockedRegionLinger) {
+        registry = SeatLayerPickerBlockedRegionRegistry(
+            linger: linger,
+            report: { [weak self] regions in
+                self?.regionReport?.report(regions)
+            },
+            departed: { [weak self] key in
+                self?.lowering.remove(key)
+            }
+        )
     }
 
     /// What the runtime has been told about, in registration order.
@@ -77,6 +95,7 @@ public final class SeatLayerPickerBlockedRegionsReporter: ObservableObject {
     public func detach() {
         registry?.removeAll()
         present.removeAll()
+        lowering.removeAll()
         regionReport?.forget()
         interactionReport?.forget()
         regionReport = nil
@@ -91,10 +110,13 @@ public final class SeatLayerPickerBlockedRegionsReporter: ObservableObject {
     public func apply(_ entries: [SeatLayerPickerBlockedRegionEntry]) {
         let arriving = entries.map(\.key)
         for key in present where !arriving.contains(key) {
-            registry?.set(key, nil)
+            lower(key)
         }
-        present = arriving
-        for entry in entries {
+        // A key still lingering is NOT present: it is guarded by the rectangle
+        // it left behind, and the next pass that measures it after the registry
+        // has dropped it registers it afresh.
+        present = arriving.filter { !lowering.contains($0) }
+        for entry in entries where !lowering.contains(entry.key) {
             registry?.set(entry.key, entry.region)
         }
     }
@@ -106,8 +128,24 @@ public final class SeatLayerPickerBlockedRegionsReporter: ObservableObject {
     /// dismisses it reaches the web view too, so a sheet used to close and step
     /// the camera out with one touch.
     public func cover(_ key: AnyHashable, _ region: SeatLayerBlockedRegion?) {
-        if region == nil { present.removeAll { $0 == key } }
+        guard let region else {
+            present.removeAll { $0 == key }
+            lower(key)
+            return
+        }
+        // A raise carries the value its own change delivered, so it is the
+        // truth and it revives the key.
+        lowering.remove(key)
         registry?.set(key, region)
+    }
+
+    /// Ask the registry to let `key` go, and remember that it is going.
+    ///
+    /// The rectangle keeps guarding for the linger; what is recorded here is
+    /// only that no measurement may put the key back in the meantime.
+    private func lower(_ key: AnyHashable) {
+        registry?.set(key, nil)
+        if registry?.isRegistered(key) == true { lowering.insert(key) }
     }
 
     /// Tell the runtime whether to accept input at all.

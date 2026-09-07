@@ -242,6 +242,36 @@ final class PickerMapChromeCommandTests: XCTestCase {
         XCTAssertEqual(retapped, ["seat-3"])
     }
 
+    /// The last cover lowering must reach the runtime as an EMPTY list.
+    ///
+    /// Nothing else lifts the guard: the runtime keeps whatever rectangles it
+    /// was last told about, so a reporter that stops talking leaves the map
+    /// blocked for good.
+    func testTheRuntimeIsToldTheListIsEmptyAfterTheLastCoverLowers() async throws {
+        let transport = ChromeTransportSpy()
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.setBlockedRegions"]
+        )
+        let reporter = SeatLayerPickerBlockedRegionsReporter(linger: 0.05)
+        reporter.attach(to: controller)
+
+        reporter.cover("decision", SeatLayerBlockedRegion(x: 0, y: 0, w: 390, h: 700))
+        await reporter.flush()
+        reporter.cover("decision", nil)
+        try await Task.sleep(nanoseconds: 250_000_000)
+        await reporter.flush()
+
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(calls.map(\.name), [
+            "picker.setBlockedRegions", "picker.setBlockedRegions",
+        ])
+        XCTAssertEqual(calls.first?.payload, [
+            "rects": .array([["x": .double(0), "y": .double(0), "w": .double(390), "h": .double(700)]]),
+        ])
+        XCTAssertEqual(calls.last?.payload, ["rects": .array([])])
+    }
+
     private func readyController(
         transport: ChromeTransportSpy,
         commands: [String],

@@ -144,18 +144,29 @@ public typealias SeatLayerPickerBlockedRegionsReport =
 @MainActor
 public final class SeatLayerPickerBlockedRegionRegistry {
     private let report: ([SeatLayerBlockedRegion]) -> Void
+    private let departed: (AnyHashable) -> Void
     private let linger: TimeInterval
     private var order: [AnyHashable] = []
     private var rects: [AnyHashable: SeatLayerBlockedRegion] = [:]
     private var leaving: [AnyHashable: Task<Void, Never>] = [:]
 
+    /// `departed` is called the moment a key's rectangle actually leaves the
+    /// list — at the end of its linger, not when it was asked to go. It is what
+    /// lets the owner know a lowered key is finally gone, rather than guessing
+    /// at the timing of it.
     public init(
         linger: TimeInterval = seatLayerBlockedRegionLinger,
-        report: @escaping ([SeatLayerBlockedRegion]) -> Void
+        report: @escaping ([SeatLayerBlockedRegion]) -> Void,
+        departed: @escaping (AnyHashable) -> Void = { _ in }
     ) {
         self.linger = max(0, linger)
         self.report = report
+        self.departed = departed
     }
+
+    /// Whether `key` still has a rectangle in the list — including one that is
+    /// lingering after its control has gone.
+    public func isRegistered(_ key: AnyHashable) -> Bool { rects[key] != nil }
 
     /// What is registered right now, in registration order.
     public var regions: [SeatLayerBlockedRegion] {
@@ -202,6 +213,7 @@ public final class SeatLayerPickerBlockedRegionRegistry {
         guard rects.removeValue(forKey: key) != nil else { return }
         order.removeAll { $0 == key }
         report(regions)
+        departed(key)
     }
 }
 
