@@ -224,6 +224,45 @@ final class DesignTokensTests: XCTestCase {
         XCTAssertEqual(SeatLayerPickerStringKey.close.localeKey, "close")
     }
 
+    func testTheTokenTableAnswersUntilAHostNamesALocale() {
+        // No locale named: the wording the components were drawn with, even
+        // though a reviewed English dictionary exists and says other things.
+        let defaults = SeatLayerPickerStrings()
+        for key in [
+            SeatLayerPickerStringKey.close,
+            .recentre,
+            .testMode,
+            .accessibility,
+            .fitVenue,
+            .errorMessage,
+            .accessibilityTitle,
+        ] {
+            XCTAssertEqual(defaults.text(key), key.englishDefault, key.rawValue)
+        }
+        XCTAssertEqual(defaults.text(.testMode), "Test mode")
+        XCTAssertEqual(defaults.text(.accessibilityTitle), "Accessibility and view")
+
+        // A named locale opts into the reviewed dictionary.
+        let english = SeatLayerPickerStrings(localeIdentifier: "en")
+        XCTAssertEqual(english.text(.close), "Close")
+        XCTAssertEqual(english.text(.testMode), "TEST MODE")
+
+        // A locale with no dictionary keeps the token wording rather than
+        // borrowing the reviewed English.
+        let unknown = SeatLayerPickerStrings(localeIdentifier: "qya")
+        XCTAssertEqual(
+            unknown.text(.close),
+            SeatLayerPickerStringKey.close.englishDefault
+        )
+
+        // A host override still wins over both.
+        let overridden = SeatLayerPickerStrings(
+            overrides: [.testMode: "Rehearsal"],
+            localeIdentifier: "en"
+        )
+        XCTAssertEqual(overridden.text(.testMode), "Rehearsal")
+    }
+
     func testTypedOverridesReplaceOneStringWithoutForkingTheTable() {
         var strings = SeatLayerPickerStrings(
             overrides: [.close: "Done"],

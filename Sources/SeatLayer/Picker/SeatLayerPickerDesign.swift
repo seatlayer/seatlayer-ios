@@ -389,8 +389,17 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         )
     }
 
+    /// The reviewed dictionary to consult, or nothing.
+    ///
+    /// The token table holds the English wording every surface is designed
+    /// around, and it answers unless a host has named a locale. A reviewed
+    /// dictionary is a starting point a host opts into, exactly as
+    /// `SeatLayerPickerStrings.forLocale` is on the other native SDKs — so a
+    /// buyer whose device is English still reads the wording the components
+    /// were drawn with, and a locale with no dictionary keeps it too rather
+    /// than borrowing the reviewed English.
     private var localized: [String: String] {
-        let requested = requestedLocaleIdentifier
+        guard let requested = namedLocaleIdentifier else { return [:] }
         if let exact = Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(requested) == .orderedSame
         })?.value { return exact }
@@ -403,7 +412,16 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         }
         return Self.generatedLocales.first(where: {
             $0.key.caseInsensitiveCompare(language) == .orderedSame
-        })?.value ?? Self.generatedLocales["en"] ?? [:]
+        })?.value ?? [:]
+    }
+
+    /// The locale a host asked for, if it asked for one.
+    private var namedLocaleIdentifier: String? {
+        guard let named = localeIdentifier else { return nil }
+        let candidate = named
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "_", with: "-")
+        return candidate.isEmpty ? nil : candidate
     }
 
     private var requestedLocaleIdentifier: String {
