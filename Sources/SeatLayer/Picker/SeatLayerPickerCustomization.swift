@@ -30,6 +30,9 @@ public enum SeatLayerPickerPart: String, CaseIterable, Sendable, Hashable {
     case loading
     case error
     case empty
+    case accessPanel
+    case bookedOverlay
+    case toast
 }
 
 #if canImport(SwiftUI) && canImport(UIKit)
@@ -97,7 +100,7 @@ public typealias SeatLayerPickerPartBuilder = @MainActor (
     SeatLayerPickerPartContext
 ) throws -> AnyView
 
-/// Optional replacements for the canonical 25 public picker parts.
+/// Optional replacements for the canonical 28 public picker parts.
 public struct SeatLayerPickerBuilders {
     public var header: SeatLayerPickerPartBuilder?
     public var legend: SeatLayerPickerPartBuilder?
@@ -124,6 +127,9 @@ public struct SeatLayerPickerBuilders {
     public var loading: SeatLayerPickerPartBuilder?
     public var error: SeatLayerPickerPartBuilder?
     public var empty: SeatLayerPickerPartBuilder?
+    public var accessPanel: SeatLayerPickerPartBuilder?
+    public var bookedOverlay: SeatLayerPickerPartBuilder?
+    public var toast: SeatLayerPickerPartBuilder?
 
     public init(
         header: SeatLayerPickerPartBuilder? = nil,
@@ -150,7 +156,10 @@ public struct SeatLayerPickerBuilders {
         checkoutBar: SeatLayerPickerPartBuilder? = nil,
         loading: SeatLayerPickerPartBuilder? = nil,
         error: SeatLayerPickerPartBuilder? = nil,
-        empty: SeatLayerPickerPartBuilder? = nil
+        empty: SeatLayerPickerPartBuilder? = nil,
+        accessPanel: SeatLayerPickerPartBuilder? = nil,
+        bookedOverlay: SeatLayerPickerPartBuilder? = nil,
+        toast: SeatLayerPickerPartBuilder? = nil
     ) {
         self.header = header
         self.legend = legend
@@ -177,6 +186,9 @@ public struct SeatLayerPickerBuilders {
         self.loading = loading
         self.error = error
         self.empty = empty
+        self.accessPanel = accessPanel
+        self.bookedOverlay = bookedOverlay
+        self.toast = toast
     }
 
     public subscript(part: SeatLayerPickerPart) -> SeatLayerPickerPartBuilder? {
@@ -206,6 +218,9 @@ public struct SeatLayerPickerBuilders {
         case .loading: return loading
         case .error: return error
         case .empty: return empty
+        case .accessPanel: return accessPanel
+        case .bookedOverlay: return bookedOverlay
+        case .toast: return toast
         }
     }
 }

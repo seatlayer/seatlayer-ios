@@ -37,6 +37,21 @@ extension SeatLayerPickerController {
         return try await transport.command(command, payload: payload)
     }
 
+    /// Whether this runtime can renew private buyer access in place.
+    public var supportsAccessRefresh: Bool { supports(command: "refreshAccess") }
+
+    /// Renew the buyer's private access without remounting the runtime.
+    ///
+    /// Silent where the runtime does not advertise it: an access panel that
+    /// cannot refresh falls back to its remount, and a withheld command is
+    /// never an error the buyer is shown.
+    @discardableResult
+    public func refreshAccess() async throws -> Bool {
+        guard supportsAccessRefresh else { return false }
+        let result = try await send("refreshAccess")
+        return result["refreshed"]?.boolValue ?? false
+    }
+
     func mutation(
         _ command: String,
         _ payload: JSONValue? = nil

@@ -23,6 +23,9 @@ public struct SeatLayerPickerCallbacks {
     public var onSeatRemoved: (@MainActor (String) -> Void)?
     public var onSeatViewOpened: (@MainActor (SelectedSeat) -> Void)?
     public var onContinue: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)?
+    /// The hand-off settled into a sale: the handed-off hold left the snapshot
+    /// with no expiry announced first. Never fired on the hand-off itself.
+    public var onBooked: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)?
 
     public init(
         onReady: (@MainActor (ReadyInfo) -> Void)? = nil,
@@ -45,7 +48,8 @@ public struct SeatLayerPickerCallbacks {
         onSeatSelected: (@MainActor (SelectedSeat) -> Void)? = nil,
         onSeatRemoved: (@MainActor (String) -> Void)? = nil,
         onSeatViewOpened: (@MainActor (SelectedSeat) -> Void)? = nil,
-        onContinue: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)? = nil
+        onContinue: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)? = nil,
+        onBooked: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)? = nil
     ) {
         self.onReady = onReady
         self.onChartLoad = onChartLoad
@@ -65,6 +69,7 @@ public struct SeatLayerPickerCallbacks {
         self.onSeatRemoved = onSeatRemoved
         self.onSeatViewOpened = onSeatViewOpened
         self.onContinue = onContinue
+        self.onBooked = onBooked
     }
 }
 
@@ -182,6 +187,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var containerWidth: Double?
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
+    @State private var bookedTracker = SeatLayerPickerBookedTracker()
 
     var body: some View {
         let palette = resolveSeatLayerPickerPalette(
@@ -322,10 +328,12 @@ private struct SeatLayerPickerReadyLayout: View {
                     .opacity(decisionVisible ? 0 : 1)
                 }
 
-                SeatLayerPickerToastBand(
-                    bottomInset: bottomChromeHeight,
-                    lifted: decisionVisible
-                )
+                SeatLayerPickerPartHost(.toast) {
+                    SeatLayerPickerToastBand(
+                        bottomInset: bottomChromeHeight,
+                        lifted: decisionVisible
+                    )
+                }
 
                 requiredTruthChrome
                     .dynamicTypeSize(...DynamicTypeSize.large)
@@ -356,6 +364,23 @@ private struct SeatLayerPickerReadyLayout: View {
                 // page, and on iOS the tap that dismisses it reaches the page
                 // as well unless the runtime is standing guard first.
                 SeatLayerPickerMapCover(key: "decision", active: decisionVisible)
+
+                SeatLayerPickerPartHost(.accessPanel) {
+                    SeatLayerPickerAccessPanel(
+                        hostIsListening: callbacks.onAccessUnavailable != nil,
+                        refresh: { try await controller.refreshAccess() },
+                        remount: { reloadGeneration += 1 }
+                    )
+                }
+
+                if style.options.showBookedOverlay, let booked = bookedTracker.booked {
+                    SeatLayerPickerPartHost(.bookedOverlay) {
+                        SeatLayerPickerBookedOverlay(handoff: booked) {
+                            bookedTracker.reset()
+                            presentation.resumeAfterCheckout()
+                        }
+                    }
+                }
             }
             .clipped()
             .seatLayerPickerBlockedRegions(interactionEnabled: !interactionBlocked)
@@ -408,6 +433,7 @@ private struct SeatLayerPickerReadyLayout: View {
             callbacks.onSeatViewOpened?(seat)
         }
         .onReceive(presentation.checkoutContinuations) { handoff in
+            bookedTracker.handedOff(handoff)
             callbacks.onHoldTransition?(
                 controller.snapshot?.hold.active == true ? controller.snapshot?.hold : nil,
                 handoff
@@ -427,7 +453,13 @@ private struct SeatLayerPickerReadyLayout: View {
             reportHold(hold)
         }
         .onReceive(controller.holdExpirations) { _ in
+            bookedTracker.holdExpired()
             callbacks.onHoldExpired?()
+        }
+        .onChange(of: controller.snapshot?.hold.active) { active in
+            guard bookedTracker.observe(holdActive: active == true),
+                  let booked = bookedTracker.booked else { return }
+            callbacks.onBooked?(booked)
         }
         .onChange(of: controller.snapshot?.map.rung) { rung in
             let previous = previousRung

@@ -223,7 +223,15 @@ public struct SeatLayerPickerCartSheet: View {
                 .frame(height: max(0, bodyHeight), alignment: .top)
                 .clipped()
         } else {
-            SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
+            // An event that has stopped selling says so where the buyer would
+            // otherwise be offered seats.
+            Group {
+                if controller.snapshot?.event.salesClosed == true {
+                    SeatLayerPickerSalesClosedStatement()
+                } else {
+                    SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
+                }
+            }
                 .padding(.horizontal, SeatLayerPickerSizeTokens.cartTrayPadX)
                 .padding(.top, SeatLayerPickerSizeTokens.cartTrayPadTop)
                 .background {

@@ -137,11 +137,11 @@ final class PickerContractFixtureTests: XCTestCase {
         XCTAssertEqual(Set(ids).count, ids.count)
     }
 
-    func testPublicConceptContractMatchesTheShippingTwentyFivePartEnum() throws {
+    func testPublicConceptContractMatchesTheShippingTwentyEightPartEnum() throws {
         let root = try json(at: "Contracts/picker-public-concepts.v1.json")
         let identifiers = root["builderParts"]?.arrayValue?.compactMap { $0["id"]?.stringValue }
         XCTAssertEqual(identifiers, SeatLayerPickerPart.allCases.map(\.rawValue))
-        XCTAssertEqual(identifiers?.count, 25)
+        XCTAssertEqual(identifiers?.count, 28)
         XCTAssertEqual(
             root["builderContext"]?.arrayValue?.compactMap(\.stringValue),
             [

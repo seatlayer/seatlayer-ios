@@ -54,7 +54,10 @@
     { "id": "checkoutBar", "iosDefault": "SeatLayerPickerCheckoutBar" },
     { "id": "loading", "iosDefault": "SeatLayerPickerLoadingView" },
     { "id": "error", "iosDefault": "SeatLayerPickerErrorView" },
-    { "id": "empty", "iosDefault": "SeatLayerPickerEmptyView" }
+    { "id": "empty", "iosDefault": "SeatLayerPickerEmptyView" },
+    { "id": "accessPanel", "iosDefault": "SeatLayerPickerAccessPanel" },
+    { "id": "bookedOverlay", "iosDefault": "SeatLayerPickerBookedOverlay" },
+    { "id": "toast", "iosDefault": "SeatLayerPickerToastBand" }
   ],
   "requiredTruthComponents": [
     { "ios": "SeatLayerPickerAttribution", "rule": "render whenever runtime policy requires; not a builder point" },

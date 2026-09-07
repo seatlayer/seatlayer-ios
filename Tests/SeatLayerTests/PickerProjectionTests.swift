@@ -146,8 +146,8 @@ final class PickerProjectionTests: XCTestCase {
 
     func testCanonicalBuilderMatrixHasExactlyTwentyFiveUniqueParts() {
 #if canImport(SwiftUI) && canImport(UIKit)
-        XCTAssertEqual(SeatLayerPickerPart.allCases.count, 25)
-        XCTAssertEqual(Set(SeatLayerPickerPart.allCases.map { $0.rawValue }).count, 25)
+        XCTAssertEqual(SeatLayerPickerPart.allCases.count, 28)
+        XCTAssertEqual(Set(SeatLayerPickerPart.allCases.map { $0.rawValue }).count, 28)
 #endif
     }
 
