@@ -11,8 +11,10 @@ import SwiftUI
 /// for them.
 public struct SeatLayerPickerAccessibilityButton: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
+    @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.seatLayerPickerBlockedRegionsReporter) private var regions
     @State private var showingFilters = false
 
     public init() {}
@@ -34,7 +36,7 @@ public struct SeatLayerPickerAccessibilityButton: View {
                 availability: availability
             )
             let needs = availability.accessibility || availability.limitedView
-            Button { showingFilters = true } label: {
+            Button { openFilters() } label: {
                 Image(systemName: needs ? "figure.roll" : "slider.horizontal.3")
                     .seatLayerPickerFont(size: 18, weight: .semibold)
                     .foregroundColor(activeCount > 0 ? palette.accent : palette.text)
@@ -84,13 +86,25 @@ public struct SeatLayerPickerAccessibilityButton: View {
                     SeatLayerPickerAccessibilityFilters()
                 }
                 .environmentObject(controller)
+                .environmentObject(presentation)
                 .environment(\.seatLayerPickerStyle, style)
+                .environment(\.seatLayerPickerBlockedRegionsReporter, regions)
                 // SwiftUI sheets otherwise resolve their system surface
                 // independently from an explicitly light or dark picker. Keep
                 // native controls and the picker palette on the same side of
                 // the contrast boundary.
                 .preferredColorScheme(palette.dark ? .dark : .light)
             }
+        }
+    }
+
+    /// A card standing over the map is a question the buyer has not answered.
+    /// Opening the filters answers it with "not this seat" rather than leaving
+    /// a card waiting underneath a sheet.
+    private func openFilters() {
+        Task { @MainActor in
+            _ = await presentation.cancelPending()
+            showingFilters = true
         }
     }
 }

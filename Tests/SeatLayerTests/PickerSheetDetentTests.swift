@@ -91,4 +91,60 @@ final class PickerSheetDetentTests: XCTestCase {
         XCTAssertTrue(tall.offersFull)
         XCTAssertEqual(tall.full, 844 * 0.92 - 120, accuracy: 0.001)
     }
+
+    // MARK: - Giving the map back
+
+    func testACardOverTheMapCollapsesAnOpenSheet() {
+        XCTAssertTrue(seatLayerPickerSheetShouldCollapse(
+            detent: .open,
+            cardIsUp: true,
+            previousRung: "seats",
+            rung: "seats"
+        ))
+    }
+
+    func testACollapsedSheetIsLeftAlone() {
+        XCTAssertFalse(seatLayerPickerSheetShouldCollapse(
+            detent: .peek,
+            cardIsUp: true,
+            previousRung: "seats",
+            rung: "zones"
+        ))
+        XCTAssertFalse(seatLayerPickerSheetShouldCollapse(
+            detent: .mini,
+            cardIsUp: true,
+            previousRung: nil,
+            rung: nil
+        ))
+    }
+
+    func testSteppingOutOfTheSeatsCollapsesTheSheet() {
+        XCTAssertTrue(seatLayerPickerSheetShouldCollapse(
+            detent: .open,
+            cardIsUp: false,
+            previousRung: "seats",
+            rung: "zones"
+        ))
+    }
+
+    func testDescendingIntoTheSeatsLeavesTheSheetOpen() {
+        XCTAssertFalse(seatLayerPickerSheetShouldCollapse(
+            detent: .open,
+            cardIsUp: false,
+            previousRung: "zones",
+            rung: "seats"
+        ))
+        XCTAssertFalse(seatLayerPickerSheetShouldCollapse(
+            detent: .open,
+            cardIsUp: false,
+            previousRung: "seats",
+            rung: "seats"
+        ))
+        XCTAssertFalse(seatLayerPickerSheetShouldCollapse(
+            detent: .open,
+            cardIsUp: false,
+            previousRung: nil,
+            rung: "zones"
+        ))
+    }
 }

@@ -179,6 +179,9 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var reportedReady: ReadyInfo?
     @State private var reportedHold: SeatLayerPickerHold?
     @State private var phoneCartHeight = SeatLayerPickerSizeTokens.peekHeight
+    @State private var containerWidth: Double?
+    @State private var bottomSafeInset: Double = 0
+    @State private var previousRung: String?
 
     var body: some View {
         let palette = resolveSeatLayerPickerPalette(
@@ -199,6 +202,15 @@ private struct SeatLayerPickerReadyLayout: View {
                 // Decision surfaces below keep the user's full Dynamic Type.
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             }
+            // A row of the column rather than chrome on the map: the prices
+            // are the key to what the buyer is looking at, so they never sit
+            // on top of it.
+            if priceLegendVisible {
+                SeatLayerPickerPartHost(.legend) {
+                    SeatLayerPickerPriceLegend(compact: !usesWideLayout)
+                }
+                .dynamicTypeSize(...DynamicTypeSize.large)
+            }
             ZStack {
                 SeatLayerPickerPartHost(.map) {
                     SeatLayerPickerMap(
@@ -213,8 +225,21 @@ private struct SeatLayerPickerReadyLayout: View {
                 .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
                 .background(palette.mapBackground)
                 .accessibilityIdentifier("seatlayer-map")
-                .allowsHitTesting(!interactionBlocked)
                 .accessibilityHidden(interactionBlocked)
+
+                if floorRailVisible {
+                    VStack(spacing: 0) {
+                        SeatLayerPickerPartHost(.floorStrip) {
+                            SeatLayerPickerFloorStrip(compact: !usesWideLayout)
+                        }
+                        .padding(.top, decision.anchorPlan.leadingRailTop)
+                        .dynamicTypeSize(...DynamicTypeSize.large)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
+                    .allowsHitTesting(!interactionBlocked)
+                    .accessibilityHidden(interactionBlocked)
+                }
 
                 chrome(palette: palette)
                     .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
@@ -297,14 +322,10 @@ private struct SeatLayerPickerReadyLayout: View {
                     .opacity(decisionVisible ? 0 : 1)
                 }
 
-                VStack {
-                    Spacer()
-                    SeatLayerPickerPartHost(.holdLapse) { SeatLayerHoldLapseNotice() }
-                        .padding(.horizontal, 10)
-                        .padding(.bottom, bottomOverlayControlInset)
-                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                }
-                .opacity(decisionVisible ? 0 : 1)
+                SeatLayerPickerToastBand(
+                    bottomInset: bottomChromeHeight,
+                    lifted: decisionVisible
+                )
 
                 requiredTruthChrome
                     .dynamicTypeSize(...DynamicTypeSize.large)
@@ -330,10 +351,21 @@ private struct SeatLayerPickerReadyLayout: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .allowsHitTesting(statusOverlayVisible)
+
+                // A decision surface takes the whole map: its scrim covers the
+                // page, and on iOS the tap that dismisses it reaches the page
+                // as well unless the runtime is standing guard first.
+                SeatLayerPickerMapCover(key: "decision", active: decisionVisible)
             }
             .clipped()
+            .seatLayerPickerBlockedRegions(interactionEnabled: !interactionBlocked)
         }
         .background(palette.background)
+        .seatLayerPickerContainerMetrics(
+            width: $containerWidth,
+            bottomSafeInset: $bottomSafeInset
+        )
+        .seatLayerPickerToastFeed()
         .animation(
             seatLayerPickerAnimation(.enter, reduceMotion: reduceMotion),
             value: presentation.pendingSeat?.id
@@ -397,6 +429,17 @@ private struct SeatLayerPickerReadyLayout: View {
         .onReceive(controller.holdExpirations) { _ in
             callbacks.onHoldExpired?()
         }
+        .onChange(of: controller.snapshot?.map.rung) { rung in
+            let previous = previousRung
+            previousRung = rung
+            collapseSheetIfMapTakesOver(previousRung: previous, rung: rung)
+        }
+        .onChange(of: presentation.pendingSeat?.id) { _ in
+            collapseSheetIfMapTakesOver(previousRung: previousRung, rung: previousRung)
+        }
+        .onChange(of: presentation.candidateSeat?.id) { _ in
+            collapseSheetIfMapTakesOver(previousRung: previousRung, rung: previousRung)
+        }
         .onChange(of: controller.lastError) { error in
             if let error { callbacks.onError?(error) }
         }
@@ -430,32 +473,6 @@ private struct SeatLayerPickerReadyLayout: View {
     @ViewBuilder
     private func chrome(palette: SeatLayerPickerPalette) -> some View {
         VStack(spacing: 0) {
-            if topRailVisible {
-                HStack(spacing: 8) {
-                    if priceLegendVisible {
-                        SeatLayerPickerPartHost(.legend) {
-                            SeatLayerPickerPriceLegend(compact: !usesWideLayout)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .layoutPriority(1)
-                    } else {
-                        Spacer(minLength: 0)
-                    }
-                    if showsBuyerViewControl {
-                        SeatLayerPickerBuyerViewControl(compact: !usesWideLayout)
-                            .fixedSize(horizontal: true, vertical: false)
-                            .padding(.trailing, 8)
-                    }
-                }
-                .frame(height: SeatLayerPickerReadyMetrics.topRailHeight)
-                .dynamicTypeSize(...DynamicTypeSize.large)
-            }
-            if floorRailVisible {
-                SeatLayerPickerPartHost(.floorStrip) {
-                    SeatLayerPickerFloorStrip(compact: !usesWideLayout)
-                }
-                .dynamicTypeSize(...DynamicTypeSize.large)
-            }
             Spacer(minLength: 0)
             if style.options.chrome.dock, chromeVisibility.dock {
                 SeatLayerPickerPartHost(.dockBar) { SeatLayerPickerDockBar() }
@@ -481,29 +498,19 @@ private struct SeatLayerPickerReadyLayout: View {
             }
         }
 
+        // One column, and the accessibility disc is its head: the filters, the
+        // camera and the way back are one subject in one place rather than a
+        // stack in one corner and a lone disc in the other.
         if style.options.chrome.mapControls, chromeVisibility.mapControls {
             SeatLayerPickerPartHost(.mapControls) {
                 SeatLayerPickerMapControls(
-                    bottomInset: bottomOverlayControlInset,
-                    includeBuyerViewControl: false
+                    bottomInset: decision.anchorPlan.bottomLift,
+                    includeBuyerViewControl: showsBuyerViewControl
                 )
             }
+            .opacity(decisionVisible ? 0 : 1)
+            .allowsHitTesting(!decisionVisible)
         }
-
-        if style.options.chrome.accessibility,
-           chromeVisibility.accessibility,
-           accessibilityAvailability.any {
-            VStack {
-                Spacer()
-                HStack {
-                    SeatLayerPickerAccessibilityButton()
-                    Spacer()
-                }
-                .padding(.leading, 10)
-                .padding(.bottom, bottomChromeHeight + 10)
-            }
-        }
-
     }
 
     private func wideRail(palette: SeatLayerPickerPalette) -> some View {
@@ -586,7 +593,7 @@ private struct SeatLayerPickerReadyLayout: View {
                 }
             }
 
-            if bottomAttributionOverlayVisible {
+            if bottomAttributionOverlayVisible, !phoneCartSheetVisible {
                 VStack {
                     Spacer(minLength: 0)
                     HStack {
@@ -636,7 +643,9 @@ private struct SeatLayerPickerReadyLayout: View {
             hasActivePrompt: presentation.activePrompt != nil,
             isRegularWidth: horizontalSizeClass == .regular,
             isAccessibilityTypeSize: dynamicTypeSize.isAccessibilitySize,
-            phoneCartHeight: phoneCartHeight
+            phoneCartHeight: phoneCartHeight,
+            containerWidth: containerWidth,
+            bottomSafeInset: bottomSafeInset
         )
     }
 
@@ -664,8 +673,6 @@ private struct SeatLayerPickerReadyLayout: View {
 
     private var priceLegendVisible: Bool { decision.priceLegendVisible }
 
-    private var topRailVisible: Bool { decision.topRailVisible }
-
     private var floorRailVisible: Bool { decision.floorRailVisible }
 
     private var isTestMode: Bool { decision.isTestMode }
@@ -679,6 +686,24 @@ private struct SeatLayerPickerReadyLayout: View {
     private var bottomOverlayControlInset: Double { decision.bottomOverlayControlInset }
 
     private var decisionVisible: Bool { decision.decisionVisible }
+
+    /// Whether the phone's ticket sheet is drawn. Its foot carries the credit,
+    /// so the floating one would be the same mark twice.
+    private var phoneCartSheetVisible: Bool {
+        style.options.chrome.cartSheet && chromeVisibility.cart && !usesWideLayout
+    }
+
+    /// The sheet never opens itself and it gives the map back the moment the
+    /// buyer goes back to it.
+    private func collapseSheetIfMapTakesOver(previousRung: String?, rung: String?) {
+        guard seatLayerPickerSheetShouldCollapse(
+            detent: presentation.sheetDetent,
+            cardIsUp: presentation.pendingSeat != nil || presentation.candidateSeat != nil,
+            previousRung: previousRung,
+            rung: rung
+        ) else { return }
+        presentation.sheetDetent = .peek
+    }
 
     private var statusOverlayVisible: Bool { decision.statusOverlayVisible }
 

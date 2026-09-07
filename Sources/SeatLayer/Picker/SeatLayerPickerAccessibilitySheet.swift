@@ -18,6 +18,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.seatLayerPickerBlockedRegionsReporter) private var regions
     @State private var openNote: String?
 
     public init() {}
@@ -327,18 +328,24 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     }
 
     /// A modal over the page guards the whole map while it is up.
+    ///
+    /// Through the registry rather than the command: this sheet is one of
+    /// several surfaces that may be guarding at once, and sending the runtime
+    /// an empty list on close would drop every other one's rectangle with it.
     private func guardMapWhileUp(_ blocked: Bool) {
-        guard controller.supportsBlockedRegions else { return }
+        guard let regions else { return }
         let screen = UIScreen.main.bounds
-        let regions = blocked
-            ? [SeatLayerBlockedRegion(
-                x: 0,
-                y: 0,
-                w: Double(screen.width),
-                h: Double(screen.height)
-            )]
-            : []
-        Task { @MainActor in try? await controller.setBlockedRegions(regions) }
+        regions.cover(
+            "accessSheet",
+            blocked
+                ? SeatLayerBlockedRegion(
+                    x: 0,
+                    y: 0,
+                    w: Double(screen.width),
+                    h: Double(screen.height)
+                )
+                : nil
+        )
     }
 
     private func note(for need: SeatLayerPickerAccessNeed) -> String? {

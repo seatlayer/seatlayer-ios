@@ -192,6 +192,51 @@ extension View {
     }
 }
 
+private struct SeatLayerPickerBlockedRegionsReporterKey: EnvironmentKey {
+    static let defaultValue: SeatLayerPickerBlockedRegionsReporter? = nil
+}
+
+extension EnvironmentValues {
+    /// The reporter guarding the map this view is drawn over, where there is
+    /// one.
+    ///
+    /// Optional rather than an environment object, because the components that
+    /// cover the map are public and a custom composition may place one where
+    /// no map — and so no reporter — stands underneath it. A missing reporter
+    /// is an ordinary state: nothing is guarded, and nothing breaks.
+    var seatLayerPickerBlockedRegionsReporter: SeatLayerPickerBlockedRegionsReporter? {
+        get { self[SeatLayerPickerBlockedRegionsReporterKey.self] }
+        set { self[SeatLayerPickerBlockedRegionsReporterKey.self] = newValue }
+    }
+}
+
+/// Guards the WHOLE map for as long as one surface stands over it.
+///
+/// Mounted inside the map's own stack so it measures in the map's coordinate
+/// space, and drawn as nothing: it is bookkeeping, not chrome.
+struct SeatLayerPickerMapCover: View {
+    @Environment(\.seatLayerPickerBlockedRegionsReporter) private var regions
+    let key: String
+    let active: Bool
+
+    var body: some View {
+        GeometryReader { geometry in
+            let rect = geometry.frame(in: .named(seatLayerPickerMapCoordinateSpace))
+            Color.clear
+                .onAppear { report(rect) }
+                .onChange(of: active) { _ in report(rect) }
+                .onChange(of: rect) { report($0) }
+                .onDisappear { regions?.cover(key, nil) }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func report(_ rect: CGRect) {
+        regions?.cover(key, active ? SeatLayerBlockedRegion(rect) : nil)
+    }
+}
+
 private struct SeatLayerPickerBlockedRegionsModifier: ViewModifier {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @StateObject private var reporter = SeatLayerPickerBlockedRegionsReporter()
@@ -202,6 +247,7 @@ private struct SeatLayerPickerBlockedRegionsModifier: ViewModifier {
         content
             .coordinateSpace(name: seatLayerPickerMapCoordinateSpace)
             .environmentObject(reporter)
+            .environment(\.seatLayerPickerBlockedRegionsReporter, reporter)
             .onPreferenceChange(SeatLayerPickerBlockedRegionsPreferenceKey.self) { measured in
                 entries = measured
             }

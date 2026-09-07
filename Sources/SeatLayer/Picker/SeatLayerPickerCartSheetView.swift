@@ -271,6 +271,10 @@ public struct SeatLayerPickerCartSheetFoot: View {
             snapshot: controller.snapshot
         )
         VStack(spacing: 0) {
+            // The lapse is a fact about the tickets in this sheet, so it is
+            // told inside the sheet rather than floated over the map the buyer
+            // would use to replace them.
+            SeatLayerPickerPartHost(.holdLapse) { SeatLayerHoldLapseNotice() }
             SeatLayerPickerPartHost(.actionError) { SeatLayerPickerActionError() }
             SeatLayerPickerCartTotalLine()
             SeatLayerPickerPartHost(.checkoutBar) {

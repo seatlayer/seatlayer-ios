@@ -165,6 +165,25 @@ public func seatLayerPickerSheetDetents(
     )
 }
 
+/// Whether the sheet must give the map back.
+///
+/// The sheet never opens itself, and there are exactly two ways it closes
+/// without being touched: a seat card opens over the map — the tap the runtime
+/// reports to native chrome, which is how a tap on the map reaches an expanded
+/// sheet at all — or the camera steps back out of the seats. Both are the
+/// buyer saying they are looking at the map again.
+public func seatLayerPickerSheetShouldCollapse(
+    detent: SeatLayerPickerSheetDetent,
+    cardIsUp: Bool,
+    previousRung: String?,
+    rung: String?
+) -> Bool {
+    guard detent == .open else { return false }
+    if cardIsUp { return true }
+    guard let previousRung, let rung, previousRung != rung else { return false }
+    return previousRung == "seats" && rung != "seats"
+}
+
 #if canImport(UIKit)
 import UIKit
 
