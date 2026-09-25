@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0
+## Unreleased
 
 The native picker follows the SeatLayer buyer picker's current phone design
 item by item, on hosted runtime `seatlayer-js@0.84.1`. Views load
@@ -27,9 +27,9 @@ item by item, on hosted runtime `seatlayer-js@0.84.1`. Views load
   moved the map. The runtime paints the candidate seat (thick ring, halo,
   paled neighbours) while the card asks.
 - Section, row and seat as three cells; the category as a full-bleed band with
-  its ink chosen per colour; every seat attribute as a band under it —
-  accommodation types, wheelchair provision, restricted and obstructed view,
-  premium seat, the organizer's note — with the shared glyph set and tones
+  its ink chosen per colour; every seat attribute as a band under it
+  (accommodation types, wheelchair provision, restricted and obstructed view,
+  premium seat, the organizer's note), with the shared glyph set and tones
   that meet 4.5:1 in both themes; a photograph of the view from the seat with
   the distance to the stage, where the runtime offers one.
 - `Add seat` invites once, breathes until touched, sweeps and ticks on the
@@ -43,7 +43,7 @@ item by item, on hosted runtime `seatlayer-js@0.84.1`. Views load
 
 - One surface: a disc handle straddling the sheet's edge, a footer that reads
   "N tickets · total" or "No seats selected" with the seats listed under it,
-  and one button that says what it is doing — hold seats and checkout,
+  and one button that says what it is doing: hold seats and checkout,
   continue, securing your seats, opening checkout, or why it is waiting.
 - Open, the cart shows one card per ticket (capped at three and a sliver
   before it scrolls), each with its × and its eye; tapping a card takes the
@@ -173,10 +173,10 @@ item by item, on hosted runtime `seatlayer-js@0.84.1`. Views load
 
 - Updated the vendored buyer runtime to `seatlayer-js@0.59.0` (sha256
   `89bc29fb…`), pulled from the production CDN and byte-verified against the
-  published release. Native buyers get the mobile buyer round — an
+  published release. Native buyers get the mobile buyer round (an
   always-visible price rail, a section locator that survives a filling cart, a
   venue overview that no longer covers the seats, accessibility filters that
-  cannot be missed, and a checkout button clear of the home indicator — plus
+  cannot be missed, and a checkout button clear of the home indicator), plus
   the engine fixes that reach every surface: section focus frames the section
   rather than its whole zone, the price filter dims section blocks and not only
   seats, and map type is sized for the device.
