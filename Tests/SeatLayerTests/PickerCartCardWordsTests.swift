@@ -4,10 +4,10 @@ import XCTest
 /// What one cart card prints, from the line's own seat facts.
 ///
 /// The card is per ticket, but a runtime that keys its cart lines by ROW hands
-/// every seat in a row the same key — so the address a card prints may never
+/// every seat in a row the same key, so the address a card prints may never
 /// come from anything the lines share.
 final class PickerCartCardWordsTests: XCTestCase {
-    /// The bug the owner saw: `211-Q · 12 · Lower Bowl` under a card already
+    /// The bug this pins: `211-Q · 12 · Lower Bowl` under a card already
     /// titled `211`. The row prints short.
     func testAQualifiedRowPrintsShortUnderItsSection() {
         let words = seatLayerPickerCartCardWords(

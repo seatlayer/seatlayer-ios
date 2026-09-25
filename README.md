@@ -6,13 +6,12 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-SeatLayer is interactive seating chart software built for stadium scale. Platforms embed the white-label seat picker with their own checkout; organizers sell seated events on their own website with their own payment gateway.
-
-The official SeatLayer iOS SDK for Swift and SwiftUI adds a native buyer picker
-or raw interactive seating chart to ticketing apps. The venue renderer stays in
+The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds a native buyer
+picker or raw interactive seating chart to ticketing apps. The venue renderer stays in
 one version-pinned `WKWebView`; headers, filters, confirmation, cart, hold
 state, checkout, errors, and navigation are native SwiftUI/UIKit components
-backed by a typed headless controller.
+backed by a typed headless controller. SeatLayer is seating chart and
+reserved-seat ticketing software built for venues up to stadium scale.
 
 [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
 [Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
@@ -98,7 +97,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.4.0")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.3.4")
 ]
 ```
 
@@ -190,7 +189,7 @@ See [Native picker integration](Docs/native-picker.md) and
 Four public layers change presentation without rebuilding inventory or hold
 behavior.
 
-**Colors — a semantic theme.** Native chrome and the renderer receive the same
+**Colors: a semantic theme.** Native chrome and the renderer receive the same
 approved roles, and `.auto` tracks the current iOS color scheme without
 remounting:
 
@@ -210,7 +209,7 @@ let theme = SeatLayerPickerTheme(
 )
 ```
 
-**One surface — a typed style slot.** A style changes appearance, not ownership
+**One surface: a typed style slot.** A style changes appearance, not ownership
 or inventory truth:
 
 ```swift
@@ -223,7 +222,7 @@ styles[.checkoutBar] = SeatLayerPickerPartStyle(
 )
 ```
 
-**Visibility and words — options and strings.** Chrome gates remove optional
+**Visibility and words: options and strings.** Chrome gates remove optional
 default parts, while the 37 bundled locale dictionaries resolve exact BCP-47,
 then language, then English:
 
@@ -239,7 +238,7 @@ let strings = SeatLayerPickerStrings(
 )
 ```
 
-**One whole part — a builder.** Each builder receives the live snapshot,
+**One whole part: a builder.** Each builder receives the live snapshot,
 controller, presentation state, style, and the canonical `defaultContent`:
 
 ```swift
@@ -437,7 +436,7 @@ bounce, double-tap zoom, long-press callout, and text selection.
 `deselectCategories` · `setSelectableObjects` · `setMaxSelection` ·
 `getSelectionValidity` · `refreshAccess` · `getGAAreas` · `getFloors` ·
 `setFloor` · `setColorblindSafe` · `setViewMode` · `getViewMode` · `zoomIn` ·
-`zoomOut` · `zoomToFit` · `destroy` — all
+`zoomOut` · `zoomToFit` · `destroy`. All are
 `async throws`, all named to match the web `SeatingChart` so the two SDKs read
 as one product.
 
@@ -456,7 +455,7 @@ unfamiliar value:
 - `EventMode`, `TransportName`, `ObjectType`, `SeatStatus`,
   `SeatLayerViewMode`, `EnvelopeKind`
 - unknown payload fields survive on `JSONValue` and are ignored by the typed structs
-- error `code` is an **open** string set — API codes like `sold_out` pass through untouched
+- error `code` is an **open** string set; API codes like `sold_out` pass through untouched
 - an unknown command name comes back as `unsupported_command`, never a crash
 
 `BundleInfo.supports(command:)` lets an app hide UI an older bundle lacks rather
@@ -486,7 +485,7 @@ Five deliberate divergences, each forced by the platform rather than chosen:
    affordance; on touch the host should draw its own seat sheet from
    `seatHoverDidChange`.
 
-Event coalescing is *not* mirrored — the web side already coalesces
+Event coalescing is *not* mirrored: the web side already coalesces
 `seat.hover` and `selection.changed` to one envelope per frame, so the native
 side receives pre-coalesced traffic and only needs the stale-`n` filter.
 
@@ -501,7 +500,7 @@ swift test                                                               # contr
 
 Tests cover envelope encode/decode, correlation, concurrent commands, timeout
 and late-reply dropping, version negotiation in both directions, stale-event
-filtering, and unknown-enum tolerance. **None of them requires a WebView** —
+filtering, and unknown-enum tolerance. **None of them requires a WebView**:
 `BridgeChannel` is a protocol and the tests substitute a double.
 
 ### Simulator
@@ -550,8 +549,8 @@ items, process payment, and book with a stable `bookingRef`.
 
 When a buyer selects seats, the SDK creates a temporary hold that reserves the
 inventory against concurrent buyers for a limited window. The hold expires
-automatically if checkout does not complete — `holdExpired` tells the app to
-return the buyer to the map — and `extendHold` and `resumeHold` cover longer
+automatically if checkout does not complete (`holdExpired` tells the app to
+return the buyer to the map), and `extendHold` and `resumeHold` cover longer
 checkouts and app restarts. This prevents double-selling without locking seats
 forever.
 
@@ -559,7 +558,7 @@ forever.
 
 Yes. SeatLayer never processes payment inside the seat map. The app hands the
 `holdId` to your backend, and your backend charges through any payment
-provider you already use — Stripe, Adyen, Razorpay, or your own — before
+provider you already use (Stripe, Adyen, Razorpay, or your own) before
 booking the hold through the
 [server-side checkout flow](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/).
 
