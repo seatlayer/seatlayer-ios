@@ -526,12 +526,13 @@ Yes. Nothing in the app takes a payment. Your server reads the held seats and
 their prices, charges through the provider you already use, and books the hold
 with a stable booking reference.
 
-### Can I evaluate the SDK without a SeatLayer account?
+### Can I try the SeatLayer iOS SDK without an account?
 
-Yes. The repository's example app and test suite exercise the view, bridge,
-and renderer against the bundled offline fixture. Create a free SeatLayer test
-event when you are ready to validate live inventory, holds, expiry, and
-checkout.
+You can see the SeatLayer picker in the live browser demo with no account, and
+the package's own tests run with no account or network. To run the iOS picker on
+live seats, create a test event and set its key as `SEATLAYER_EVENT_KEY` in the
+example app's scheme. Test mode is free, with no time limit and no card, and it
+uses no credits.
 
 ### Can I restyle the picker without rebuilding it?
 
