@@ -450,9 +450,8 @@ older map version lacks.
 The Swift API matches the web `SeatingChart` one to one. Two things differ on
 iOS: a command that gets no answer within 15 seconds fails with a timeout error
 (a late answer is dropped), and the hover tooltip is off by default on touch
-screens, so draw your own seat sheet from `seatHoverDidChange`. An app built
-against an older SDK keeps working when the map gains new events: unknown events
-are ignored.
+screens, so draw your own seat sheet from `seatHoverDidChange`. An app built against an older SDK keeps working when the map gains new events: an unknown event reaches
+`seatLayerView(_:didReceiveUnknownEvent:payload:)` and is otherwise safe to ignore.
 
 ## Verification
 
@@ -463,8 +462,8 @@ xcodebuild -project Example/SeatLayerDemo.xcodeproj \
 swift test                                                               # contract suite
 ```
 
-Tests cover every command and event, concurrent commands, timeouts, version
-checks in both directions and unknown values. They run against a test double of
+The package's tests cover commands and events, concurrent commands, timeouts, version negotiation and
+unknown values. They run against a test double of
 the map, so they need no device and no network.
 
 ### Simulator
@@ -483,8 +482,7 @@ Never commit credentials or customer event identifiers to the shared scheme.
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
 `SeatLayerPickerViewController` in UIKit. That is the complete buyer flow: live
-availability, filters, section/floor navigation, confirmation, cart, holds, 3D
-inspection for venues up to 60,000 seats, and a typed checkout handoff. Use
+availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection and a typed checkout handoff. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. Use
 `SeatLayerView` only when the app deliberately owns every buyer control and hold
 interaction.
 
@@ -494,8 +492,7 @@ Everything around the seat map: the header, filters, seat card, cart, hold timer
 and checkout hand-off are SwiftUI and UIKit views, and your code works only with
 typed Swift commands, payloads, errors and events. The seat map itself is the
 SeatLayer map from the web, shown inside your app, so a seat, its price and its
-3D view (for venues up to 60,000 seats) are the same on iOS, Android, Flutter
-and the web. The API matches the web `SeatingChart` one to one.
+3D view are the same on iOS, Android, Flutter and the web. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. The API matches the web `SeatingChart` one to one.
 
 ### Does it work with SwiftUI?
 
@@ -575,8 +572,7 @@ nobody mistakes a test for a live sale.
 - [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
   when choosing between native iOS, Flutter, React Native, and Android.
 - [See how the 3D seat map works](https://seatlayer.io/3d-seat-map/): the 3D
-  venue and the view from each seat, built from the same chart, on every plan,
-  for venues up to 60,000 seats.
+  venue and the view from each seat, built from the same chart, on every plan. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it.
 - [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
   (`llms.txt`) for a compact map of the documentation.
 
