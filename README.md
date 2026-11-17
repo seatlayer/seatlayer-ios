@@ -555,12 +555,11 @@ and approved renderer color roles without remounting. `.light` and `.dark` pin
 one side explicitly. UIKit can update an already-presented picker with
 `updateAppearance(...)`.
 
-### Can my app hide “Powered by SeatLayer”?
+### Do buyers see a SeatLayer badge in my app?
 
-Not with a local view option. Visibility comes from the runtime snapshot's
-`branding.attributionRequired` value, which reflects the API-side branding
-entitlement. Required attribution stays at bottom-right and has no builder
-slot; when the API disables it, iOS removes it and reclaims the space.
+No. Buyers see no SeatLayer badge, on any plan, so the picker shows only your
+event's name, logo and theme. The test-mode label stays on test events, so
+nobody mistakes a test for a live sale.
 
 ## Continue your iOS integration
 
