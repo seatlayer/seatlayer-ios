@@ -146,8 +146,9 @@ checkout. In 3D, native controls let the buyer step to the previous or next seat
 in the row, look around the view from a seat, and go back to the overview or the
 map without confirming the seat. They appear when the event's map supports them.
 
-For routes where latency matters, prewarm the page-only renderer host before
-navigation. It contains no event or credentials and is consumed once:
+**Prepare the picker in advance (optional).** Call `SeatLayerPicker.prewarm()`
+before you navigate to the picker. It holds no event data or credentials and is
+used by the next picker that opens.
 
 ```swift
 Task { try await SeatLayerPicker.prewarm() }
@@ -467,8 +468,8 @@ the map, so they need no device and no network.
 picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
 Environment Variables** to an authorized test event. Optional
 `SEATLAYER_API_BASE`, `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
-`SEATLAYER_DEMO_WIDE`, and `SEATLAYER_PREWARM` values demonstrate the public
-configuration, adaptive layout, theme, locale, and page-only prewarm APIs.
+`SEATLAYER_DEMO_WIDE` and `SEATLAYER_PREWARM` values demonstrate the public
+configuration, adaptive layout, theme, locale and `prewarm()` APIs.
 Never commit credentials or customer event identifiers to the shared scheme.
 
 ## Frequently asked questions
@@ -560,8 +561,8 @@ slot; when the API disables it, iOS removes it and reclaims the space.
 - [Follow the Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/)
   for setup, lifecycle, commands, events, and runtime requirements.
 - [Use the native picker integration guide](Docs/native-picker.md) for the
-  ready SwiftUI/UIKit hosts, customization, public parts, state ownership, and
-  prewarming contract.
+  ready SwiftUI/UIKit hosts, customization, public parts, state ownership and
+  `prewarm()`.
 - [Connect seat holds to secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
   without exposing booking credentials in the app.
 - [Run the complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)
