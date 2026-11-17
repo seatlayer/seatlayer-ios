@@ -488,20 +488,21 @@ inspection for venues up to 60,000 seats, and a typed checkout handoff. Use
 `SeatLayerView` only when the app deliberately owns every buyer control and hold
 interaction.
 
-### Is this a native Swift seat map or a WebView?
+### What is native in the SeatLayer iOS SDK?
 
-Rendering runs in `WKWebView` on SeatLayer's immutable, version-pinned buyer
-runtime, and application code never touches the web layer: commands, payloads,
-errors, and events are all typed Swift. The API matches the web `SeatingChart`
-one-to-one, so iOS and web read as one product.
+Everything around the seat map: the header, filters, seat card, cart, hold timer
+and checkout hand-off are SwiftUI and UIKit views, and your code works only with
+typed Swift commands, payloads, errors and events. The seat map itself is the
+SeatLayer map from the web, shown inside your app, so a seat, its price and its
+3D view (for venues up to 60,000 seats) are the same on iOS, Android, Flutter
+and the web. The API matches the web `SeatingChart` one to one.
 
 ### Does it work with SwiftUI?
 
-Yes. Use `SeatLayerPicker` for the complete native flow,
-`SeatLayerPickerScope` plus public components for a custom flow, or
-`SeatLayerPickerMap` for only the headless renderer. Give the map a definite
-frame and do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
-pinch gestures.
+Yes. Use `SeatLayerPicker` for the complete native flow, `SeatLayerPickerScope`
+with the public components for your own layout, or `SeatLayerPickerMap` for the
+map alone. Give the map a definite frame and keep it out of a SwiftUI
+`ScrollView`, because the map handles its own pan and pinch.
 
 ### How does seat booking work in an iOS app?
 
