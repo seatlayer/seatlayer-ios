@@ -286,7 +286,7 @@ ready/load, selection and validity, holds and expiry, access failures,
 unavailable selected objects, theme, section, seat, seat-view, close/error,
 and Continue. The controller exposes typed semantic actions such as
 `focusSection`, `overview`, `setFloor`, `setCategoryFilter`,
-`refreshAvailability`, and `checkout`; custom UI never sends bridge envelopes.
+`refreshAvailability`, and `checkout`; custom UI never talks to the map directly.
 
 `SeatLayerPickerChromeOptions` keeps the original Boolean `overview`, `zoom`,
 and `colorblind` master switches. Dense phone layouts keep those actions in
@@ -346,8 +346,8 @@ snapshot.
 
 ## Raw map quick start
 
-The protocol-1 API remains source compatible for applications that want only
-the renderer and the original one-to-one chart commands:
+`SeatLayerView` is the map alone, with the original chart commands that match
+the web `SeatingChart` one to one:
 
 ```swift
 let map = SeatLayerView()
@@ -379,16 +379,16 @@ Give `SeatLayerView` an explicit height or make it full-screen.
 The iOS app **selects and holds** inventory. Your trusted backend **inspects and
 books** the hold after payment or order validation.
 
-- Never ship a SeatLayer secret key in the app binary or WebView.
+- Never ship a SeatLayer secret key in the app binary or in any app configuration.
 - Treat the checkout handoff as opaque client-to-backend data. Do not log,
   display, persist, or place its `holdId` in analytics.
 - Calculate the charge from server-inspected hold items, not app input.
 - Reuse your stable order id as `bookingRef` for safe booking retries.
 
-The native picker keeps bearer credentials in memory, uses a nonpersistent web
-data store, accepts bridge traffic only from the configured main-frame origin,
-and destroys the session on teardown. If the checkout callback throws, it asks
-the runtime to reject that exact handoff and keeps the buyer in the picker.
+The native picker keeps buyer credentials in memory only, keeps no session data
+after it closes, and accepts messages only from the SeatLayer map. If your
+checkout callback throws, the picker rejects that exact hand-off and keeps the
+buyer in the picker.
 
 Ordinary picker snapshots deliberately omit the opaque `holdId`; only
 `SeatLayerPickerCheckoutHandoff` crosses that capability boundary. Before a
@@ -409,8 +409,8 @@ before connecting payment and booking.
 pinch to drive its own zoom, so an enclosing scroll view and the map fight over
 every gesture and neither behaves. Give it a definite frame.
 
-The SDK already disables the WebView affordances that fight the canvas: scroll,
-bounce, double-tap zoom, long-press callout, and text selection.
+The SDK already turns off the scrolling, bounce, double-tap zoom, long-press
+callout and text selection that would fight the map's own gestures.
 
 ## Raw chart API
 
@@ -432,46 +432,21 @@ buyer-access expired/unavailable, selected-object unavailable, `holdChanged`,
 
 ## Forward compatibility
 
-The bundle ships new enum values to apps compiled a year earlier, so **every
-bridged enum has an `unknown(String)` case** and no decoder throws on an
-unfamiliar value:
+Apps built against an older SDK keep working when the SeatLayer map adds new
+values. Every enum the SDK decodes has an `unknown(String)` case, and unknown
+fields are ignored. Error `code` is an open string set, so API codes like
+`sold_out` pass through, and an unknown command returns `unsupported_command`
+instead of crashing. `BundleInfo.supports(command:)` lets you hide UI that an
+older map version lacks.
 
-- `EventMode`, `TransportName`, `ObjectType`, `SeatStatus`,
-  `SeatLayerViewMode`, `EnvelopeKind`
-- unknown payload fields survive on `JSONValue` and are ignored by the typed structs
-- error `code` is an **open** string set; API codes like `sold_out` pass through untouched
-- an unknown command name comes back as `unsupported_command`, never a crash
+## Differences from the web SDK
 
-`BundleInfo.supports(command:)` lets an app hide UI an older bundle lacks rather
-than discovering `unsupported_command` at tap time.
-
-## Where the Swift side differs from the web contract
-
-Five deliberate divergences, each forced by the platform rather than chosen:
-
-1. **`EnvelopeKind.unknown` is tolerated, not rejected.** The web `decode()`
-   returns `null` for an unrecognised `k`, because a page receives unrelated
-   `postMessage` traffic it must filter out. On iOS the only writer to our
-   `WKScriptMessageHandler` is our own bundle, so an unknown `k` means a *newer
-   bundle*, not foreign traffic. It decodes as `.unknown` and the router drops
-   it, which keeps an old app forward-compatible.
-2. **`sl_timeout` has no web-side counterpart.** The web bridge answers every
-   `cmd`, so a missing reply means the WebView stalled or was torn down. The
-   native client enforces its own 15s deadline; a late reply for a timed-out id
-   is dropped rather than delivered.
-3. **`init.protocol` is sent as a `{min,max}` range**, not a bare number. The
-   web accepts both; a range is what makes the intersection meaningful in both
-   upgrade directions.
-4. **Negotiation runs natively before replying.** The web side also checks, but
-   failing first means the app never asks for a chart it could not drive, and
-   the caller gets a typed `.incompatible` error instead of a blank view.
-5. **`chrome.seatTooltip` defaults to `false`.** A hover tooltip is a pointer
-   affordance; on touch the host should draw its own seat sheet from
-   `seatHoverDidChange`.
-
-Event coalescing is *not* mirrored: the web side already coalesces
-`seat.hover` and `selection.changed` to one envelope per frame, so the native
-side receives pre-coalesced traffic and only needs the stale-`n` filter.
+The Swift API matches the web `SeatingChart` one to one. Two things differ on
+iOS: a command that gets no answer within 15 seconds fails with a timeout error
+(a late answer is dropped), and the hover tooltip is off by default on touch
+screens, so draw your own seat sheet from `seatHoverDidChange`. An app built
+against an older SDK keeps working when the map gains new events: unknown events
+are ignored.
 
 ## Verification
 
@@ -482,10 +457,9 @@ xcodebuild -project Example/SeatLayerDemo.xcodeproj \
 swift test                                                               # contract suite
 ```
 
-Tests cover envelope encode/decode, correlation, concurrent commands, timeout
-and late-reply dropping, version negotiation in both directions, stale-event
-filtering, and unknown-enum tolerance. **None of them requires a WebView**:
-`BridgeChannel` is a protocol and the tests substitute a double.
+Tests cover every command and event, concurrent commands, timeouts, version
+checks in both directions and unknown values. They run against a test double of
+the map, so they need no device and no network.
 
 ### Simulator
 
