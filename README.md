@@ -6,11 +6,16 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds a native buyer
-picker or raw interactive seating chart to ticketing apps. The venue renderer stays in
-one version-pinned `WKWebView`; headers, filters, confirmation, cart, hold
-state, checkout, errors, and navigation are native SwiftUI/UIKit components
-backed by a typed headless controller. SeatLayer is seating chart and
+> **Latest release: 0.3.4.** Add it with Swift Package Manager from this
+> repository's `v0.3.4` tag.
+
+The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds an
+interactive seating chart and a ready-made native seat picker to ticketing apps.
+Buyers see live availability, pick their own seats or the best available, and
+hold them while they check out. The header, filters, seat card, cart, hold
+timer, checkout hand-off, errors and navigation are SwiftUI and UIKit views
+driven by a typed Swift controller; the venue map inside them is SeatLayer's
+own, the same map buyers see on the web. SeatLayer is seating chart and
 reserved-seat ticketing software built for venues up to stadium scale.
 
 [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
@@ -22,33 +27,25 @@ reserved-seat ticketing software built for venues up to stadium scale.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-Production views load the immutable, version-pinned mobile document and its lazy
-assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
-for origin-bound private buyer sessions; no event key or bearer is put in the
-page URL.
-
 - Swift package (SPM), iOS 15+
-- Hosted runtime: `seatlayer-js@0.84.1/mobile.html`
-- Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
-- Raw chart protocol: 1 (unchanged)
-- Native picker protocol: 2 with snapshot contract 1
 
 Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
 
-**Start here:** [Quickstart](https://docs.seatlayer.io/start/quickstart/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [iOS guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json) · [Pricing](https://seatlayer.io/pricing/): $0 entry, 100 free confirmed-sold-seat credits per organization each month, then $0.10 down to $0.05 a credit, and credits never expire.
+**Start here:** [Quickstart](https://docs.seatlayer.io/start/quickstart/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [iOS guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json) · [Pricing](https://seatlayer.io/pricing/): test mode is free; live, the first 100 sold seats each month are free, then 10¢ down to 5¢ per sold seat, with no subscription, and purchased credits never expire.
 
 ## Scale evidence
 
-Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Fixtures, method and run logs: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k. This is renderer evidence, not a concurrent-buyer claim.
+Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Tested at 10,000 simulated concurrent buyers on one 12,000-seat event (18 September 2026): engine-side hold latency p99 9 ms, zero server errors. Method, fixtures and run files: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k.
 
 ## Works as a native picker
 
-**Every buyer control is native SwiftUI/UIKit.** SeatLayer's pinned renderer
-draws venue geometry, seats, labels, the 3D scene, and panorama pixels. The SDK
-draws the header, price and floor rails, map controls, decision surfaces, cart,
-hold state, checkout action, loading/error states, and accessibility chrome.
-There is one renderer session, so changing native presentation never creates a
-second map or loses the buyer's camera, selection, or hold.
+**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
+seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
+the web, shown inside your app. The SDK draws the header, price and floor rails,
+map controls, seat decisions, cart, hold timer, checkout button, loading and
+error states, and accessibility labels. Each picker has one map, so changing the
+native look never reloads the map or loses the buyer's position, selection or
+hold.
 
 The three supported integration levels are a ladder. Customization keeps the
 ready flow; composition keeps the controller, runtime truth, and checkout
@@ -145,12 +142,13 @@ the optional hold/handoff lifecycle without changing that closure type.
 
 Applicable Adult/Child/Companion tiers render natively and are applied before
 confirmation, with the authoritative tier and price retained through cart and
-checkout. Capability-gated native 3D chrome supports authored targets,
-same-row previous/next boundaries, panorama inspection, and
-target → overview → map navigation without confirming a pending seat.
+checkout. In 3D, native controls let the buyer step to the previous or next seat
+in the row, look around the view from a seat, and go back to the overview or the
+map without confirming the seat. They appear when the event's map supports them.
 
-For routes where latency matters, prewarm the page-only renderer host before
-navigation. It contains no event or credentials and is consumed once:
+**Prepare the picker in advance (optional).** Call `SeatLayerPicker.prewarm()`
+before you navigate to the picker. It holds no event data or credentials and is
+used by the next picker that opens.
 
 ```swift
 Task { try await SeatLayerPicker.prewarm() }
@@ -289,7 +287,7 @@ ready/load, selection and validity, holds and expiry, access failures,
 unavailable selected objects, theme, section, seat, seat-view, close/error,
 and Continue. The controller exposes typed semantic actions such as
 `focusSection`, `overview`, `setFloor`, `setCategoryFilter`,
-`refreshAvailability`, and `checkout`; custom UI never sends bridge envelopes.
+`refreshAvailability`, and `checkout`; custom UI never talks to the map directly.
 
 `SeatLayerPickerChromeOptions` keeps the original Boolean `overview`, `zoom`,
 and `colorblind` master switches. Dense phone layouts keep those actions in
@@ -349,8 +347,8 @@ snapshot.
 
 ## Raw map quick start
 
-The protocol-1 API remains source compatible for applications that want only
-the renderer and the original one-to-one chart commands:
+`SeatLayerView` is the map alone, with the original chart commands that match
+the web `SeatingChart` one to one:
 
 ```swift
 let map = SeatLayerView()
@@ -382,16 +380,16 @@ Give `SeatLayerView` an explicit height or make it full-screen.
 The iOS app **selects and holds** inventory. Your trusted backend **inspects and
 books** the hold after payment or order validation.
 
-- Never ship a SeatLayer secret key in the app binary or WebView.
+- Never ship a SeatLayer secret key in the app binary or in any app configuration.
 - Treat the checkout handoff as opaque client-to-backend data. Do not log,
   display, persist, or place its `holdId` in analytics.
 - Calculate the charge from server-inspected hold items, not app input.
 - Reuse your stable order id as `bookingRef` for safe booking retries.
 
-The native picker keeps bearer credentials in memory, uses a nonpersistent web
-data store, accepts bridge traffic only from the configured main-frame origin,
-and destroys the session on teardown. If the checkout callback throws, it asks
-the runtime to reject that exact handoff and keeps the buyer in the picker.
+The native picker keeps buyer credentials in memory only, keeps no session data
+after it closes, and accepts messages only from the SeatLayer map. If your
+checkout callback throws, the picker rejects that exact hand-off and keeps the
+buyer in the picker.
 
 Ordinary picker snapshots deliberately omit the opaque `holdId`; only
 `SeatLayerPickerCheckoutHandoff` crosses that capability boundary. Before a
@@ -412,8 +410,8 @@ before connecting payment and booking.
 pinch to drive its own zoom, so an enclosing scroll view and the map fight over
 every gesture and neither behaves. Give it a definite frame.
 
-The SDK already disables the WebView affordances that fight the canvas: scroll,
-bounce, double-tap zoom, long-press callout, and text selection.
+The SDK already turns off the scrolling, bounce, double-tap zoom, long-press
+callout and text selection that would fight the map's own gestures.
 
 ## Raw chart API
 
@@ -428,53 +426,32 @@ bounce, double-tap zoom, long-press callout, and text selection.
 as one product.
 
 Events reach `SeatLayerViewDelegate`, which has a no-op default for every
-method: `ready`, `selectionChanged`, selection validity/valid/invalid/limit,
-buyer-access expired/unavailable, selected-object unavailable, `holdChanged`,
-`holdRestored`, `holdExpired`, `gaClick`, `hint`, `seatHover`, `deckTap`, `error`, plus
-`didReceiveUnknownEvent` for anything a newer bundle introduces.
+method: `seatLayerViewDidBecomeReady`, `selectionDidChange`,
+`selectionValidityDidChange`, `selectionDidBecomeValid`,
+`selectionDidBecomeInvalid`, `didReachSelectionLimit`, `buyerAccessDidExpire`,
+`buyerAccessBecameUnavailable`, `selectedObjectsBecameUnavailable`,
+`holdDidChange`, `holdWasRestored`, `seatLayerViewHoldDidExpire`, `didFailWith`,
+`didReceiveHint`, `didTapGAArea`, `seatHoverDidChange`, `didTapFloor`, plus
+`didReceiveUnknownEvent` for anything a newer map version adds. Most are
+argument labels of `seatLayerView(_:...)`, for example
+`seatLayerView(_:selectionDidChange:)`.
 
 ## Forward compatibility
 
-The bundle ships new enum values to apps compiled a year earlier, so **every
-bridged enum has an `unknown(String)` case** and no decoder throws on an
-unfamiliar value:
+Apps built against an older SDK keep working when the SeatLayer map adds new
+values. Every enum the SDK decodes has an `unknown(String)` case, and unknown
+fields are ignored. Error `code` is an open string set, so API codes like
+`sold_out` pass through, and an unknown command returns `unsupported_command`
+instead of crashing. `BundleInfo.supports(command:)` lets you hide UI that an
+older map version lacks.
 
-- `EventMode`, `TransportName`, `ObjectType`, `SeatStatus`,
-  `SeatLayerViewMode`, `EnvelopeKind`
-- unknown payload fields survive on `JSONValue` and are ignored by the typed structs
-- error `code` is an **open** string set; API codes like `sold_out` pass through untouched
-- an unknown command name comes back as `unsupported_command`, never a crash
+## Differences from the web SDK
 
-`BundleInfo.supports(command:)` lets an app hide UI an older bundle lacks rather
-than discovering `unsupported_command` at tap time.
-
-## Where the Swift side differs from the web contract
-
-Five deliberate divergences, each forced by the platform rather than chosen:
-
-1. **`EnvelopeKind.unknown` is tolerated, not rejected.** The web `decode()`
-   returns `null` for an unrecognised `k`, because a page receives unrelated
-   `postMessage` traffic it must filter out. On iOS the only writer to our
-   `WKScriptMessageHandler` is our own bundle, so an unknown `k` means a *newer
-   bundle*, not foreign traffic. It decodes as `.unknown` and the router drops
-   it, which keeps an old app forward-compatible.
-2. **`sl_timeout` has no web-side counterpart.** The web bridge answers every
-   `cmd`, so a missing reply means the WebView stalled or was torn down. The
-   native client enforces its own 15s deadline; a late reply for a timed-out id
-   is dropped rather than delivered.
-3. **`init.protocol` is sent as a `{min,max}` range**, not a bare number. The
-   web accepts both; a range is what makes the intersection meaningful in both
-   upgrade directions.
-4. **Negotiation runs natively before replying.** The web side also checks, but
-   failing first means the app never asks for a chart it could not drive, and
-   the caller gets a typed `.incompatible` error instead of a blank view.
-5. **`chrome.seatTooltip` defaults to `false`.** A hover tooltip is a pointer
-   affordance; on touch the host should draw its own seat sheet from
-   `seatHoverDidChange`.
-
-Event coalescing is *not* mirrored: the web side already coalesces
-`seat.hover` and `selection.changed` to one envelope per frame, so the native
-side receives pre-coalesced traffic and only needs the stale-`n` filter.
+The Swift API matches the web `SeatingChart` one to one. Two things differ on
+iOS: a command that gets no answer within 15 seconds fails with a timeout error
+(a late answer is dropped), and the hover tooltip is off by default on touch
+screens, so draw your own seat sheet from `seatHoverDidChange`. An app built against an older SDK keeps working when the map gains new events: an unknown event reaches
+`seatLayerView(_:didReceiveUnknownEvent:payload:)` and is otherwise safe to ignore.
 
 ## Verification
 
@@ -485,10 +462,9 @@ xcodebuild -project Example/SeatLayerDemo.xcodeproj \
 swift test                                                               # contract suite
 ```
 
-Tests cover envelope encode/decode, correlation, concurrent commands, timeout
-and late-reply dropping, version negotiation in both directions, stale-event
-filtering, and unknown-enum tolerance. **None of them requires a WebView**:
-`BridgeChannel` is a protocol and the tests substitute a double.
+The package's tests cover commands and events, concurrent commands, timeouts, version negotiation and
+unknown values. They run against a test double of
+the map, so they need no device and no network.
 
 ### Simulator
 
@@ -496,8 +472,8 @@ filtering, and unknown-enum tolerance. **None of them requires a WebView**:
 picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
 Environment Variables** to an authorized test event. Optional
 `SEATLAYER_API_BASE`, `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
-`SEATLAYER_DEMO_WIDE`, and `SEATLAYER_PREWARM` values demonstrate the public
-configuration, adaptive layout, theme, locale, and page-only prewarm APIs.
+`SEATLAYER_DEMO_WIDE` and `SEATLAYER_PREWARM` values demonstrate the public
+configuration, adaptive layout, theme, locale and `prewarm()` APIs.
 Never commit credentials or customer event identifiers to the shared scheme.
 
 ## Frequently asked questions
@@ -505,25 +481,25 @@ Never commit credentials or customer event identifiers to the shared scheme.
 ### How do I add a seat map to an iOS app?
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
-`SeatLayerPickerViewController` in UIKit. That is the complete buyer flow:
-live availability, filters, section/floor navigation, confirmation, cart,
-holds, 3D inspection, and a typed checkout handoff. Use `SeatLayerView` only
-when the app deliberately owns every buyer control and hold interaction.
+`SeatLayerPickerViewController` in UIKit. That is the complete buyer flow: live
+availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection and a typed checkout handoff. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. Use
+`SeatLayerView` only when the app deliberately owns every buyer control and hold
+interaction.
 
-### Is this a native Swift seat map or a WebView?
+### What is native in the SeatLayer iOS SDK?
 
-Rendering runs in `WKWebView` on SeatLayer's immutable, version-pinned buyer
-runtime, and application code never touches the web layer: commands, payloads,
-errors, and events are all typed Swift. The API matches the web `SeatingChart`
-one-to-one, so iOS and web read as one product.
+Everything around the seat map: the header, filters, seat card, cart, hold timer
+and checkout hand-off are SwiftUI and UIKit views, and your code works only with
+typed Swift commands, payloads, errors and events. The seat map itself is the
+SeatLayer map from the web, shown inside your app, so a seat, its price and its
+3D view are the same on iOS, Android, Flutter and the web. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. The API matches the web `SeatingChart` one to one.
 
 ### Does it work with SwiftUI?
 
-Yes. Use `SeatLayerPicker` for the complete native flow,
-`SeatLayerPickerScope` plus public components for a custom flow, or
-`SeatLayerPickerMap` for only the headless renderer. Give the map a definite
-frame and do not place it inside a SwiftUI `ScrollView`; the canvas owns pan and
-pinch gestures.
+Yes. Use `SeatLayerPicker` for the complete native flow, `SeatLayerPickerScope`
+with the public components for your own layout, or `SeatLayerPickerMap` for the
+map alone. Give the map a definite frame and keep it out of a SwiftUI
+`ScrollView`, because the map handles its own pan and pinch.
 
 ### How does seat booking work in an iOS app?
 
@@ -534,27 +510,26 @@ items, process payment, and book with a stable `bookingRef`.
 
 ### How do temporary seat holds work?
 
-When a buyer selects seats, the SDK creates a temporary hold that reserves the
-inventory against concurrent buyers for a limited window. The hold expires
-automatically if checkout does not complete (`holdExpired` tells the app to
-return the buyer to the map), and `extendHold` and `resumeHold` cover longer
-checkouts and app restarts. This prevents double-selling without locking seats
-forever.
+When a buyer goes to checkout, the SeatLayer picker holds the seats they picked
+for that buyer for a set time, which you can change per event, so no other buyer
+can take them. A hold that is never booked lapses on its own: the picker tells
+the buyer once, and `onHoldExpired` tells your app (`seatLayerViewHoldDidExpire`
+on the raw map, where your code calls `hold()` itself). `extendHold` and
+`resumeHold` cover longer checkouts and app restarts.
 
 ### Can I use my own payment provider?
 
-Yes. SeatLayer never processes payment inside the seat map. The app hands the
-`holdId` to your backend, and your backend charges through any payment
-provider you already use (Stripe, Adyen, Razorpay, or your own) before
-booking the hold through the
-[server-side checkout flow](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/).
+Yes. Nothing in the app takes a payment. Your server reads the held seats and
+their prices, charges through the provider you already use, and books the hold
+with a stable booking reference.
 
-### Can I evaluate the SDK without a SeatLayer account?
+### Can I try the SeatLayer iOS SDK without an account?
 
-Yes. The repository's example app and test suite exercise the view, bridge,
-and renderer against the bundled offline fixture. Create a free SeatLayer test
-event when you are ready to validate live inventory, holds, expiry, and
-checkout.
+You can see the SeatLayer picker in the live browser demo with no account, and
+the package's own tests run with no account or network. To run the iOS picker on
+live seats, create a test event and set its key as `SEATLAYER_EVENT_KEY` in the
+example app's scheme. Test mode is free, with no time limit and no card, and it
+uses no credits.
 
 ### Can I restyle the picker without rebuilding it?
 
@@ -577,28 +552,27 @@ and approved renderer color roles without remounting. `.light` and `.dark` pin
 one side explicitly. UIKit can update an already-presented picker with
 `updateAppearance(...)`.
 
-### Can my app hide “Powered by SeatLayer”?
+### Do buyers see a SeatLayer badge in my app?
 
-Not with a local view option. Visibility comes from the runtime snapshot's
-`branding.attributionRequired` value, which reflects the API-side branding
-entitlement. Required attribution stays at bottom-right and has no builder
-slot; when the API disables it, iOS removes it and reclaims the space.
+No. Buyers see no SeatLayer badge, on any plan, so the picker shows only your
+event's name, logo and theme. The test-mode label stays on test events, so
+nobody mistakes a test for a live sale.
 
 ## Continue your iOS integration
 
 - [Follow the Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/)
   for setup, lifecycle, commands, events, and runtime requirements.
 - [Use the native picker integration guide](Docs/native-picker.md) for the
-  ready SwiftUI/UIKit hosts, customization, public parts, state ownership, and
-  prewarming contract.
+  ready SwiftUI/UIKit hosts, customization, public parts, state ownership and
+  `prewarm()`.
 - [Connect seat holds to secure server-side checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/)
   without exposing booking credentials in the app.
 - [Run the complete checkout example](https://docs.seatlayer.io/examples/complete-checkout/)
   to connect the buyer hold id to payment and idempotent booking.
 - [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
   when choosing between native iOS, Flutter, React Native, and Android.
-- [Explore the 3D seating chart for web buyers](https://seatlayer.io/3d-seat-map/)
-  as a separate browser capability when comparing the wider buyer experience.
+- [See how the 3D seat map works](https://seatlayer.io/3d-seat-map/): the 3D
+  venue and the view from each seat, built from the same chart, on every plan. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it.
 - [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
   (`llms.txt`) for a compact map of the documentation.
 
