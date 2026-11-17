@@ -426,10 +426,15 @@ callout and text selection that would fight the map's own gestures.
 as one product.
 
 Events reach `SeatLayerViewDelegate`, which has a no-op default for every
-method: `ready`, `selectionChanged`, selection validity/valid/invalid/limit,
-buyer-access expired/unavailable, selected-object unavailable, `holdChanged`,
-`holdRestored`, `holdExpired`, `gaClick`, `hint`, `seatHover`, `deckTap`, `error`, plus
-`didReceiveUnknownEvent` for anything a newer bundle introduces.
+method: `seatLayerViewDidBecomeReady`, `selectionDidChange`,
+`selectionValidityDidChange`, `selectionDidBecomeValid`,
+`selectionDidBecomeInvalid`, `didReachSelectionLimit`, `buyerAccessDidExpire`,
+`buyerAccessBecameUnavailable`, `selectedObjectsBecameUnavailable`,
+`holdDidChange`, `holdWasRestored`, `seatLayerViewHoldDidExpire`, `didFailWith`,
+`didReceiveHint`, `didTapGAArea`, `seatHoverDidChange`, `didTapFloor`, plus
+`didReceiveUnknownEvent` for anything a newer map version adds. Most are
+argument labels of `seatLayerView(_:...)`, for example
+`seatLayerView(_:selectionDidChange:)`.
 
 ## Forward compatibility
 
