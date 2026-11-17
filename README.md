@@ -22,20 +22,6 @@ reserved-seat ticketing software built for venues up to stadium scale.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-![Hosted SeatLayer iOS picker: header, legend, map modes, section and seat interaction, confirmation, active test hold, cart and Continue](Docs/media/picker-flow.gif)
-
-The walkthrough starts directly inside the hosted SeatLayer picker with
-controlled test inventory. It shows the picker-owned header, bounded price
-legend, map/3D control, section and seat interaction, confirmation, active
-hold countdown, expanded cart, and reachable Continue action. Continue is not
-activated, so the recording contains no payment, booking, or host-only data.
-
-The compact three-bar “Powered by SeatLayer” mark stays at the safe
-bottom-right edge throughout that flow. Its visibility is runtime/API truth:
-the SDK renders it only when the snapshot says
-`branding.attributionRequired == true`. A server-side white-label entitlement
-can turn it off; app chrome options and builders cannot force or suppress it.
-
 Production views load the immutable, version-pinned mobile document and its lazy
 assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
 for origin-bound private buyer sessions; no event key or bearer is put in the
