@@ -6,6 +6,9 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
+> **Latest release: 0.3.4.** Add it with Swift Package Manager from this
+> repository's `v0.3.4` tag.
+
 The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds a native buyer
 picker or raw interactive seating chart to ticketing apps. The venue renderer stays in
 one version-pinned `WKWebView`; headers, filters, confirmation, cart, hold
