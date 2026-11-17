@@ -482,10 +482,11 @@ Never commit credentials or customer event identifiers to the shared scheme.
 ### How do I add a seat map to an iOS app?
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
-`SeatLayerPickerViewController` in UIKit. That is the complete buyer flow:
-live availability, filters, section/floor navigation, confirmation, cart,
-holds, 3D inspection, and a typed checkout handoff. Use `SeatLayerView` only
-when the app deliberately owns every buyer control and hold interaction.
+`SeatLayerPickerViewController` in UIKit. That is the complete buyer flow: live
+availability, filters, section/floor navigation, confirmation, cart, holds, 3D
+inspection for venues up to 60,000 seats, and a typed checkout handoff. Use
+`SeatLayerView` only when the app deliberately owns every buyer control and hold
+interaction.
 
 ### Is this a native Swift seat map or a WebView?
 
@@ -574,8 +575,9 @@ slot; when the API disables it, iOS removes it and reclaims the space.
   to connect the buyer hold id to payment and idempotent booking.
 - [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
   when choosing between native iOS, Flutter, React Native, and Android.
-- [Explore the 3D seating chart for web buyers](https://seatlayer.io/3d-seat-map/)
-  as a separate browser capability when comparing the wider buyer experience.
+- [See how the 3D seat map works](https://seatlayer.io/3d-seat-map/): the 3D
+  venue and the view from each seat, built from the same chart, on every plan,
+  for venues up to 60,000 seats.
 - [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
   (`llms.txt`) for a compact map of the documentation.
 
