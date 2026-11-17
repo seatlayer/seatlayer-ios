@@ -9,11 +9,13 @@
 > **Latest release: 0.3.4.** Add it with Swift Package Manager from this
 > repository's `v0.3.4` tag.
 
-The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds a native buyer
-picker or raw interactive seating chart to ticketing apps. The venue renderer stays in
-one version-pinned `WKWebView`; headers, filters, confirmation, cart, hold
-state, checkout, errors, and navigation are native SwiftUI/UIKit components
-backed by a typed headless controller. SeatLayer is seating chart and
+The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds an
+interactive seating chart and a ready-made native seat picker to ticketing apps.
+Buyers see live availability, pick their own seats or the best available, and
+hold them while they check out. The header, filters, seat card, cart, hold
+timer, checkout hand-off, errors and navigation are SwiftUI and UIKit views
+driven by a typed Swift controller; the venue map inside them is SeatLayer's
+own, the same map buyers see on the web. SeatLayer is seating chart and
 reserved-seat ticketing software built for venues up to stadium scale.
 
 [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
@@ -25,16 +27,7 @@ reserved-seat ticketing software built for venues up to stadium scale.
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-Production views load the immutable, version-pinned mobile document and its lazy
-assets from `https://cdn.seatlayer.io`. This canonical HTTPS origin is required
-for origin-bound private buyer sessions; no event key or bearer is put in the
-page URL.
-
 - Swift package (SPM), iOS 15+
-- Hosted runtime: `seatlayer-js@0.84.1/mobile.html`
-- Explicit offline demo/test fixture: `seatlayer-js@0.59.0`
-- Raw chart protocol: 1 (unchanged)
-- Native picker protocol: 2 with snapshot contract 1
 
 Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
 
@@ -46,12 +39,13 @@ Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 S
 
 ## Works as a native picker
 
-**Every buyer control is native SwiftUI/UIKit.** SeatLayer's pinned renderer
-draws venue geometry, seats, labels, the 3D scene, and panorama pixels. The SDK
-draws the header, price and floor rails, map controls, decision surfaces, cart,
-hold state, checkout action, loading/error states, and accessibility chrome.
-There is one renderer session, so changing native presentation never creates a
-second map or loses the buyer's camera, selection, or hold.
+**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
+seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
+the web, shown inside your app. The SDK draws the header, price and floor rails,
+map controls, seat decisions, cart, hold timer, checkout button, loading and
+error states, and accessibility labels. Each picker has one map, so changing the
+native look never reloads the map or loses the buyer's position, selection or
+hold.
 
 The three supported integration levels are a ladder. Customization keeps the
 ready flow; composition keeps the controller, runtime truth, and checkout
@@ -148,9 +142,9 @@ the optional hold/handoff lifecycle without changing that closure type.
 
 Applicable Adult/Child/Companion tiers render natively and are applied before
 confirmation, with the authoritative tier and price retained through cart and
-checkout. Capability-gated native 3D chrome supports authored targets,
-same-row previous/next boundaries, panorama inspection, and
-target → overview → map navigation without confirming a pending seat.
+checkout. In 3D, native controls let the buyer step to the previous or next seat
+in the row, look around the view from a seat, and go back to the overview or the
+map without confirming the seat. They appear when the event's map supports them.
 
 For routes where latency matters, prewarm the page-only renderer host before
 navigation. It contains no event or credentials and is consumed once:
