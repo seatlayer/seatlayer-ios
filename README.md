@@ -31,20 +31,21 @@ view from each seat (3D for venues up to 60,000 seats; the 2D map benchmarked at
 
 Season tickets are in the web and server SDKs today, not in this SDK.
 
-[Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
-[Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
-[All live demos](https://seatlayer.io/demo/) ·
+## Try it
+
+- [Buyer seat-map demo](https://app.seatlayer.io/demo/play) in your browser, no account needed · [All live demos](https://seatlayer.io/demo/)
+- [Quickstart](https://docs.seatlayer.io/start/quickstart/): your first event and keys
+- [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json)
+- [Pricing](https://seatlayer.io/pricing/): test mode is free; live, the first 100 sold seats each month are free, then 10¢ down to 5¢ per sold seat, with no subscription, and purchased credits never expire.
+
+Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
+
+More from SeatLayer:
 [SeatLayer reserved-seating platform](https://seatlayer.io/) ·
 [SeatLayer Flutter seat map SDK](https://github.com/seatlayer/seatlayer-flutter) ·
 [SeatLayer Android seat map SDK](https://github.com/seatlayer/seatlayer-android) ·
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
-
-- Swift package (SPM), iOS 15+
-
-Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
-
-**Start here:** [Quickstart](https://docs.seatlayer.io/start/quickstart/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [iOS guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json) · [Pricing](https://seatlayer.io/pricing/): test mode is free; live, the first 100 sold seats each month are free, then 10¢ down to 5¢ per sold seat, with no subscription, and purchased credits never expire.
 
 ## Scale evidence
 
@@ -83,6 +84,8 @@ flowchart TD
 ```
 
 ## Install
+
+Swift package (SPM), iOS 15+.
 
 In Xcode, choose **File → Add Package Dependencies** and enter:
 
