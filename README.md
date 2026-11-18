@@ -514,20 +514,6 @@ uses no credits. Live, you pay per sold seat: the first 100 sold seats each
 month are free, then 10 cents down to 5 cents a seat, with no subscription, and
 credits you buy never expire.
 
-### Does it work with SwiftUI?
-
-Yes. Use `SeatLayerPicker` for the complete native flow, `SeatLayerPickerScope`
-with the public components for your own layout, or `SeatLayerPickerMap` for the
-map alone. Give the map a definite frame and keep it out of a SwiftUI
-`ScrollView`, because the map handles its own pan and pinch.
-
-### How does seat booking work in an iOS app?
-
-The app selects inventory and receives a temporary hold; it does not book or
-charge inside the picker. Send only the opaque handoff to your authenticated
-backend, inspect the hold server-side, calculate the charge from trusted hold
-items, process payment, and book with a stable `bookingRef`.
-
 ### How do temporary seat holds work?
 
 When a buyer goes to checkout, the SeatLayer picker holds the seats they picked
@@ -537,12 +523,6 @@ the buyer once, and `onHoldExpired` tells your app (`seatLayerViewHoldDidExpire`
 on the raw map, where your code calls `hold()` itself). `extendHold` and
 `resumeHold` cover longer checkouts and app restarts.
 
-### Can I use my own payment provider?
-
-Yes. Nothing in the app takes a payment. Your server reads the held seats and
-their prices, charges through the provider you already use, and books the hold
-with a stable booking reference.
-
 ### Can I try the SeatLayer iOS SDK without an account?
 
 You can see the SeatLayer picker in the live browser demo with no account, and
@@ -550,27 +530,6 @@ the package's own tests run with no account or network. To run the iOS picker on
 live seats, create a test event and set its key as `SEATLAYER_EVENT_KEY` in the
 example app's scheme. Test mode is free, with no time limit and no card, and it
 uses no credits.
-
-### Can I restyle the picker without rebuilding it?
-
-Yes. Use a semantic `SeatLayerPickerTheme`, a per-part
-`SeatLayerPickerPartStyle`, chrome/string options, or a whole-part builder.
-Those layers retain the canonical layout and buyer flow. Theme changes update
-native chrome and renderer roles in place without losing selection or camera
-state.
-
-### Can I build a completely different picker layout?
-
-Yes. `SeatLayerPickerScope` plus the public native components is a supported
-integration level. Keep exactly one scoped `SeatLayerPickerMap`; the controller
-continues to own snapshots, typed actions, holds, and checkout.
-
-### Does the picker support light and dark mode?
-
-Yes. `.auto` follows the live iOS color scheme and updates both native chrome
-and approved renderer color roles without remounting. `.light` and `.dark` pin
-one side explicitly. UIKit can update an already-presented picker with
-`updateAppearance(...)`.
 
 ### Do buyers see a SeatLayer badge in my app?
 
