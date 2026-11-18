@@ -47,42 +47,6 @@ More from SeatLayer:
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-## Scale evidence
-
-Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Tested at 10,000 simulated concurrent buyers on one 12,000-seat event (18 September 2026): engine-side hold latency p99 9 ms, zero server errors. Method, fixtures and run files: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k.
-
-## Works as a native picker
-
-**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
-seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
-the web, shown inside your app. The SDK draws the header, price and floor rails,
-map controls, seat decisions, cart, hold timer, checkout button, loading and
-error states, and accessibility labels. Each picker has one map, so changing the
-native look never reloads the map or loses the buyer's position, selection or
-hold.
-
-The three supported integration levels are a ladder. Customization keeps the
-ready flow; composition keeps the controller, runtime truth, and checkout
-contract:
-
-| Level | You want | You write | You keep |
-| --- | --- | --- | --- |
-| **1** | The complete buyer flow | `SeatLayerPicker` or `SeatLayerPickerViewController` | Native layout, states, holds, and checkout |
-| **2** | The flow in your brand and words | Theme, styles, strings, options, or builders | Canonical layout and behavior |
-| **3** | Your own screen | `SeatLayerPickerScope` plus public components | Runtime snapshots, typed actions, holds, and handoff |
-
-```mermaid
-flowchart TD
-  A["SeatLayerConfiguration<br/>event + buyer access"] --> B{"How much<br/>does the app own?"}
-  B -->|"The journey"| C["SeatLayerPicker<br/>SwiftUI or UIKit"]
-  B -->|"The look"| D["theme · styles<br/>strings · options · builders"]
-  B -->|"The screen"| E["SeatLayerPickerScope<br/>+ public components"]
-  C --> F["onCheckout(handoff)"]
-  D --> F
-  E --> F
-  F --> G["Your backend inspects<br/>and books the hold"]
-```
-
 ## Install
 
 Swift package (SPM), iOS 15+.
@@ -184,6 +148,38 @@ message to the host. A custom host can call `controller.lifecycle`,
 
 See [Native picker integration](Docs/native-picker.md) and
 [security and hold ownership](Docs/native-picker-security.md).
+
+## Works as a native picker
+
+**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
+seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
+the web, shown inside your app. The SDK draws the header, price and floor rails,
+map controls, seat decisions, cart, hold timer, checkout button, loading and
+error states, and accessibility labels. Each picker has one map, so changing the
+native look never reloads the map or loses the buyer's position, selection or
+hold.
+
+The three supported integration levels are a ladder. Customization keeps the
+ready flow; composition keeps the controller, runtime truth, and checkout
+contract:
+
+| Level | You want | You write | You keep |
+| --- | --- | --- | --- |
+| **1** | The complete buyer flow | `SeatLayerPicker` or `SeatLayerPickerViewController` | Native layout, states, holds, and checkout |
+| **2** | The flow in your brand and words | Theme, styles, strings, options, or builders | Canonical layout and behavior |
+| **3** | Your own screen | `SeatLayerPickerScope` plus public components | Runtime snapshots, typed actions, holds, and handoff |
+
+```mermaid
+flowchart TD
+  A["SeatLayerConfiguration<br/>event + buyer access"] --> B{"How much<br/>does the app own?"}
+  B -->|"The journey"| C["SeatLayerPicker<br/>SwiftUI or UIKit"]
+  B -->|"The look"| D["theme · styles<br/>strings · options · builders"]
+  B -->|"The screen"| E["SeatLayerPickerScope<br/>+ public components"]
+  C --> F["onCheckout(handoff)"]
+  D --> F
+  E --> F
+  F --> G["Your backend inspects<br/>and books the hold"]
+```
 
 ## Customize the picker
 
@@ -603,6 +599,10 @@ nobody mistakes a test for a live sale.
 | Flutter | [`seatlayer`](https://pub.dev/packages/seatlayer) |
 | Android | [`seatlayer-android`](https://github.com/seatlayer/seatlayer-android) |
 | Server SDKs | [Node.js, Python, PHP, Ruby, .NET, Java, and Go](https://docs.seatlayer.io/server-sdk/install/) |
+
+## Scale evidence
+
+Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Tested at 10,000 simulated concurrent buyers on one 12,000-seat event (18 September 2026): engine-side hold latency p99 9 ms, zero server errors. Method, fixtures and run files: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k.
 
 ## License
 
