@@ -483,8 +483,8 @@ To build and test the package itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
 `SeatLayerPickerViewController` in UIKit. That is the complete buyer flow: live
-availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection and a typed checkout handoff. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. Use
-`SeatLayerView` only when the app deliberately owns every buyer control and hold
+availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection for venues up to 60,000 seats, and a
+typed checkout handoff. Use `SeatLayerView` only when the app deliberately owns every buyer control and hold
 interaction.
 
 ### What is native in the SeatLayer iOS SDK?
@@ -493,7 +493,8 @@ Everything around the seat map: the header, filters, seat card, cart, hold timer
 and checkout hand-off are SwiftUI and UIKit views, and your code works only with
 typed Swift commands, payloads, errors and events. The seat map itself is the
 SeatLayer map from the web, shown inside your app, so a seat, its price and its
-3D view are the same on iOS, Android, Flutter and the web. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. The API matches the web `SeatingChart` one to one.
+3D view (for venues up to 60,000 seats) are the same on iOS, Android, Flutter
+and the web. The API matches the web `SeatingChart` one to one.
 
 ### Does it work with SwiftUI?
 
@@ -573,7 +574,8 @@ nobody mistakes a test for a live sale.
 - [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
   when choosing between native iOS, Flutter, React Native, and Android.
 - [See how the 3D seat map works](https://seatlayer.io/3d-seat-map/): the 3D
-  venue and the view from each seat, built from the same chart, on every plan. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it.
+  venue and the view from each seat, built from the same chart, on every plan,
+  for venues up to 60,000 seats.
 - [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
   (`llms.txt`) for a compact map of the documentation.
 
