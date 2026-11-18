@@ -465,20 +465,7 @@ iOS: a command that gets no answer within 15 seconds fails with a timeout error
 screens, so draw your own seat sheet from `seatHoverDidChange`. An app built against an older SDK keeps working when the map gains new events: an unknown event reaches
 `seatLayerView(_:didReceiveUnknownEvent:payload:)` and is otherwise safe to ignore.
 
-## Verification
-
-```
-xcodebuild -scheme SeatLayer -destination 'generic/platform=iOS'        # library
-xcodebuild -project Example/SeatLayerDemo.xcodeproj \
-  -scheme SeatLayerDemo -destination 'generic/platform=iOS Simulator'   # example
-swift test                                                               # contract suite
-```
-
-The package's tests cover commands and events, concurrent commands, timeouts, version negotiation and
-unknown values. They run against a test double of
-the map, so they need no device and no network.
-
-### Simulator
+## Run the example app
 
 `Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
 picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
@@ -487,6 +474,8 @@ Environment Variables** to an authorized test event. Optional
 `SEATLAYER_DEMO_WIDE` and `SEATLAYER_PREWARM` values demonstrate the public
 configuration, adaptive layout, theme, locale and `prewarm()` APIs.
 Never commit credentials or customer event identifiers to the shared scheme.
+
+To build and test the package itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Frequently asked questions
 
