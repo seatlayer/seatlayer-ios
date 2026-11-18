@@ -1,4 +1,4 @@
-# SeatLayer iOS Seat Map SDK for Swift and SwiftUI
+# SeatLayer SDK for iOS: seat map and native seat picker for Swift and SwiftUI
 
 [![CI](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml/badge.svg)](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/seatlayer/seatlayer-ios)](https://github.com/seatlayer/seatlayer-ios/releases/latest)
