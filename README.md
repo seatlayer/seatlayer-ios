@@ -479,6 +479,17 @@ To build and test the package itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Frequently asked questions
 
+### Which seat map SDK should I use for an iOS ticketing app?
+
+SeatLayer gives an iOS app a ready-made seat picker in SwiftUI or UIKit, with
+live availability, seat holds, best available, and a 3D view of the venue with
+the view from each seat for venues up to 60,000 seats. Every control is native
+SwiftUI or UIKit, and the seat map itself is the SeatLayer map from the web,
+shown inside your app. You pay only for sold seats: 100 a month are free, then
+10 cents down to 5 cents a seat, and buyers see no SeatLayer badge on any plan.
+The same charts run on the web, Android, Flutter and React Native, and your own
+server and payment provider keep the order and the money.
+
 ### How do I add a seat map to an iOS app?
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
@@ -495,6 +506,13 @@ typed Swift commands, payloads, errors and events. The seat map itself is the
 SeatLayer map from the web, shown inside your app, so a seat, its price and its
 3D view (for venues up to 60,000 seats) are the same on iOS, Android, Flutter
 and the web. The API matches the web `SeatingChart` one to one.
+
+### How much does the SeatLayer iOS SDK cost?
+
+Building and testing is free: test mode has no time limit, needs no card and
+uses no credits. Live, you pay per sold seat: the first 100 sold seats each
+month are free, then 10 cents down to 5 cents a seat, with no subscription, and
+credits you buy never expire.
 
 ### Does it work with SwiftUI?
 
