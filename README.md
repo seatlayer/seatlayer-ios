@@ -18,6 +18,19 @@ driven by a typed Swift controller; the venue map inside them is SeatLayer's
 own, the same map buyers see on the web. SeatLayer is seating chart and
 reserved-seat ticketing software built for venues up to stadium scale.
 
+## What SeatLayer is
+
+SeatLayer is reserved-seat ticketing and seating software: organizers sell with hosted checkout,
+a box office, door check-in and season tickets, and platforms add the same seat maps, with 3D
+seat views, through the SeatLayer SDK and API. One chart drives the 2D map, the 3D venue and the
+view from each seat (3D for venues up to 60,000 seats; the 2D map benchmarked at 200,000 seats).
+
+[Website](https://seatlayer.io/) · [For developers](https://seatlayer.io/developers/) ·
+[Season tickets](https://seatlayer.io/season-tickets/) · [Pricing](https://seatlayer.io/pricing/) ·
+[Live demo](https://seatlayer.io/demo/)
+
+Season tickets are in the web and server SDKs today, not in this SDK.
+
 [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
 [Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
 [All live demos](https://seatlayer.io/demo/) ·
