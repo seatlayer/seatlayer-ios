@@ -235,6 +235,8 @@ let strings = SeatLayerPickerStrings(
 )
 ```
 
+**3D limit.** `SeatLayerPickerOptions(max3DSeats:)`: 3D opens for venues up to 60,000 seats; on a touch screen the default is 30,000 unless you set this option.
+
 **One whole part: a builder.** Each builder receives the live snapshot,
 controller, presentation state, style, and the canonical `defaultContent`:
 
