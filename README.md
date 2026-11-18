@@ -1,4 +1,4 @@
-# SeatLayer iOS Seat Map SDK for Swift and SwiftUI
+# SeatLayer SDK for iOS: seat map and native seat picker for Swift and SwiftUI
 
 [![CI](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml/badge.svg)](https://github.com/seatlayer/seatlayer-ios/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/seatlayer/seatlayer-ios)](https://github.com/seatlayer/seatlayer-ios/releases/latest)
@@ -18,58 +18,38 @@ driven by a typed Swift controller; the venue map inside them is SeatLayer's
 own, the same map buyers see on the web. SeatLayer is seating chart and
 reserved-seat ticketing software built for venues up to stadium scale.
 
-[Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) ·
-[Buyer seat-map demo (web)](https://app.seatlayer.io/demo/play) ·
-[All live demos](https://seatlayer.io/demo/) ·
+## What SeatLayer is
+
+SeatLayer is reserved-seat ticketing and seating software: organizers sell with hosted checkout,
+a box office, door check-in and season tickets, and platforms add the same seat maps, with 3D
+seat views, through the SeatLayer SDK and API. One chart drives the 2D map, the 3D venue and the
+view from each seat (3D for venues up to 60,000 seats; the 2D map benchmarked at 200,000 seats).
+
+[Website](https://seatlayer.io/) · [For developers](https://seatlayer.io/developers/) ·
+[Season tickets](https://seatlayer.io/season-tickets/) · [Pricing](https://seatlayer.io/pricing/) ·
+[Live demo](https://seatlayer.io/demo/)
+
+Season tickets are in the web and server SDKs today, not in this SDK.
+
+## Try it
+
+- [Buyer seat-map demo](https://app.seatlayer.io/demo/play) in your browser, no account needed · [All live demos](https://seatlayer.io/demo/)
+- [Quickstart](https://docs.seatlayer.io/start/quickstart/): your first event and keys
+- [Swift and SwiftUI seat-map guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json)
+- [Pricing](https://seatlayer.io/pricing/): test mode is free; live, the first 100 sold seats each month are free, then 10¢ down to 5¢ per sold seat, with no subscription, and purchased credits never expire.
+
+Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
+
+More from SeatLayer:
 [SeatLayer reserved-seating platform](https://seatlayer.io/) ·
 [SeatLayer Flutter seat map SDK](https://github.com/seatlayer/seatlayer-flutter) ·
 [SeatLayer Android seat map SDK](https://github.com/seatlayer/seatlayer-android) ·
 [SeatLayer React Native SDK](https://github.com/seatlayer/seatlayer-react-native) ·
 [SeatLayer AI Toolkit](https://github.com/seatlayer/seatlayer-ai-toolkit)
 
-- Swift package (SPM), iOS 15+
-
-Two-step shape: the buyer picks and holds seats in the client with your public key, then your server confirms the booking with your secret key while your platform keeps checkout and its own payment provider.
-
-**Start here:** [Quickstart](https://docs.seatlayer.io/start/quickstart/) · [Holds and checkout](https://docs.seatlayer.io/buyer-sdk/holds-and-checkout/) · [iOS guide](https://docs.seatlayer.io/buyer-sdk/ios/) · [SDK catalog](https://docs.seatlayer.io/sdk-catalog.json) · [Pricing](https://seatlayer.io/pricing/): test mode is free; live, the first 100 sold seats each month are free, then 10¢ down to 5¢ per sold seat, with no subscription, and purchased credits never expire.
-
-## Scale evidence
-
-Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Tested at 10,000 simulated concurrent buyers on one 12,000-seat event (18 September 2026): engine-side hold latency p99 9 ms, zero server errors. Method, fixtures and run files: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k.
-
-## Works as a native picker
-
-**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
-seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
-the web, shown inside your app. The SDK draws the header, price and floor rails,
-map controls, seat decisions, cart, hold timer, checkout button, loading and
-error states, and accessibility labels. Each picker has one map, so changing the
-native look never reloads the map or loses the buyer's position, selection or
-hold.
-
-The three supported integration levels are a ladder. Customization keeps the
-ready flow; composition keeps the controller, runtime truth, and checkout
-contract:
-
-| Level | You want | You write | You keep |
-| --- | --- | --- | --- |
-| **1** | The complete buyer flow | `SeatLayerPicker` or `SeatLayerPickerViewController` | Native layout, states, holds, and checkout |
-| **2** | The flow in your brand and words | Theme, styles, strings, options, or builders | Canonical layout and behavior |
-| **3** | Your own screen | `SeatLayerPickerScope` plus public components | Runtime snapshots, typed actions, holds, and handoff |
-
-```mermaid
-flowchart TD
-  A["SeatLayerConfiguration<br/>event + buyer access"] --> B{"How much<br/>does the app own?"}
-  B -->|"The journey"| C["SeatLayerPicker<br/>SwiftUI or UIKit"]
-  B -->|"The look"| D["theme · styles<br/>strings · options · builders"]
-  B -->|"The screen"| E["SeatLayerPickerScope<br/>+ public components"]
-  C --> F["onCheckout(handoff)"]
-  D --> F
-  E --> F
-  F --> G["Your backend inspects<br/>and books the hold"]
-```
-
 ## Install
+
+Swift package (SPM), iOS 15+.
 
 In Xcode, choose **File → Add Package Dependencies** and enter:
 
@@ -169,6 +149,38 @@ message to the host. A custom host can call `controller.lifecycle`,
 See [Native picker integration](Docs/native-picker.md) and
 [security and hold ownership](Docs/native-picker-security.md).
 
+## Works as a native picker
+
+**Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
+seats, labels, the 3D scene and the view from a seat) is the SeatLayer map from
+the web, shown inside your app. The SDK draws the header, price and floor rails,
+map controls, seat decisions, cart, hold timer, checkout button, loading and
+error states, and accessibility labels. Each picker has one map, so changing the
+native look never reloads the map or loses the buyer's position, selection or
+hold.
+
+The three supported integration levels are a ladder. Customization keeps the
+ready flow; composition keeps the controller, runtime truth, and checkout
+contract:
+
+| Level | You want | You write | You keep |
+| --- | --- | --- | --- |
+| **1** | The complete buyer flow | `SeatLayerPicker` or `SeatLayerPickerViewController` | Native layout, states, holds, and checkout |
+| **2** | The flow in your brand and words | Theme, styles, strings, options, or builders | Canonical layout and behavior |
+| **3** | Your own screen | `SeatLayerPickerScope` plus public components | Runtime snapshots, typed actions, holds, and handoff |
+
+```mermaid
+flowchart TD
+  A["SeatLayerConfiguration<br/>event + buyer access"] --> B{"How much<br/>does the app own?"}
+  B -->|"The journey"| C["SeatLayerPicker<br/>SwiftUI or UIKit"]
+  B -->|"The look"| D["theme · styles<br/>strings · options · builders"]
+  B -->|"The screen"| E["SeatLayerPickerScope<br/>+ public components"]
+  C --> F["onCheckout(handoff)"]
+  D --> F
+  E --> F
+  F --> G["Your backend inspects<br/>and books the hold"]
+```
+
 ## Customize the picker
 
 Four public layers change presentation without rebuilding inventory or hold
@@ -222,6 +234,8 @@ let strings = SeatLayerPickerStrings(
     localeIdentifier: "fr-FR"
 )
 ```
+
+**3D limit.** `SeatLayerPickerOptions(max3DSeats:)`: 3D opens for venues up to 60,000 seats; on a touch screen the default is 30,000 unless you set this option.
 
 **One whole part: a builder.** Each builder receives the live snapshot,
 controller, presentation state, style, and the canonical `defaultContent`:
@@ -453,20 +467,7 @@ iOS: a command that gets no answer within 15 seconds fails with a timeout error
 screens, so draw your own seat sheet from `seatHoverDidChange`. An app built against an older SDK keeps working when the map gains new events: an unknown event reaches
 `seatLayerView(_:didReceiveUnknownEvent:payload:)` and is otherwise safe to ignore.
 
-## Verification
-
-```
-xcodebuild -scheme SeatLayer -destination 'generic/platform=iOS'        # library
-xcodebuild -project Example/SeatLayerDemo.xcodeproj \
-  -scheme SeatLayerDemo -destination 'generic/platform=iOS Simulator'   # example
-swift test                                                               # contract suite
-```
-
-The package's tests cover commands and events, concurrent commands, timeouts, version negotiation and
-unknown values. They run against a test double of
-the map, so they need no device and no network.
-
-### Simulator
+## Run the example app
 
 `Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
 picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
@@ -476,14 +477,27 @@ Environment Variables** to an authorized test event. Optional
 configuration, adaptive layout, theme, locale and `prewarm()` APIs.
 Never commit credentials or customer event identifiers to the shared scheme.
 
+To build and test the package itself, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Frequently asked questions
+
+### Which seat map SDK should I use for an iOS ticketing app?
+
+SeatLayer gives an iOS app a ready-made seat picker in SwiftUI or UIKit, with
+live availability, seat holds, best available, and a 3D view of the venue with
+the view from each seat for venues up to 60,000 seats. Every control is native
+SwiftUI or UIKit, and the seat map itself is the SeatLayer map from the web,
+shown inside your app. You pay only for sold seats: 100 a month are free, then
+10 cents down to 5 cents a seat, and buyers see no SeatLayer badge on any plan.
+The same charts run on the web, Android, Flutter and React Native, and your own
+server and payment provider keep the order and the money.
 
 ### How do I add a seat map to an iOS app?
 
 Add the Swift package and present `SeatLayerPicker` in SwiftUI or
 `SeatLayerPickerViewController` in UIKit. That is the complete buyer flow: live
-availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection and a typed checkout handoff. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. Use
-`SeatLayerView` only when the app deliberately owns every buyer control and hold
+availability, filters, section/floor navigation, confirmation, cart, holds, 3D inspection for venues up to 60,000 seats, and a
+typed checkout handoff. Use `SeatLayerView` only when the app deliberately owns every buyer control and hold
 interaction.
 
 ### What is native in the SeatLayer iOS SDK?
@@ -492,21 +506,15 @@ Everything around the seat map: the header, filters, seat card, cart, hold timer
 and checkout hand-off are SwiftUI and UIKit views, and your code works only with
 typed Swift commands, payloads, errors and events. The seat map itself is the
 SeatLayer map from the web, shown inside your app, so a seat, its price and its
-3D view are the same on iOS, Android, Flutter and the web. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it. The API matches the web `SeatingChart` one to one.
+3D view (for venues up to 60,000 seats) are the same on iOS, Android, Flutter
+and the web. The API matches the web `SeatingChart` one to one.
 
-### Does it work with SwiftUI?
+### How much does the SeatLayer iOS SDK cost?
 
-Yes. Use `SeatLayerPicker` for the complete native flow, `SeatLayerPickerScope`
-with the public components for your own layout, or `SeatLayerPickerMap` for the
-map alone. Give the map a definite frame and keep it out of a SwiftUI
-`ScrollView`, because the map handles its own pan and pinch.
-
-### How does seat booking work in an iOS app?
-
-The app selects inventory and receives a temporary hold; it does not book or
-charge inside the picker. Send only the opaque handoff to your authenticated
-backend, inspect the hold server-side, calculate the charge from trusted hold
-items, process payment, and book with a stable `bookingRef`.
+Building and testing is free: test mode has no time limit, needs no card and
+uses no credits. Live, you pay per sold seat: the first 100 sold seats each
+month are free, then 10 cents down to 5 cents a seat, with no subscription, and
+credits you buy never expire.
 
 ### How do temporary seat holds work?
 
@@ -517,12 +525,6 @@ the buyer once, and `onHoldExpired` tells your app (`seatLayerViewHoldDidExpire`
 on the raw map, where your code calls `hold()` itself). `extendHold` and
 `resumeHold` cover longer checkouts and app restarts.
 
-### Can I use my own payment provider?
-
-Yes. Nothing in the app takes a payment. Your server reads the held seats and
-their prices, charges through the provider you already use, and books the hold
-with a stable booking reference.
-
 ### Can I try the SeatLayer iOS SDK without an account?
 
 You can see the SeatLayer picker in the live browser demo with no account, and
@@ -530,27 +532,6 @@ the package's own tests run with no account or network. To run the iOS picker on
 live seats, create a test event and set its key as `SEATLAYER_EVENT_KEY` in the
 example app's scheme. Test mode is free, with no time limit and no card, and it
 uses no credits.
-
-### Can I restyle the picker without rebuilding it?
-
-Yes. Use a semantic `SeatLayerPickerTheme`, a per-part
-`SeatLayerPickerPartStyle`, chrome/string options, or a whole-part builder.
-Those layers retain the canonical layout and buyer flow. Theme changes update
-native chrome and renderer roles in place without losing selection or camera
-state.
-
-### Can I build a completely different picker layout?
-
-Yes. `SeatLayerPickerScope` plus the public native components is a supported
-integration level. Keep exactly one scoped `SeatLayerPickerMap`; the controller
-continues to own snapshots, typed actions, holds, and checkout.
-
-### Does the picker support light and dark mode?
-
-Yes. `.auto` follows the live iOS color scheme and updates both native chrome
-and approved renderer color roles without remounting. `.light` and `.dark` pin
-one side explicitly. UIKit can update an already-presented picker with
-`updateAppearance(...)`.
 
 ### Do buyers see a SeatLayer badge in my app?
 
@@ -572,7 +553,8 @@ nobody mistakes a test for a live sale.
 - [Compare SeatLayer's mobile seat map SDKs](https://docs.seatlayer.io/buyer-sdk/mobile/)
   when choosing between native iOS, Flutter, React Native, and Android.
 - [See how the 3D seat map works](https://seatlayer.io/3d-seat-map/): the 3D
-  venue and the view from each seat, built from the same chart, on every plan. 3D is offered for venues up to 30,000 seats on phones and 60,000 on desktop by default; set `max3DSeats` to change it.
+  venue and the view from each seat, built from the same chart, on every plan,
+  for venues up to 60,000 seats.
 - [Browse the SeatLayer documentation index](https://docs.seatlayer.io/llms.txt)
   (`llms.txt`) for a compact map of the documentation.
 
@@ -582,11 +564,17 @@ nobody mistakes a test for a live sale.
 | --- | --- |
 | JavaScript | [`@seatlayer/js`](https://www.npmjs.com/package/@seatlayer/js) |
 | React | [`@seatlayer/react`](https://www.npmjs.com/package/@seatlayer/react) |
+| Vue | [`@seatlayer/vue`](https://www.npmjs.com/package/@seatlayer/vue) |
+| Angular | [`@seatlayer/angular`](https://www.npmjs.com/package/@seatlayer/angular) |
 | React Native | [`@seatlayer/react-native`](https://www.npmjs.com/package/@seatlayer/react-native) |
 | iOS | [`seatlayer-ios`](https://github.com/seatlayer/seatlayer-ios) (this package) |
 | Flutter | [`seatlayer`](https://pub.dev/packages/seatlayer) |
 | Android | [`seatlayer-android`](https://github.com/seatlayer/seatlayer-android) |
 | Server SDKs | [Node.js, Python, PHP, Ruby, .NET, Java, and Go](https://docs.seatlayer.io/server-sdk/install/) |
+
+## Scale evidence
+
+Benchmarked on public 100,000-, 150,000- and 200,000-seat venue fixtures on 15 September 2026: 200,000 seats chart-ready in 1.95 s, desktop, local production build. Tested at 10,000 simulated concurrent buyers on one 12,000-seat event (18 September 2026): engine-side hold latency p99 9 ms, zero server errors. Method, fixtures and run files: https://github.com/seatlayer/seatlayer-performance. Live 200,000-seat stadium demo: https://app.seatlayer.io/demo/play/century-stadium-200k.
 
 ## License
 
