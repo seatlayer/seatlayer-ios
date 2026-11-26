@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
 > **Latest release: 0.3.4.** Add it with Swift Package Manager from this
-> repository's `v0.3.4` tag.
+> repository's `v0.3.4` tag. `main` is ahead of it: the native picker work
+> under "Unreleased" in the [changelog](CHANGELOG.md) ships as 0.5.0. There is
+> no 0.4.0 release.
 
 The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds an
 interactive seating chart and a ready-made native seat picker to ticketing apps.
