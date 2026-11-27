@@ -54,6 +54,7 @@ public struct SeatLayerPickerCartSheet: View {
                     }
                 }
         }
+        .dynamicTypeSize(...seatLayerPickerSheetTypeCeiling)
         // One surface: the sheet's ground is the panel ground, so the cart's
         // cards have something to sit on.
         .background(palette.background)
@@ -213,7 +214,7 @@ public struct SeatLayerPickerCartSheetFoot: View {
     @Environment(\.seatLayerPickerBuilders) private var builders
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var width: Double = 393
 
@@ -260,6 +261,9 @@ public struct SeatLayerPickerCartSheetFoot: View {
             .padding(.vertical, Bar.padY)
             .opacity(asking ? Bar.askingOpacity : 1)
             .allowsHitTesting(!asking)
+            // The row's words grow with the buyer's text size only as far as
+            // the sheet's clamp; its rulers measure at the same size.
+            .dynamicTypeSize(...seatLayerPickerSheetTypeCeiling)
             .background {
                 GeometryReader { geometry in
                     Color.clear
@@ -344,7 +348,7 @@ public struct SeatLayerPickerCartSheetFoot: View {
 
     /// Where the button stands, from the widths of its words at this text size.
     private var buttonPlan: SeatLayerPickerCartBarPlan {
-        let category = UIContentSizeCategory(sizeCategory)
+        let category = UIContentSizeCategory(min(dynamicTypeSize, seatLayerPickerSheetTypeCeiling))
         let token = SeatLayerPickerTypeTokens.bookButton
         let weight = SeatLayerPickerCartBarRuler.weight(token.weight)
         let own = [
@@ -376,7 +380,7 @@ public struct SeatLayerPickerCartTotalLine: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var swollen = false
     private let room: Double?
@@ -448,7 +452,7 @@ public struct SeatLayerPickerCartTotalLine: View {
     /// Whether the count and the total share a line, and the total's scale.
     private var totalFit: (beside: Bool, scale: Double) {
         guard let money = totalText else { return (true, 1) }
-        let category = UIContentSizeCategory(sizeCategory)
+        let category = UIContentSizeCategory(min(dynamicTypeSize, seatLayerPickerSheetTypeCeiling))
         let space = room ?? .infinity
         return seatLayerPickerCartBarTotal(
             count: SeatLayerPickerCartBarRuler.width(
@@ -508,6 +512,11 @@ extension EnvironmentValues {
         set { self[SeatLayerPickerCartBarButtonKey.self] = newValue }
     }
 }
+/// The cart sheet's Dynamic Type ceiling, as `type.scaleClamp.sheet` names it.
+var seatLayerPickerSheetTypeCeiling: DynamicTypeSize {
+    seatLayerPickerTypeCeiling(SeatLayerPickerTypeScaleTokens.sheet)
+}
+
 #endif
 
 /// Sales have closed and the buyer holds nothing: the cart row says so and
