@@ -465,6 +465,9 @@ private struct SeatLayerPickerReadyLayout: View {
         .onChange(of: controller.snapshot?.hold) { hold in
             reportHold(hold)
         }
+        .onReceive(controller.pageLossSubject) { _ in
+            bookedTracker.pageReplaced()
+        }
         .onReceive(controller.holdExpirations) { _ in
             bookedTracker.holdExpired()
             callbacks.onHoldExpired?()

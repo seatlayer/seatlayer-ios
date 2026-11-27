@@ -111,6 +111,7 @@ extension SeatLayerPickerController {
                 ) else {
                     throw SeatLayerError.decoding("picker.continue returned no checkout handoff")
                 }
+                self.lastHandoffHoldId = handoff.holdId
                 return handoff
             }
         }

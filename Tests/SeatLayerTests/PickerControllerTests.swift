@@ -454,6 +454,142 @@ final class PickerControllerTests: XCTestCase {
         XCTAssertEqual(lostValues, [lost])
     }
 
+    // MARK: - A page the system ended
+
+    func testAPageEndedWithAHandedOffHoldAsksTheNextPageForThatHold() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.continue": [
+                "handoff": [
+                    "holdId": "hold-handed-off",
+                    "expiresAt": .double(1_800_000_000_000),
+                    "currency": "EUR",
+                    "lineItems": .array([]),
+                    "total": 0,
+                ],
+            ],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue", "picker.resumeHold"]
+        )
+        _ = try await controller.checkout()
+        controller.accept(snapshot: pickerSnapshot(revision: 2, holdActive: true))
+
+        let bundle = try XCTUnwrap(controller.bundleInfo)
+        controller.pageLost()
+        XCTAssertEqual(controller.holdToResumeAfterReload, "hold-handed-off")
+        // Until the replacement is ready nothing is sent to the closed page.
+        XCTAssertFalse(controller.isReady)
+        controller.connect(transport: transport, bundleInfo: bundle)
+        controller.markReady(readyInfo(), payload: nil)
+        XCTAssertNil(controller.holdToResumeAfterReload)
+
+        let resumed = try await waitForCall("picker.resumeHold", on: transport)
+        XCTAssertEqual(resumed?.payload?["holdId"]?.stringValue, "hold-handed-off")
+    }
+
+    func testAPageEndedWithNoActiveHoldAsksTheNextPageForNothing() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: ["picker.resumeHold"])
+        controller.lastHandoffHoldId = "an-old-handoff"
+        controller.accept(snapshot: pickerSnapshot(revision: 2, holdActive: false))
+
+        let bundle = try XCTUnwrap(controller.bundleInfo)
+        controller.pageLost()
+        controller.connect(transport: transport, bundleInfo: bundle)
+        controller.markReady(readyInfo(), payload: nil)
+
+        XCTAssertNil(controller.holdToResumeAfterReload)
+        let resumed = try await waitForCall("picker.resumeHold", on: transport, attempts: 5)
+        XCTAssertNil(resumed)
+    }
+
+    func testAPageEndedBeforeAnyHandoffFallsBackToTheAppsInitialHold() {
+        let controller = readyController(transport: PickerTransportSpy(), commands: [])
+        controller.initialHoldId = "hold-from-app"
+        controller.accept(snapshot: pickerSnapshot(revision: 2, holdActive: true))
+
+        controller.pageLost()
+
+        XCTAssertEqual(controller.holdToResumeAfterReload, "hold-from-app")
+    }
+
+    func testAReplacedPageIsSentTheAppsThemeAgain() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: ["picker.setThemeMode"])
+        try await controller.setThemeMode(.dark)
+        let bundle = try XCTUnwrap(controller.bundleInfo)
+
+        controller.pageLost()
+        controller.connect(transport: transport, bundleInfo: bundle)
+        controller.markReady(readyInfo(), payload: nil)
+
+        for _ in 0..<50 {
+            let sent = await transport.recordedCalls().filter { $0.name == "picker.setThemeMode" }
+            if sent.count == 2 {
+                XCTAssertEqual(sent[1].payload?["mode"]?.stringValue, "dark")
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("the replaced page was not sent the theme")
+    }
+
+    func testACommandRefusedWhileThePageIsReplacedIsNotReported() throws {
+        let controller = readyController(transport: PickerTransportSpy(), commands: [])
+        let bundle = try XCTUnwrap(controller.bundleInfo)
+        let refused = SeatLayerError.bridge(.init(
+            code: BridgeErrorCode.notReady,
+            message: "SeatLayer picker is not ready."
+        ))
+
+        controller.pageLost()
+        controller.record(refused)
+        XCTAssertNil(controller.lastError)
+
+        controller.connect(transport: PickerTransportSpy(), bundleInfo: bundle)
+        controller.markReady(readyInfo(), payload: nil)
+        controller.record(refused)
+        XCTAssertEqual(controller.lastError, refused)
+    }
+
+    func testTwoEndedPagesInAMinuteAreReplacedAndTheThirdIsNot() {
+        var recovery = SeatLayerPickerPageRecovery()
+        XCTAssertTrue(recovery.lost(at: 100))
+        XCTAssertTrue(recovery.lost(at: 130))
+        XCTAssertFalse(recovery.lost(at: 150))
+        // A refused loss still counts: at 161 the losses at 130 and 150 are
+        // inside the minute. Once 130 has left it, there is room again.
+        XCTAssertFalse(recovery.lost(at: 161))
+        XCTAssertTrue(recovery.lost(at: 221))
+        recovery.reset()
+        XCTAssertTrue(recovery.lost(at: 162))
+        XCTAssertTrue(recovery.lost(at: 163))
+    }
+
+    private func waitForCall(
+        _ name: String,
+        on transport: PickerTransportSpy,
+        attempts: Int = 50
+    ) async throws -> PickerTransportSpy.Call? {
+        for _ in 0..<attempts {
+            if let call = await transport.recordedCalls().first(where: { $0.name == name }) {
+                return call
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return nil
+    }
+
+    private func readyInfo() -> ReadyInfo {
+        ReadyInfo([
+            "protocol": 2,
+            "mode": "live",
+            "transport": "ios",
+            "chart": ["event": "ev_picker"],
+        ])
+    }
+
     private func readyController(
         transport: PickerTransportSpy,
         commands: [String],
@@ -485,12 +621,14 @@ final class PickerControllerTests: XCTestCase {
 
     private func pickerSnapshot(
         sessionId: String = "session-1",
-        revision: Int
+        revision: Int,
+        holdActive: Bool = false
     ) -> JSONValue {
         [
             "schema": .string(seatLayerPickerSnapshotSchema),
             "sessionId": .string(sessionId),
             "revision": .int(revision),
+            "hold": ["active": .bool(holdActive), "owner": "host"],
             "event": [
                 "key": "ev_picker",
                 "name": "Opening Night",

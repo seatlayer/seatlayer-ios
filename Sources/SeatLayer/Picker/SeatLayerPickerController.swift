@@ -92,6 +92,17 @@ public final class SeatLayerPickerController: ObservableObject {
     /// fingers already move and turn the venue.
     public internal(set) var touchNavigation3D: SeatLayer3DTouchNavigation?
 
+    /// The hold the app started the picker on (`SeatLayerPickerOptions.initialHoldId`).
+    var initialHoldId: String?
+    /// The hold of the last checkout handoff.
+    var lastHandoffHoldId: String?
+    /// The hold a replaced page is asked to take up once it is ready.
+    private(set) var holdToResumeAfterReload: String?
+    /// The last theme the app asked for, sent again to a replaced page.
+    var themeRequest: (mode: SeatLayerPickerThemeMode?, mapTheme: SeatLayerPickerMapTheme?)?
+    /// True from a page ending until its replacement is ready.
+    private(set) var replacingLostPage = false
+
     public var isReady: Bool {
         if case .ready = phase { return true }
         return false
@@ -138,6 +149,8 @@ public final class SeatLayerPickerController: ObservableObject {
     var chartLoadReady: ReadyInfo?
     var pendingSuccessfulChartLoads: [SeatLayerChartLoadTrace] = []
     let holdExpirationSubject = PassthroughSubject<Void, Never>()
+    /// Fires when the system closed the page and a new one is on its way.
+    let pageLossSubject = PassthroughSubject<Void, Never>()
     let selectionValiditySubject = PassthroughSubject<SelectionValidity, Never>()
     let accessExpirationSubject = PassthroughSubject<BuyerAccessExpiredEvent, Never>()
     let accessUnavailableSubject = PassthroughSubject<BuyerAccessUnavailableEvent, Never>()
@@ -338,6 +351,18 @@ public final class SeatLayerPickerController: ObservableObject {
             accept(snapshot: candidate, owner: owner)
         }
         phase = .ready(info)
+        let theme = replacingLostPage ? themeRequest : nil
+        replacingLostPage = false
+        let holdId = holdToResumeAfterReload
+        holdToResumeAfterReload = nil
+        if theme != nil || holdId != nil {
+            Task { @MainActor [weak self] in
+                if let theme {
+                    try? await self?.setThemeMode(theme.mode, mapTheme: theme.mapTheme)
+                }
+                if let holdId { _ = try? await self?.resumeHold(holdId) }
+            }
+        }
         if chartLoadReady == nil, let started = chartLoadStartedAtMs {
             let finished = readyAtMilliseconds ?? Self.monotonicMilliseconds()
             if finished.isFinite, finished >= started {
@@ -454,6 +479,12 @@ public final class SeatLayerPickerController: ObservableObject {
 
     func record(_ error: SeatLayerError, owner: UUID? = nil) {
         guard acceptsRuntimeOwner(owner) else { return }
+        // A command the picker sent while a lost page is being replaced is
+        // refused as not ready; the replacement catches up on its own.
+        if replacingLostPage, case .bridge(let payload) = error,
+           payload.code == BridgeErrorCode.notReady {
+            return
+        }
         lastError = error
     }
 
@@ -461,8 +492,27 @@ public final class SeatLayerPickerController: ObservableObject {
         ProcessInfo.processInfo.systemUptime * 1_000
     }
 
+    /// The system ended the page. Remembers the hold the replacement is asked
+    /// to take up: the one handed to the app's checkout, else the app's
+    /// initial hold. A hold the page still kept for itself is not known here
+    /// and ends with the page.
+    func pageLost() {
+        pageLossSubject.send(())
+        replacingLostPage = true
+        holdToResumeAfterReload = snapshot?.hold.active == true
+            ? (lastHandoffHoldId ?? initialHoldId)
+            : nil
+        // Nothing can reach the page until its replacement is ready, so the
+        // picker stops reporting ready: a return to the foreground before the
+        // reload must not send its refresh to the closed page.
+        transport = nil
+        phase = .loading
+    }
+
     func markDestroyed(owner: UUID? = nil) {
         guard acceptsRuntimeOwner(owner) else { return }
+        holdToResumeAfterReload = nil
+        replacingLostPage = false
         runtimeGeneration &+= 1
         runtimeOwner = nil
         actionTail?.cancel()

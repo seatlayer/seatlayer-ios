@@ -74,6 +74,21 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
         )
     }
 
+    /// The same profile without one host config key.
+    func removingConfig(_ key: String) -> SeatLayerBridgeProfile {
+        var trimmed = config
+        trimmed.removeValue(forKey: key)
+        return SeatLayerBridgeProfile(
+            surface: surface,
+            protocolRange: protocolRange,
+            requiredCapabilities: requiredCapabilities,
+            requiredCommands: requiredCommands,
+            requiredEvents: requiredEvents,
+            optionalCapabilities: optionalCapabilities,
+            config: trimmed
+        )
+    }
+
     let surface: Surface
     let protocolRange: ProtocolRange
     let requiredCapabilities: [String]

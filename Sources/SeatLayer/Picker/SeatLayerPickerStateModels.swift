@@ -54,6 +54,13 @@ public struct SeatLayerPickerBookedTracker: Sendable, Equatable {
         return true
     }
 
+    /// The page was replaced after the system closed it. The hold reads as
+    /// gone until the new page has resumed it, which is not a sale: the hold
+    /// must be seen alive again on the new page before its absence counts.
+    mutating func pageReplaced() {
+        sawHoldAfterHandoff = false
+    }
+
     /// Clears the reading, for a picker that resumes after checkout.
     public mutating func reset() {
         pending = nil

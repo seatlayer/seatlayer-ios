@@ -183,6 +183,7 @@ extension SeatLayerPickerController {
         mapTheme: SeatLayerPickerMapTheme? = nil
     ) async throws {
         if let mapTheme { try validate(mapTheme: mapTheme) }
+        themeRequest = (mode, mapTheme)
         var payload: [String: JSONValue] = [
             "mode": mode.map { .string($0.rawValue) } ?? .null,
         ]

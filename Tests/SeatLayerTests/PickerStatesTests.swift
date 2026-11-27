@@ -30,6 +30,21 @@ final class PickerStatesTests: XCTestCase {
         XCTAssertNil(tracker.booked)
     }
 
+    func testAHoldThatVanishesWithAReplacedPageIsNotASale() {
+        var tracker = SeatLayerPickerBookedTracker()
+        tracker.handedOff(handoff())
+        _ = tracker.observe(holdActive: true)
+        // The system closed the page: the new page has no hold until it
+        // resumes the one handed to checkout.
+        tracker.pageReplaced()
+        XCTAssertFalse(tracker.observe(holdActive: false))
+        XCTAssertNil(tracker.booked)
+        // The new page resumed it; a later vanish is a sale again.
+        XCTAssertFalse(tracker.observe(holdActive: true))
+        XCTAssertTrue(tracker.observe(holdActive: false))
+        XCTAssertEqual(tracker.booked?.holdId, "hold-1")
+    }
+
     func testASnapshotBeforeTheHandOffLandedIsNotASale() {
         var tracker = SeatLayerPickerBookedTracker()
         tracker.handedOff(handoff())

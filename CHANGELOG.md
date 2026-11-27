@@ -42,6 +42,21 @@ Public names stay; these are the changes an app or a buyer can notice.
   "N left" count after a theme or language switch. What else changed on the
   map is in the [changelog](https://docs.seatlayer.io/changelog/).
 
+**When iOS closes the map page**
+
+iOS can end a web page's process to free memory, mostly while the app is in
+the background. Until now the picker then showed "The seat map didn't load"
+and the buyer lost the hold handed to checkout.
+
+- The picker loads the page again by itself: at once when the app is in front,
+  otherwise when the buyer comes back to the app.
+- The new page takes up the hold handed to checkout (else the app's
+  `initialHoldId`), so the cart and the hold timer come back as they were.
+- A hold lost with the page is not read as a sale: "You're all set" is not
+  shown and `onBooked` is not called.
+- Two pages ended within a minute are replaced. A third ends in the error view,
+  where Try again loads the page and takes up the hold.
+
 **Design system**
 
 - Every colour, size, radius, duration, curve, haptic strength and buyer-facing

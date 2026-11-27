@@ -42,7 +42,10 @@ public final class SeatLayerView: UIView {
     private var handshakeTimeoutTask: Task<Void, Never>?
     private var hasFinished = false
     private var allowedPageURL: URL?
-    private let bridgeProfile: SeatLayerBridgeProfile
+    private var bridgeProfile: SeatLayerBridgeProfile
+    /// Called when the system ends a page that had become ready. A page that
+    /// ends while it is still starting fails its load instead.
+    var onPageLost: (() -> Void)?
     private weak var pickerController: SeatLayerPickerController?
     private var runtimeOwner: UUID?
     private var canConsumePrewarmedPage = false
@@ -780,10 +783,25 @@ public final class SeatLayerView: UIView {
     }
 
     func webHostContentProcessDidTerminate() {
-        finishHandshake(
-            .failure(.transport("the web content process terminated")),
-            owner: runtimeOwner
-        )
+        guard hasFinished, readyInfo != nil, let onPageLost else {
+            finishHandshake(
+                .failure(.transport("the web content process terminated")),
+                owner: runtimeOwner
+            )
+            return
+        }
+        // Whatever waits on the ended page is refused now rather than at its
+        // deadline; the owner replaces the page.
+        let client = self.client
+        Task { await client?.close(with: .transport("The system closed the SeatLayer page.")) }
+        onPageLost()
+    }
+
+    /// A replaced page is not started on the app's initial hold: the hold may
+    /// be gone by then, and a page that cannot take it up fails to start. The
+    /// hold is asked for once the new page is ready.
+    func dropInitialHoldFromPageStart() {
+        bridgeProfile = bridgeProfile.removingConfig("initialHoldId")
     }
 }
 
