@@ -134,6 +134,8 @@ and the buyer lost the hold handed to checkout.
   count, never cut. The seats line names a shared section once
   ("Dress Circle · C-6, C-7") and a table, booth or standing area by its own
   name, once.
+- The cart's text grows with the buyer's text size up to 1.6 times, as the
+  design's sheet clamp says; past that the row keeps its size.
 - While a seat card asks, the row is faded and takes no taps. A refusal or a
   lapsed hold stands over the row.
 - The button says "Securing your seats…" until the seats are held, then
