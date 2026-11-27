@@ -40,6 +40,18 @@ func seatLayerPickerOwnBuyerMessage(_ error: Error) -> String? {
     return message
 }
 
+/// Whether the page's `message` is a web view's words for a request that
+/// reached no server.
+func seatLayerPickerNoConnection(_ message: String) -> Bool {
+    let lowered = message.lowercased()
+    return SeatLayerPickerRefusals.noConnection.contains { lowered.contains($0) }
+}
+
+/// Whether `command` secures seats (a hold, or the step to checkout).
+func seatLayerPickerSecuresSeats(_ command: String?) -> Bool {
+    command.map(SeatLayerPickerRefusals.holdCommands.contains) == true
+}
+
 private enum SeatLayerPickerRefusals {
     /// Commands that secure seats, where any refusal means they were not secured.
     static let holdCommands: Set<String> = [

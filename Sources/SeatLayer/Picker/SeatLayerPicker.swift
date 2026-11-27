@@ -421,6 +421,7 @@ private struct SeatLayerPickerReadyLayout: View {
             bottomSafeInset: $bottomSafeInset
         )
         .seatLayerPickerToastFeed()
+        .seatLayerPickerConnectionFeed()
         .animation(
             seatLayerPickerAnimation(.enter, reduceMotion: reduceMotion),
             value: presentation.pendingSeat?.id

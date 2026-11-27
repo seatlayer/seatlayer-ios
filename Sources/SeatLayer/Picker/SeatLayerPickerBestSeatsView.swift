@@ -348,8 +348,12 @@ public struct SeatLayerBestSeatsForm: View {
 
     private func search() {
         busy = true
+        let ended = seatLayerPickerPressWatch(for: controller).begin()
         runPickerAction(controller) {
-            defer { busy = false }
+            defer {
+                busy = false
+                ended()
+            }
             _ = try await controller.bestAvailable(
                 quantity: quantity,
                 categoryKey: categoryKey,
