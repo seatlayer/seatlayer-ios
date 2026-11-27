@@ -3,13 +3,17 @@ import Foundation
 /// Decides when a hand-off has actually become a sale.
 ///
 /// "You're all set" is never shown on the hand-off: a buyer on the way to pay
-/// has not paid, and a pilot host hit exactly that bug when a buyer backed out
-/// of checkout without paying. The sale is read the way the web picker reads
-/// it — the handed-off hold vanishes from the snapshot **with no `hold.expired`
-/// announced first**. The expiry arrives on the same hop as the snapshot that
-/// follows it, so the order on the wire is the order this decision sees.
+/// has not paid. The picker takes the sale only from the page: after the app's
+/// server has booked, the app calls `SeatLayerPickerController.markBooked`,
+/// and the page answers that the handed-off hold is booked (`said(_:)`). A
+/// hold that leaves the map for any other reason (the page loaded again, a
+/// rejected checkout, a hold lost on the server) is not a sale.
 ///
-/// Pure and macOS-testable: the view and the host callback both read it.
+/// `observe(holdActive:)` is the earlier reading, from the hold vanishing with
+/// no expiry first. The picker no longer uses it; it stays for apps that call
+/// it themselves.
+///
+/// Pure and macOS-testable.
 public struct SeatLayerPickerBookedTracker: Sendable, Equatable {
     /// The hand-off being watched, until it settles one way or the other.
     public private(set) var pending: SeatLayerPickerCheckoutHandoff?
@@ -54,11 +58,14 @@ public struct SeatLayerPickerBookedTracker: Sendable, Equatable {
         return true
     }
 
-    /// The page was replaced after the system closed it. The hold reads as
-    /// gone until the new page has resumed it, which is not a sale: the hold
-    /// must be seen alive again on the new page before its absence counts.
-    mutating func pageReplaced() {
-        sawHoldAfterHandoff = false
+    /// The page said `handoff` is booked, after `markBooked`. True the first
+    /// time for that hold.
+    @discardableResult
+    public mutating func said(_ handoff: SeatLayerPickerCheckoutHandoff) -> Bool {
+        guard booked?.holdId != handoff.holdId else { return false }
+        pending = nil
+        booked = handoff
+        return true
     }
 
     /// Clears the reading, for a picker that resumes after checkout.

@@ -553,6 +553,108 @@ final class PickerControllerTests: XCTestCase {
         XCTAssertEqual(controller.lastError, refused)
     }
 
+    func testMarkBookedSettlesTheHandedOffHoldAndPublishesTheSaleOnce() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.continue": ["handoff": Self.handoffPayload],
+            "picker.markBooked": ["booked": true, "status": "booked", "holdId": "hold-handed-off"],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue", "picker.markBooked"],
+            capabilities: ["hold-mark-booked-v1"]
+        )
+        var sales: [String] = []
+        let watching = controller.bookings.sink { sales.append($0.holdId) }
+        defer { watching.cancel() }
+        _ = try await controller.checkout()
+
+        let booked = try await controller.markBooked()
+
+        XCTAssertTrue(booked)
+        XCTAssertEqual(sales, ["hold-handed-off"])
+        let sent = await transport.recordedCalls().first { $0.name == "picker.markBooked" }
+        XCTAssertNil(sent?.payload?["holdId"])
+        // The page answers a repeat with already_booked; it is not a second sale.
+        _ = try await controller.markBooked()
+        XCTAssertEqual(sales, ["hold-handed-off"])
+    }
+
+    func testMarkBookedThatThePageRefusesIsNoSale() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.continue": ["handoff": Self.handoffPayload],
+            "picker.markBooked": ["booked": false, "status": "no_hold"],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue", "picker.markBooked"],
+            capabilities: ["hold-mark-booked-v1"]
+        )
+        var sales = 0
+        let watching = controller.bookings.sink { _ in sales += 1 }
+        defer { watching.cancel() }
+        _ = try await controller.checkout()
+
+        let booked = try await controller.markBooked()
+
+        XCTAssertFalse(booked)
+        XCTAssertEqual(sales, 0)
+    }
+
+    func testMarkBookedForAnotherHoldIsNotTheHandedOffSale() async throws {
+        let transport = PickerTransportSpy(responses: [
+            "picker.continue": ["handoff": Self.handoffPayload],
+            "picker.markBooked": ["booked": true, "status": "booked", "holdId": "hold-other"],
+        ])
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.continue", "picker.markBooked"],
+            capabilities: ["hold-mark-booked-v1"]
+        )
+        var sales = 0
+        let watching = controller.bookings.sink { _ in sales += 1 }
+        defer { watching.cancel() }
+        _ = try await controller.checkout()
+
+        let booked = try await controller.markBooked(holdId: "hold-other")
+
+        XCTAssertTrue(booked)
+        XCTAssertEqual(sales, 0)
+        let sent = await transport.recordedCalls().first { $0.name == "picker.markBooked" }
+        XCTAssertEqual(sent?.payload?["holdId"]?.stringValue, "hold-other")
+    }
+
+    func testMarkBookedOnAPageThatCannotBeToldSendsNothing() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+
+        let booked = try await controller.markBooked()
+
+        XCTAssertFalse(booked)
+        XCTAssertFalse(controller.supportsMarkBooked)
+        let sent = await transport.recordedCalls().filter { $0.name == "picker.markBooked" }
+        XCTAssertTrue(sent.isEmpty)
+    }
+
+    func testMarkBookedRefusesAnEmptyHoldId() async {
+        let controller = readyController(
+            transport: PickerTransportSpy(),
+            commands: ["picker.markBooked"],
+            capabilities: ["hold-mark-booked-v1"]
+        )
+        do {
+            _ = try await controller.markBooked(holdId: " ")
+            XCTFail("an empty holdId was sent")
+        } catch {}
+    }
+
+    private static let handoffPayload: JSONValue = [
+        "holdId": "hold-handed-off",
+        "expiresAt": .double(1_800_000_000_000),
+        "currency": "EUR",
+        "lineItems": .array([]),
+        "total": 0,
+    ]
+
     func testTwoEndedPagesInAMinuteAreReplacedAndTheThirdIsNot() {
         var recovery = SeatLayerPickerPageRecovery()
         XCTAssertTrue(recovery.lost(at: 100))

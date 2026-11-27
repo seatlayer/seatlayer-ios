@@ -23,8 +23,10 @@ public struct SeatLayerPickerCallbacks {
     public var onSeatRemoved: (@MainActor (String) -> Void)?
     public var onSeatViewOpened: (@MainActor (SelectedSeat) -> Void)?
     public var onContinue: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)?
-    /// The hand-off settled into a sale: the handed-off hold left the snapshot
-    /// with no expiry announced first. Never fired on the hand-off itself.
+    /// The page said the handed-off hold is booked, which it does after your
+    /// server has booked and you call `controller.markBooked()`. Once per sale,
+    /// never on the hand-off itself. Take the sale from your own server, never
+    /// from this callback.
     public var onBooked: (@MainActor (SeatLayerPickerCheckoutHandoff) -> Void)?
 
     public init(
@@ -465,17 +467,13 @@ private struct SeatLayerPickerReadyLayout: View {
         .onChange(of: controller.snapshot?.hold) { hold in
             reportHold(hold)
         }
-        .onReceive(controller.pageLossSubject) { _ in
-            bookedTracker.pageReplaced()
-        }
         .onReceive(controller.holdExpirations) { _ in
             bookedTracker.holdExpired()
             callbacks.onHoldExpired?()
         }
-        .onChange(of: controller.snapshot?.hold.active) { active in
-            guard bookedTracker.observe(holdActive: active == true),
-                  let booked = bookedTracker.booked else { return }
-            callbacks.onBooked?(booked)
+        .onReceive(controller.bookings) { handoff in
+            guard bookedTracker.said(handoff) else { return }
+            callbacks.onBooked?(handoff)
         }
         .onChange(of: controller.snapshot?.map.rung) { rung in
             let previous = previousRung
