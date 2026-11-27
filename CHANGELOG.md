@@ -208,6 +208,16 @@ and the buyer lost the hold handed to checkout.
   each replaceable by name. The picker's own toast band carries the messages
   it has to volunteer.
 
+**Fixed**
+
+- After a checkout handoff, "Continue to checkout" was off until the app
+  called `resumeAfterCheckout()`, so a buyer back from the app's checkout
+  without paying could not check out again while the hold ran (since 0.4.0).
+  The button now stays on: each press asks the page again and calls the
+  checkout handler with the same hold, as React Native does. Apps that call
+  `resumeAfterCheckout()` keep working; it still lets the buyer change the
+  cart.
+
 **Breaking**
 
 - `onBooked` and "You're all set" no longer follow a hold that disappears.
