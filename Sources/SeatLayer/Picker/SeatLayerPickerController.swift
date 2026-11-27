@@ -87,6 +87,11 @@ public final class SeatLayerPickerController: ObservableObject {
 
     public private(set) var bundleInfo: BundleInfo?
 
+    /// The 3D touch mode the picker was started with. The Rotate / Move
+    /// control is drawn only for `.classic`: with the map's gestures the
+    /// fingers already move and turn the venue.
+    public internal(set) var touchNavigation3D: SeatLayer3DTouchNavigation?
+
     public var isReady: Bool {
         if case .ready = phase { return true }
         return false

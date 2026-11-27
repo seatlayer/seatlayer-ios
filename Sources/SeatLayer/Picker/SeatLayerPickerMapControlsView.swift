@@ -272,7 +272,8 @@ public struct SeatLayerPickerMapControls: View {
         let immersive = SeatLayerPickerImmersive.availability(
             snapshot: snapshot,
             bundle: controller.bundleInfo,
-            seatView: controller.seatView
+            seatView: controller.seatView,
+            touchNavigation3D: controller.touchNavigation3D
         )
         let access = SeatLayerPickerAccessibility.availability(
             snapshot: snapshot,

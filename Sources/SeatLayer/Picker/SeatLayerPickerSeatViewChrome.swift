@@ -23,7 +23,8 @@ public struct SeatLayerSeatViewChrome: View {
         let availability = SeatLayerPickerImmersive.availability(
             snapshot: controller.snapshot,
             bundle: controller.bundleInfo,
-            seatView: controller.seatView
+            seatView: controller.seatView,
+            touchNavigation3D: controller.touchNavigation3D
         )
         if availability.panoramaChrome,
            let seatView = controller.seatView {

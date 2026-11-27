@@ -6,8 +6,41 @@ This work ships as 0.5.0, together with a newer map. 0.4.0 was never released;
 the last release is 0.3.4.
 
 The native picker follows the SeatLayer buyer picker's current phone design
-item by item, on hosted runtime `seatlayer-js@0.84.1`. Views load
-`https://cdn.seatlayer.io/seatlayer-js@0.84.1/mobile.html`.
+item by item, on hosted runtime `seatlayer-js@1.0.6`. Views load
+`https://cdn.seatlayer.io/seatlayer-js@1.0.6/mobile.html`.
+
+**The map: 0.84.1 to 1.0.6**
+
+Public names stay; these are the changes an app or a buyer can notice.
+
+- 3D touch: one finger moves the view, a pinch zooms, a two-finger twist turns
+  the venue and a two-finger drag tilts it. The Rotate / Move control is drawn
+  only with `SeatLayerPickerOptions(touchNavigation3D: .classic)`, which also
+  keeps the earlier gestures.
+- The 3D venue draws a standing crowd. `enable3DCrowd: false` turns it off.
+- In a seat's 3D view, a map 560 points or wider shows a small plan of where
+  the seat is.
+- A venue with several levels opens on its lowest level.
+- On a phone, the level stack no longer narrows the whole map: the venue fits
+  the full width above the stack, or beside it when it is too tall, and the
+  stack never covers seats.
+- When the accessibility filter takes the map to another level, the level
+  stack marks that level.
+- `selectObjects` with a seat on a level that is not drawn returns that seat
+  and puts it in the cart at once. A closed section and the accessibility
+  filter still refuse it.
+- In the snapshot, a whole or party table's `screenPoint` is the middle of its
+  chairs, so a spotlight sits on the table. Its `id` stays the first chair's.
+- `setViewMode` with iso or perspective shows the flat map.
+- A hold the server never answers ends after 40 seconds with "Check your
+  connection and try again." A command that can place a hold now waits at
+  least 45 seconds (`BridgeClient.holdCommandTimeout`), longer than the map
+  waits for the server, so a hold that worked is not reported as failed. Other
+  commands keep `commandTimeout`, 15 seconds by default.
+- The map has 45 seconds to start (`handshakeTimeout`, was 30).
+- A standing area's line in the cart reads the area's name, and keeps its
+  "N left" count after a theme or language switch. What else changed on the
+  map is in the [changelog](https://docs.seatlayer.io/changelog/).
 
 **Design system**
 

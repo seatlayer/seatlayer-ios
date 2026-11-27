@@ -165,6 +165,20 @@ final class PickerProjectionTests: XCTestCase {
         XCTAssertNil(options.normalizedHoldTtlMs)
     }
 
+    func testBridgeOptionsSendTheTwo3DOptOutsOnlyWhenAsked() {
+        let defaults = SeatLayerPickerOptions()
+        XCTAssertNil(defaults.bridgeConfig["enable3DCrowd"])
+        XCTAssertNil(defaults.bridgeConfig["touchNavigation3D"])
+
+        let classic = SeatLayerPickerOptions(enable3DCrowd: false, touchNavigation3D: .classic)
+        XCTAssertEqual(classic.bridgeConfig["enable3DCrowd"], .bool(false))
+        XCTAssertEqual(classic.bridgeConfig["touchNavigation3D"]?.stringValue, "classic")
+        XCTAssertEqual(
+            SeatLayerPickerOptions(touchNavigation3D: .map).bridgeConfig["touchNavigation3D"]?.stringValue,
+            "map"
+        )
+    }
+
     func testBridgeOptionsNormalizeHoldAndLanguagesWithoutChangingPublicIntent() {
         let options = SeatLayerPickerOptions(
             holdTtlMs: 60_000,

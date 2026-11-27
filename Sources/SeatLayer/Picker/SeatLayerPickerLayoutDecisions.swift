@@ -116,7 +116,8 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             SeatLayerPickerImmersive.availability(
                 snapshot: snapshot,
                 bundle: context.bundle,
-                seatView: context.seatView
+                seatView: context.seatView,
+                touchNavigation3D: options.touchNavigation3D
             )
         )
         chromeVisibility = visibility

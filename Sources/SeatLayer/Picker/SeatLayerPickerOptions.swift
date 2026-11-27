@@ -163,6 +163,15 @@ public struct SeatLayerPickerChromeOptions: Sendable, Equatable {
     }
 }
 
+/// How fingers move the 3D venue.
+public enum SeatLayer3DTouchNavigation: String, Sendable, Equatable {
+    /// One finger moves the view, a pinch zooms, a two-finger twist turns the
+    /// venue and a two-finger drag tilts it. The map's default.
+    case map
+    /// The earlier gestures, with the Rotate / Move control they need.
+    case classic
+}
+
 /// Runtime behaviour shared by the ready-made and headless picker surfaces.
 public struct SeatLayerPickerOptions: Sendable, Equatable {
     public var layout: SeatLayerPickerLayoutMode
@@ -175,6 +184,12 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
     public var holdTtlMs: Int?
     public var initialHoldId: String?
     public var max3DSeats: Int?
+    /// Whether the 3D venue draws its standing crowd.
+    public var enable3DCrowd: Bool
+    /// How fingers move the 3D venue. `nil` takes the map's default, `.map`.
+    /// `.classic` keeps the earlier gestures and draws the Rotate / Move
+    /// control they need.
+    public var touchNavigation3D: SeatLayer3DTouchNavigation?
     public var hideEventDetails: Bool
     /// The event's name, for chrome that has nothing else to print while the
     /// first snapshot is still on its way.
@@ -203,6 +218,8 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         holdTtlMs: Int? = nil,
         initialHoldId: String? = nil,
         max3DSeats: Int? = nil,
+        enable3DCrowd: Bool = true,
+        touchNavigation3D: SeatLayer3DTouchNavigation? = nil,
         hideEventDetails: Bool = false,
         eventName: String? = nil,
         showBookedOverlay: Bool = true,
@@ -224,6 +241,8 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         self.holdTtlMs = holdTtlMs
         self.initialHoldId = initialHoldId
         self.max3DSeats = max3DSeats
+        self.enable3DCrowd = enable3DCrowd
+        self.touchNavigation3D = touchNavigation3D
         self.hideEventDetails = hideEventDetails
         self.eventName = eventName
         self.showBookedOverlay = showBookedOverlay
@@ -249,6 +268,8 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         if let normalizedHoldTtlMs { config["holdTtlMs"] = .int(normalizedHoldTtlMs) }
         if let normalizedInitialHoldId { config["initialHoldId"] = .string(normalizedInitialHoldId) }
         if let normalizedMax3DSeats { config["max3DSeats"] = .int(normalizedMax3DSeats) }
+        if !enable3DCrowd { config["enable3DCrowd"] = .bool(false) }
+        if let touchNavigation3D { config["touchNavigation3D"] = .string(touchNavigation3D.rawValue) }
         if !normalizedLanguages.isEmpty {
             config["languages"] = .array(normalizedLanguages.map(JSONValue.string))
         }
