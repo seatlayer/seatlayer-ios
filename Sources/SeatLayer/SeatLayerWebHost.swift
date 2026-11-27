@@ -186,6 +186,24 @@ extension SeatLayerWebHost: WKNavigationDelegate {
         )
     }
 
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    ) {
+        // A page whose server answered with an error is a failed load, said at
+        // once with its status, rather than an error page that never shakes
+        // hands.
+        if !clearing, navigationResponse.isForMainFrame,
+           let status = (navigationResponse.response as? HTTPURLResponse)?.statusCode,
+           status >= 400 {
+            decisionHandler(.cancel)
+            failNavigation("page returned HTTP \(status).")
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard !clearing else { return }
         navigationState = .finished
@@ -197,6 +215,8 @@ extension SeatLayerWebHost: WKNavigationDelegate {
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        // The load a refused response cancelled is already told.
+        if case .failed = navigationState { return }
         failNavigation("page load failed: \(error.localizedDescription)")
     }
 
