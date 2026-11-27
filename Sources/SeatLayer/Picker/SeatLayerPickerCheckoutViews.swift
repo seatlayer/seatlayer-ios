@@ -116,13 +116,25 @@ func seatLayerPickerCheckoutCtaInput(
         ticketCount: presentation.confirmedTicketCount,
         pendingCount: presentation.pendingCount,
         holdActive: snapshot?.hold.active == true,
-        // The empty cart's door into the finder, gated exactly as the tray's
-        // own card is.
-        canOfferFind: style.options.enableBestAvailable
-            && !style.options.readOnly
-            && controller.supports(command: "picker.bestAvailable"),
+        canOfferFind: seatLayerPickerOffersFinder(snapshot, controller: controller, style: style),
         validity: snapshot?.selectionValidity
     )
+}
+
+/// The empty cart's door into the finder, gated as the tray's own card is.
+/// A sold-out or closed event, a hold already made (or the app's own) and a
+/// selection the event will not take offer no finder: the button says
+/// "Select seats" instead.
+@MainActor
+func seatLayerPickerOffersFinder(
+    _ snapshot: SeatLayerPickerSnapshot?,
+    controller: SeatLayerPickerController,
+    style: SeatLayerPickerStyleEnvironment
+) -> Bool {
+    guard style.options.enableBestAvailable,
+          !style.options.readOnly,
+          controller.supports(command: "picker.bestAvailable") else { return false }
+    return seatLayerPickerFinderAllowed(snapshot)
 }
 
 /// The inline bar under the cart.

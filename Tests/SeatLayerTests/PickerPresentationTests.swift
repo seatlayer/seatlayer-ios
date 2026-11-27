@@ -621,7 +621,7 @@ final class PickerPresentationTests: XCTestCase {
             ),
             strings: strings
         )
-        XCTAssertEqual(opening.label, strings.text(.openingCheckout))
+        XCTAssertEqual(opening.label, strings.text(.seatsSecuredOpeningCheckout))
         XCTAssertTrue(opening.busy)
 
         let more = seatLayerCheckoutCtaState(
