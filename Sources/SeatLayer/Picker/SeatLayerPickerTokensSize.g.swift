@@ -288,6 +288,26 @@ public enum SeatLayerPickerSizeTokens {
     public static let testChipDotSize: Double = 7
     /// `11`
     public static let testChipFontSize: Double = 11
+    /// `36`
+    public static let connectionStatusHeight: Double = 36
+    /// `52`
+    public static let connectionStatusTwoLineHeight: Double = 52
+    /// `13`
+    public static let connectionStatusTitleFont: Double = 13
+    /// `12.5`
+    public static let connectionStatusLineFont: Double = 12.5
+    /// `16`
+    public static let connectionStatusSign: Double = 16
+    /// `8`
+    public static let connectionStatusSignGap: Double = 8
+    /// `12`
+    public static let connectionStatusPadStart: Double = 12
+    /// `14`
+    public static let connectionStatusPadEnd: Double = 14
+    /// `8`
+    public static let connectionStatusSwitchGap: Double = 8
+    /// `4`
+    public static let connectionStatusRise: Double = 4
     /// `12`
     public static let mapAnchorInset: Double = 12
     /// `12`
@@ -558,6 +578,16 @@ public enum SeatLayerPickerSizeTokens {
         "testChipHeight": testChipHeight,
         "testChipDotSize": testChipDotSize,
         "testChipFontSize": testChipFontSize,
+        "connectionStatusHeight": connectionStatusHeight,
+        "connectionStatusTwoLineHeight": connectionStatusTwoLineHeight,
+        "connectionStatusTitleFont": connectionStatusTitleFont,
+        "connectionStatusLineFont": connectionStatusLineFont,
+        "connectionStatusSign": connectionStatusSign,
+        "connectionStatusSignGap": connectionStatusSignGap,
+        "connectionStatusPadStart": connectionStatusPadStart,
+        "connectionStatusPadEnd": connectionStatusPadEnd,
+        "connectionStatusSwitchGap": connectionStatusSwitchGap,
+        "connectionStatusRise": connectionStatusRise,
         "mapAnchorInset": mapAnchorInset,
         "mapAnchorGap": mapAnchorGap,
         "zoomColumnGap": zoomColumnGap,

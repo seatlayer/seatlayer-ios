@@ -6,19 +6,19 @@ import SwiftUI
 /// Hash of the canonical cross-platform picker token input used to generate
 /// this file. Flutter and React Native publish the same hash.
 public let seatLayerPickerTokenSourceSHA256 =
-    "c05cc925d7e8f1eb89be7c4b4be42f41edda296f57ae9d27848281ac8fb9b855"
+    "e674bc558af12b83b2455f4b09913479300db2480f4a469620a7d6a5fa4fec36"
 
 /// Hash of the canonical locale input used by the native picker strings.
 public let seatLayerPickerLocaleSourceSHA256 =
-    "0e987d2253116bc736135e95c635cc41ec561786f2aebd5402fa91ed48530266"
+    "f88c0f63308b62ff448119157d801e60499eb9539b546c8d06db2cd68ffb7fe3"
 
 /// Hash of the platform-neutral picker component catalogue.
 public let seatLayerPickerComponentSourceSHA256 =
-    "4b3b7b83e5502633cbbbbcfdb9e1be4cd07e86dc18e22d651dde3711b98b494d"
+    "c6828f2cece1c320f27d7258603c2a5d4060b3f9cc96bfb94421cc7c2b2c27bd"
 
 /// Hash of the platform-neutral picker specification.
 public let seatLayerPickerSpecSourceSHA256 =
-    "14fce6f7016f436ca9671ff8992d1da66b6a640cf39a0bb92b7f87ea0a5635da"
+    "a32ef187799a5d593622942f8a9652f96758ab94eddc7ea9b32f2b864b1d1ea4"
 
 // Every number the native chrome draws now enters Swift through
 // `SeatLayerPickerTokens*.g.swift`, generated from `Design/tokens.json`. This

@@ -469,6 +469,20 @@ public enum SeatLayerPickerStringKey: String, CaseIterable, Sendable {
     case mapDidNotLoad
     /// Check your connection and try again.
     case checkConnection
+    /// You’re offline
+    case offline
+    /// Back online
+    case backOnline
+    /// Your seats are still held.
+    case stillHeld
+    /// Updating…
+    case updating
+    /// This is taking longer than usual. Please wait…
+    case takingLonger
+    /// The seat map is taking longer to load. Please wait…
+    case loadingTakingLonger
+    /// Couldn’t reach checkout.
+    case couldNotReachCheckout
     /// These seats are on hold right now
     case accessPausedTitle
     /// The organizer has paused this selection. Try again in a few minutes.
@@ -916,6 +930,13 @@ public enum SeatLayerPickerStringTokens {
         .backToMap: "Back to map",
         .mapDidNotLoad: "The seat map didn’t load",
         .checkConnection: "Check your connection and try again.",
+        .offline: "You’re offline",
+        .backOnline: "Back online",
+        .stillHeld: "Your seats are still held.",
+        .updating: "Updating…",
+        .takingLonger: "This is taking longer than usual. Please wait…",
+        .loadingTakingLonger: "The seat map is taking longer to load. Please wait…",
+        .couldNotReachCheckout: "Couldn’t reach checkout.",
         .accessPausedTitle: "These seats are on hold right now",
         .accessPausedCopy: "The organizer has paused this selection. Try again in a few minutes.",
         .accessRevokedTitle: "This access link is no longer active",

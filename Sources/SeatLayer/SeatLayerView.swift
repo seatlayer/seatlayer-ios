@@ -395,6 +395,9 @@ public final class SeatLayerView: UIView {
         case "seatView.changed" where bridgeProfile.isPicker:
             pickerController?.accept(seatView: payload?["seatView"], owner: runtimeOwner)
 
+        case "connection.changed" where bridgeProfile.isPicker:
+            pickerController?.accept(connection: payload, owner: runtimeOwner)
+
         case "telemetry.chartLoad" where bridgeProfile.isPicker:
             pickerController?.accept(chartLoad: payload, owner: runtimeOwner)
 

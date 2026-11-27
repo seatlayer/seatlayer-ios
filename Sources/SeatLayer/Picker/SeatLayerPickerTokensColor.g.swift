@@ -25,6 +25,10 @@ public enum SeatLayerPickerLightColorTokens {
     public static let warning = "#F4B740"
     /// `#745F2C`
     public static let warnText = "#745F2C"
+    /// `#B7791F`
+    public static let connectionLost = "#B7791F"
+    /// `#1B7F52`
+    public static let connectionBack = "#1B7F52"
     /// `#E8C15A`
     public static let premium = "#E8C15A"
     /// `#6C5E3F`
@@ -56,6 +60,8 @@ public enum SeatLayerPickerLightColorTokens {
         "error": error,
         "warning": warning,
         "warnText": warnText,
+        "connectionLost": connectionLost,
+        "connectionBack": connectionBack,
         "premium": premium,
         "premiumText": premiumText,
         "accent": accent,
@@ -87,6 +93,10 @@ public enum SeatLayerPickerDarkColorTokens {
     public static let warning = "#F4B740"
     /// `#E3CC93`
     public static let warnText = "#E3CC93"
+    /// `#E0B04A`
+    public static let connectionLost = "#E0B04A"
+    /// `#4CC38A`
+    public static let connectionBack = "#4CC38A"
     /// `#E8C15A`
     public static let premium = "#E8C15A"
     /// `#DCCBA5`
@@ -132,6 +142,8 @@ public enum SeatLayerPickerDarkColorTokens {
         "error": error,
         "warning": warning,
         "warnText": warnText,
+        "connectionLost": connectionLost,
+        "connectionBack": connectionBack,
         "premium": premium,
         "premiumText": premiumText,
         "accent": accent,

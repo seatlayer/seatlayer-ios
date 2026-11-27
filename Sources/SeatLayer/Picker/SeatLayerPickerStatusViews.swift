@@ -15,6 +15,7 @@ public struct SeatLayerPickerLoadingView: View {
     @State private var breathing = false
     @State private var sweep = -1.0
     @State private var strip = -1.0
+    @State private var slow = false
 
     public init() {}
 
@@ -50,11 +51,25 @@ public struct SeatLayerPickerLoadingView: View {
             VStack {
                 progressStrip(palette: palette)
                 Spacer(minLength: 0)
+                if slow {
+                    Text(style.strings.text(.loadingTakingLonger))
+                        .seatLayerPickerFont(size: 13)
+                        .foregroundColor(palette.mutedText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 48)
+                        .transition(.opacity)
+                }
             }
         }
         .onAppear(perform: start)
+        .task {
+            try? await Task.sleep(nanoseconds: UInt64(seatLayerPickerSlowOpeningSeconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            withAnimation(seatLayerPickerAnimation(.crossfade, reduceMotion: reduceMotion)) { slow = true }
+        }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(style.strings.text(.loading))
+        .accessibilityLabel(style.strings.text(slow ? .loadingTakingLonger : .loading))
         .accessibilityAddTraits(.updatesFrequently)
         .accessibilityIdentifier("seatlayer-loading")
     }
@@ -157,6 +172,7 @@ public struct SeatLayerPickerErrorView: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @State private var inFront = UIApplication.shared.applicationState != .background
     private let retry: () -> Void
 
     public init(retry: @escaping () -> Void) {
@@ -169,18 +185,28 @@ public struct SeatLayerPickerErrorView: View {
             colorScheme: colorScheme,
             snapshot: controller.snapshot
         )
+        let kind = failureKind
         VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .seatLayerPickerFont(size: 26)
-                .foregroundColor(palette.error)
-            Text(style.strings.text(.mapDidNotLoad))
+            if kind == .connection {
+                SeatLayerPickerConnectionSign(shown: .offline, palette: palette, diameter: 26)
+                    .frame(width: 56, height: 56)
+                    .overlay { Circle().stroke(palette.divider, lineWidth: 1) }
+            } else {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .seatLayerPickerFont(size: 26)
+                    .foregroundColor(palette.error)
+            }
+            Text(style.strings.text(kind == .connection ? .offline : .mapDidNotLoad))
                 .seatLayerPickerFont(size: 15, weight: .bold)
                 .foregroundColor(palette.text)
-                .accessibilityAddTraits(.isHeader)
-            Text(style.strings.text(.checkConnection))
-                .seatLayerPickerFont(size: 12)
-                .foregroundColor(palette.mutedText)
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
+            if kind != .server {
+                Text(style.strings.text(.checkConnection))
+                    .seatLayerPickerFont(size: 12)
+                    .foregroundColor(palette.mutedText)
+                    .multilineTextAlignment(.center)
+            }
             if controller.lastError?.isRetryable != false {
                 Button(style.strings.text(.retry), action: retry)
                     .seatLayerPickerFont(size: 14, weight: .bold)
@@ -196,6 +222,32 @@ public struct SeatLayerPickerErrorView: View {
         .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.card))
         .shadow(color: .black.opacity(0.2), radius: 18, y: 8)
         .padding(20)
+        .task(id: kind == .connection && inFront) { await retryWhileOffline(kind) }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            seatLayerPickerOfflineTries(for: controller).restart()
+            inFront = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            inFront = false
+        }
+    }
+
+    /// Why the page did not load: nothing answered, its server failed, or
+    /// anything else (a chart that would not draw, a page too slow to start).
+    private var failureKind: SeatLayerPickerFailureKind {
+        guard case .failed(let error) = controller.phase else { return .other }
+        return seatLayerPickerFailureKind(error)
+    }
+
+    /// While the app is in front, a page nothing answered is opened again by
+    /// itself after 10 s and 20 s, then every 30 s. In the background it waits.
+    private func retryWhileOffline(_ kind: SeatLayerPickerFailureKind) async {
+        guard kind == .connection, inFront else { return }
+        let tries = seatLayerPickerOfflineTries(for: controller)
+        try? await Task.sleep(nanoseconds: UInt64(tries.nextWait() * 1_000_000_000))
+        guard !Task.isCancelled else { return }
+        tries.tried()
+        retry()
     }
 }
 

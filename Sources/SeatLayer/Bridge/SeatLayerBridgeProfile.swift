@@ -66,6 +66,7 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
                 "seat-view-thumbnail-v1",
                 "accessibility-focus-v1",
                 "section-access-counts-v1",
+                "connection-state-v1",
                 // Present-only reads: the snapshot simply carries the extra
                 // field, and chrome that cannot see it renders as before.
                 "seat-screen-point-v1",

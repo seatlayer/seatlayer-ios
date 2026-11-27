@@ -81,6 +81,12 @@ public struct SeatLayerPickerCheckoutButton: View {
         .disabled(!cta.enabled)
         .accessibilityLabel(cta.label)
         .accessibilityIdentifier("seatlayer-checkout")
+        .onAppear {
+            // "Couldn’t reach checkout." offers Try again through this same path.
+            seatLayerPickerPressWatch(for: controller).retry = { [presentation, onCheckout] in
+                Task { @MainActor in _ = try? await presentation.checkout(using: onCheckout) }
+            }
+        }
     }
 
     private func ink(
@@ -152,7 +158,11 @@ public struct SeatLayerPickerActionError: View {
     public init() {}
 
     public var body: some View {
-        if let error = presentation.lastActionError {
+        // A lost line is told by the small message instead, and a page that
+        // did not load by its own panel (§3.4.2).
+        if let error = presentation.lastActionError,
+           !controller.pageFailed,
+           !seatLayerPickerToldAsMessage(error, failure: controller.failure(for: error)) {
             let palette = resolveSeatLayerPickerPalette(
                 style: style,
                 colorScheme: colorScheme,
