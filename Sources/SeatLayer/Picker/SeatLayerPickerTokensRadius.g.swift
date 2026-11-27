@@ -30,6 +30,8 @@ public enum SeatLayerPickerRadiusTokens {
     public static let headerLogo: Double = 6
     /// `999`
     public static let pill: Double = 999
+    /// `18`
+    public static let connectionStatusTwoLines: Double = 18
     /// `14`
     public static let explainerToast: Double = 14
 
@@ -46,6 +48,7 @@ public enum SeatLayerPickerRadiusTokens {
         "chip": chip,
         "headerLogo": headerLogo,
         "pill": pill,
+        "connectionStatusTwoLines": connectionStatusTwoLines,
         "explainerToast": explainerToast,
     ]
 }

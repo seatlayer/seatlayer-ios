@@ -40,6 +40,10 @@ public enum SeatLayerPickerMotionDurationTokens {
     public static let cardEnter = 240
     /// `160 ms`
     public static let thumbOut = 160
+    /// `200 ms`
+    public static let connectionIn = 200
+    /// `160 ms`
+    public static let connectionWords = 160
     /// `4000` ms — deliberately outside the budget.
     public static let undoWindow = 4000
     /// `300` ms — deliberately outside the budget.
@@ -60,6 +64,8 @@ public enum SeatLayerPickerMotionDurationTokens {
     public static let shellSweep = 650
     /// `1600` ms — deliberately outside the budget.
     public static let loadingBreath = 1600
+    /// `900` ms — deliberately outside the budget.
+    public static let connectionRing = 900
 
     /// The durations inside the budget, keyed by token name.
     public static let inBudget: [String: Int] = [
@@ -78,6 +84,8 @@ public enum SeatLayerPickerMotionDurationTokens {
         "pressSweep": pressSweep,
         "cardEnter": cardEnter,
         "thumbOut": thumbOut,
+        "connectionIn": connectionIn,
+        "connectionWords": connectionWords,
     ]
 
     /// The durations deliberately outside the budget, keyed by token name.
@@ -92,6 +100,7 @@ public enum SeatLayerPickerMotionDurationTokens {
         "revealDelay": revealDelay,
         "shellSweep": shellSweep,
         "loadingBreath": loadingBreath,
+        "connectionRing": connectionRing,
     ]
 
     /// What the picker does when the viewer asks for less movement.
