@@ -10,6 +10,7 @@ public struct SeatLayerPickerCheckoutButton: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.seatLayerPickerCartBarButton) private var inRow
     private let onCheckout: SeatLayerPickerCheckoutHandler
 
     public init(onCheckout: @escaping SeatLayerPickerCheckoutHandler) {
@@ -30,23 +31,48 @@ public struct SeatLayerPickerCheckoutButton: View {
                 Task { @MainActor in _ = try? await presentation.checkout(using: onCheckout) }
             }
         } label: {
-            HStack(spacing: 8) {
-                if cta.busy { ProgressView().tint(ink(cta, palette: palette)) }
-                Text(cta.label).lineLimit(1).minimumScaleFactor(0.7)
+            let radius = inRow == nil
+                ? SeatLayerPickerRadiusTokens.button
+                : SeatLayerPickerCartBar.buttonRadius
+            Group {
+                if let inRow {
+                    // In the cart row: up to two balanced lines, at the size
+                    // the row chose.
+                    HStack(spacing: 6) {
+                        if cta.busy { ProgressView().tint(ink(cta, palette: palette)) }
+                        Text(cta.label)
+                            .seatLayerPickerFont(
+                                size: inRow.letters,
+                                weight: .seatLayerPickerWeight(SeatLayerPickerTypeTokens.bookButton.weight)
+                            )
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: inRow.textWidth)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, SeatLayerPickerCartBar.buttonPadX)
+                    .padding(.vertical, SeatLayerPickerCartBar.buttonPadY)
+                    .frame(maxWidth: .infinity, minHeight: SeatLayerPickerCartBar.minHeight)
+                } else {
+                    HStack(spacing: 8) {
+                        if cta.busy { ProgressView().tint(ink(cta, palette: palette)) }
+                        Text(cta.label).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .seatLayerPickerFont(SeatLayerPickerTypeTokens.bookButton)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: SeatLayerPickerSizeTokens.checkoutButtonHeight
+                    )
+                }
             }
-            .seatLayerPickerFont(SeatLayerPickerTypeTokens.bookButton)
             .foregroundColor(ink(cta, palette: palette))
-            .frame(
-                maxWidth: .infinity,
-                minHeight: SeatLayerPickerSizeTokens.checkoutButtonHeight
-            )
             .background(cta.enabled ? palette.accent : palette.surface)
-            .clipShape(RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button))
+            .clipShape(RoundedRectangle(cornerRadius: radius))
             // A designed disabled state: the button keeps its shape and takes
             // an inset hairline, rather than becoming a grey system rectangle.
             .overlay {
                 if !cta.enabled {
-                    RoundedRectangle(cornerRadius: SeatLayerPickerRadiusTokens.button)
+                    RoundedRectangle(cornerRadius: radius)
                         .stroke(palette.divider, lineWidth: 1)
                 }
             }
@@ -65,31 +91,38 @@ public struct SeatLayerPickerCheckoutButton: View {
     }
 
     private var ctaInput: SeatLayerPickerCheckoutCtaInput {
-        let snapshot = controller.snapshot
-        return SeatLayerPickerCheckoutCtaInput(
-            label: style.strings.text(.holdAndCheckout),
-            canCheckout: presentation.canCheckout,
-            salesClosed: snapshot?.event.salesClosed == true,
-            promptOpen: presentation.activePrompt != nil,
-            seatCardOpen: presentation.pendingSeat != nil
-                || presentation.candidateSeat != nil,
-            creatingHold: presentation.actionInFlight && !presentation.handoffInFlight,
-            handoffInFlight: presentation.handoffInFlight,
-            ticketCount: presentation.confirmedTicketCount,
-            pendingCount: presentation.pendingCount,
-            holdActive: snapshot?.hold.active == true,
-            canOfferFind: canOfferFind,
-            validity: snapshot?.selectionValidity
-        )
+        seatLayerPickerCheckoutCtaInput(presentation: presentation, controller: controller, style: style)
     }
+}
 
-    /// The empty cart's door into the finder, gated exactly as the tray's own
-    /// card is.
-    private var canOfferFind: Bool {
-        style.options.enableBestAvailable
+/// What the checkout button says depends on: shared by the button and the
+/// cart row that measures its words.
+@MainActor
+func seatLayerPickerCheckoutCtaInput(
+    presentation: SeatLayerPickerPresentationModel,
+    controller: SeatLayerPickerController,
+    style: SeatLayerPickerStyleEnvironment
+) -> SeatLayerPickerCheckoutCtaInput {
+    let snapshot = controller.snapshot
+    return SeatLayerPickerCheckoutCtaInput(
+        label: style.strings.text(.holdAndCheckout),
+        canCheckout: presentation.canCheckout,
+        salesClosed: snapshot?.event.salesClosed == true,
+        promptOpen: presentation.activePrompt != nil,
+        seatCardOpen: presentation.pendingSeat != nil
+            || presentation.candidateSeat != nil,
+        creatingHold: presentation.actionInFlight && !presentation.handoffInFlight,
+        handoffInFlight: presentation.handoffInFlight,
+        ticketCount: presentation.confirmedTicketCount,
+        pendingCount: presentation.pendingCount,
+        holdActive: snapshot?.hold.active == true,
+        // The empty cart's door into the finder, gated exactly as the tray's
+        // own card is.
+        canOfferFind: style.options.enableBestAvailable
             && !style.options.readOnly
-            && controller.supports(command: "picker.bestAvailable")
-    }
+            && controller.supports(command: "picker.bestAvailable"),
+        validity: snapshot?.selectionValidity
+    )
 }
 
 /// The inline bar under the cart.

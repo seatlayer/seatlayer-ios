@@ -4,17 +4,13 @@ import XCTest
 /// The rest table, the fling rule and the rubber band — the three things that
 /// decide where the sheet ends up under a finger.
 final class PickerSheetDetentTests: XCTestCase {
-    /// The handle straddles the sheet's top edge, so half the disc — one
-    /// `sheetHandleOverhang` — hangs INTO the sheet, over whatever the tray
-    /// draws first. The tray starts below it: the head, then the tray's own
-    /// top padding. Anything less puts the first cart card under the one
-    /// control that opens and closes the sheet.
-    func testTheCartTrayStartsBelowTheHandleDisc() {
-        XCTAssertGreaterThanOrEqual(
-            SeatLayerPickerSizeTokens.sheetHeadHeight
-                + SeatLayerPickerSizeTokens.cartTrayPadTop,
-            SeatLayerPickerSizeTokens.sheetHandleOverhang
+    /// The row is the sheet's top: there is nothing above it to slide away
+    /// while a seat card asks, so the row only fades.
+    func testTheSheetHasNothingAboveTheRowToDrop() {
+        let detents = seatLayerPickerSheetDetents(
+            screenHeight: 852, chrome: 65, contentHeight: 200, hasTickets: true
         )
+        XCTAssertEqual(detents.surfaceOffset(of: .mini), 0)
     }
 
     func testPeekIsZeroAndOpenIsTheContentHeight() {

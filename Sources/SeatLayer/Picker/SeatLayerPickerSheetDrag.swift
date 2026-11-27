@@ -159,9 +159,7 @@ public func seatLayerPickerSheetDetents(
     let fingerBody = max(0, seatLayerPickerSheetFingerCeiling(screenHeight: screenHeight) - chrome)
     return SeatLayerPickerSheetDetents(
         content: min(wanted, body),
-        full: min(wanted, fingerBody),
-        surfaceDrop: SeatLayerPickerSizeTokens.sheetHandleOverhang
-            + SeatLayerPickerSizeTokens.sheetHeadHeight
+        full: min(wanted, fingerBody)
     )
 }
 
