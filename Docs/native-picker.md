@@ -225,7 +225,7 @@ renders nothing when runtime branding says it is not required.
 ## Strings and themes
 
 `SeatLayerPickerStrings` resolves an exact BCP-47 locale, then its base
-language, then English. It ships the same 37 canonical locale dictionaries as
+language, then English. It ships the same 43 canonical locale dictionaries as
 Flutter and React Native. Host overrides use stable key names:
 
 ```swift
@@ -239,7 +239,7 @@ let strings = SeatLayerPickerStrings(
 
 The small set of iOS-only accessibility and disclosure keys currently uses
 host-overridable English fallback text when the canonical shared catalog has
-no translation. This exception is explicit and does not alter the 37-locale
+no translation. This exception is explicit and does not alter the 43-locale
 source lock.
 
 `SeatLayerPickerTheme` controls semantic native roles. Its nested

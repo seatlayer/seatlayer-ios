@@ -17,6 +17,9 @@ public struct SeatLayerPickerEventDetails: Sendable, Equatable {
     public let locale: String?
     public let posterURL: String?
     public let salesClosed: Bool
+    /// The event's date as the page writes it, in its own language and time
+    /// zone. Shown when sales are closed.
+    public var startsAtLabel: String? = nil
 }
 
 public struct SeatLayerPickerBranding: Sendable, Equatable {

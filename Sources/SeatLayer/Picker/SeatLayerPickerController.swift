@@ -27,6 +27,9 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public internal(set) var snapshot: SeatLayerPickerSnapshot?
     @Published public internal(set) var seatView: SeatLayerSeatView?
     @Published public internal(set) var lastError: SeatLayerError?
+    /// The action the last failed command asked for, beside its error, so the
+    /// buyer's sentence can name what was refused.
+    var lastFailure: (error: SeatLayerError, failure: SeatLayerPickerActionFailure)?
     @Published public internal(set) var availabilityOutcome: SeatLayerPickerAvailabilityOutcome?
     @Published public internal(set) var holdLapse: SeatLayerPickerHoldLapse?
     @Published public internal(set) var generalAdmissionCandidate: GAArea?
@@ -50,6 +53,17 @@ public final class SeatLayerPickerController: ObservableObject {
     /// Non-replaying stream of advertised runtime chart-load attempts.
     public var chartLoads: AnyPublisher<SeatLayerChartLoad, Never> {
         chartLoadSubject.eraseToAnyPublisher()
+    }
+
+    /// Fires once per sale, with the handoff the page said is booked after
+    /// `markBooked`. Take the sale from your own server, never from here.
+    public var bookings: AnyPublisher<SeatLayerPickerCheckoutHandoff, Never> {
+        bookingSubject.eraseToAnyPublisher()
+    }
+
+    /// Whether the open page can be told that a hold is booked.
+    public var supportsMarkBooked: Bool {
+        supports(capability: "hold-mark-booked-v1", command: "picker.markBooked")
     }
 
     /// Non-replaying signal for an explicitly expired hold. Deliberate hold
@@ -94,10 +108,16 @@ public final class SeatLayerPickerController: ObservableObject {
 
     /// The hold the app started the picker on (`SeatLayerPickerOptions.initialHoldId`).
     var initialHoldId: String?
+    /// The last checkout handoff, until the page says it is booked.
+    var lastHandoff: SeatLayerPickerCheckoutHandoff?
     /// The hold of the last checkout handoff.
-    var lastHandoffHoldId: String?
+    var lastHandoffHoldId: String? {
+        get { lastHandoff?.holdId ?? lastHandoffHoldIdOverride }
+        set { lastHandoffHoldIdOverride = newValue }
+    }
+    private var lastHandoffHoldIdOverride: String?
     /// The hold a replaced page is asked to take up once it is ready.
-    private(set) var holdToResumeAfterReload: String?
+    var holdToResumeAfterReload: String?
     /// The last theme the app asked for, sent again to a replaced page.
     var themeRequest: (mode: SeatLayerPickerThemeMode?, mapTheme: SeatLayerPickerMapTheme?)?
     /// True from a page ending until its replacement is ready.
@@ -149,8 +169,7 @@ public final class SeatLayerPickerController: ObservableObject {
     var chartLoadReady: ReadyInfo?
     var pendingSuccessfulChartLoads: [SeatLayerChartLoadTrace] = []
     let holdExpirationSubject = PassthroughSubject<Void, Never>()
-    /// Fires when the system closed the page and a new one is on its way.
-    let pageLossSubject = PassthroughSubject<Void, Never>()
+    let bookingSubject = PassthroughSubject<SeatLayerPickerCheckoutHandoff, Never>()
     let selectionValiditySubject = PassthroughSubject<SelectionValidity, Never>()
     let accessExpirationSubject = PassthroughSubject<BuyerAccessExpiredEvent, Never>()
     let accessUnavailableSubject = PassthroughSubject<BuyerAccessUnavailableEvent, Never>()
@@ -477,6 +496,12 @@ public final class SeatLayerPickerController: ObservableObject {
         phase = .failed(error)
     }
 
+    /// The action `error` answered, when the picker sent it.
+    func failure(for error: SeatLayerError) -> SeatLayerPickerActionFailure? {
+        guard let lastFailure, lastFailure.error == error else { return nil }
+        return lastFailure.failure
+    }
+
     func record(_ error: SeatLayerError, owner: UUID? = nil) {
         guard acceptsRuntimeOwner(owner) else { return }
         // A command the picker sent while a lost page is being replaced is
@@ -497,7 +522,6 @@ public final class SeatLayerPickerController: ObservableObject {
     /// initial hold. A hold the page still kept for itself is not known here
     /// and ends with the page.
     func pageLost() {
-        pageLossSubject.send(())
         replacingLostPage = true
         holdToResumeAfterReload = snapshot?.hold.active == true
             ? (lastHandoffHoldId ?? initialHoldId)

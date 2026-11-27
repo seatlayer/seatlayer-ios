@@ -6,11 +6,11 @@ import SwiftUI
 /// Hash of the canonical cross-platform picker token input used to generate
 /// this file. Flutter and React Native publish the same hash.
 public let seatLayerPickerTokenSourceSHA256 =
-    "defb411c1dc94b1071a70bc92dfa7eff0c7ab443fc110dd86c1cfbd8f54182f4"
+    "c05cc925d7e8f1eb89be7c4b4be42f41edda296f57ae9d27848281ac8fb9b855"
 
 /// Hash of the canonical locale input used by the native picker strings.
 public let seatLayerPickerLocaleSourceSHA256 =
-    "340645082f4280ce445375fc1675601b78665cb8b0fadb3622bdc8d69561215f"
+    "0e987d2253116bc736135e95c635cc41ec561786f2aebd5402fa91ed48530266"
 
 /// Hash of the platform-neutral picker component catalogue.
 public let seatLayerPickerComponentSourceSHA256 =
@@ -403,9 +403,12 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             ?? known[canonicalKey].map { text($0) }
             ?? fallback
         guard let count else { return label }
+        let shown = String(max(0, count))
+        // The shared locale strings name the two parts `first` and `second`;
+        // the English default and older overrides name them `need` and `count`.
         return text(
             .accessNeedWithCount,
-            replacing: ["need": label, "count": String(max(0, count))]
+            replacing: ["first": label, "second": shown, "need": label, "count": shown]
         )
     }
 
@@ -450,26 +453,4 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             .replacingOccurrences(of: "_", with: "-")
         return candidate.isEmpty ? "en" : candidate
     }
-}
-
-/// Deliberately derives buyer copy from stable error classification, never
-/// from a bridge or host-provided description that could contain private
-/// checkout state. Integrators still receive the complete typed error through
-/// callbacks for their own diagnostics.
-func seatLayerPickerBuyerErrorText(
-    _ error: SeatLayerError,
-    strings: SeatLayerPickerStrings
-) -> String {
-    let unavailableCodes: Set<String> = [
-        "sold_out",
-        "not_enough_together",
-        "hold_unavailable",
-        "event_closed",
-        "sales_closed",
-        "no_inventory",
-    ]
-    if unavailableCodes.contains(error.code) {
-        return strings.text(.noSelectableSeats)
-    }
-    return error.isRetryable ? strings.text(.retry) : strings.text(.errorMessage)
 }

@@ -70,7 +70,7 @@ final class PickerProjectionTests: XCTestCase {
     }
 
     func testGeneratedLocaleCatalogAndFallback() {
-        XCTAssertEqual(SeatLayerPickerStrings.supportedLocales.count, 37)
+        XCTAssertEqual(SeatLayerPickerStrings.supportedLocales.count, 43)
         XCTAssertEqual(
             SeatLayerPickerStrings(localeIdentifier: "de-DE").text(.continueWord),
             "Weiter"
@@ -99,27 +99,6 @@ final class PickerProjectionTests: XCTestCase {
             SeatLayerPickerStrings(localeIdentifier: "de-DE").findBestSeats(2),
             "2 beste Plätze finden"
         )
-    }
-
-    func testBuyerErrorCopyNeverEchoesPrivateRuntimeOrHostDescriptions() {
-        let strings = SeatLayerPickerStrings(localeIdentifier: "en")
-        let opaque = "hold_private_123"
-        let bridge = SeatLayerError.bridge(.init(
-            code: "sold_out",
-            message: "Could not transfer \(opaque)"
-        ))
-        let host = SeatLayerError.transport("Host rejected \(opaque)")
-
-        XCTAssertEqual(
-            seatLayerPickerBuyerErrorText(bridge, strings: strings),
-            strings.text(.noSelectableSeats)
-        )
-        XCTAssertEqual(
-            seatLayerPickerBuyerErrorText(host, strings: strings),
-            strings.text(.retry)
-        )
-        XCTAssertFalse(seatLayerPickerBuyerErrorText(bridge, strings: strings).contains(opaque))
-        XCTAssertFalse(seatLayerPickerBuyerErrorText(host, strings: strings).contains(opaque))
     }
 
     func testCanonicalBuilderMatrixHasExactlyTwentyEightUniqueParts() {

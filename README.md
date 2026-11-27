@@ -222,7 +222,7 @@ styles[.checkoutBar] = SeatLayerPickerPartStyle(
 ```
 
 **Visibility and words: options and strings.** Chrome gates remove optional
-default parts, while the 37 bundled locale dictionaries resolve exact BCP-47,
+default parts, while the 43 bundled locale dictionaries resolve exact BCP-47,
 then language, then English:
 
 ```swift
@@ -401,6 +401,12 @@ books** the hold after payment or order validation.
   display, persist, or place its `holdId` in analytics.
 - Calculate the charge from server-inspected hold items, not app input.
 - Reuse your stable order id as `bookingRef` for safe booking retries.
+- When your backend has booked the hold, call `controller.markBooked()`. The
+  picker then shows "You're all set" and calls `onBooked` once. A hold that
+  only runs out or is released is never shown as a sale.
+- To give the buyer your own sentence when checkout fails, throw an error that
+  conforms to `SeatLayerPickerBuyerFacingError`; its `buyerMessage` is shown as
+  it is.
 
 The native picker keeps buyer credentials in memory only, keeps no session data
 after it closes, and accepts messages only from the SeatLayer map. If your

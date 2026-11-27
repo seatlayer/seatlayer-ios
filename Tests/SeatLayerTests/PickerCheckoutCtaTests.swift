@@ -26,6 +26,63 @@ final class PickerCheckoutCtaTests: XCTestCase {
         return seatLayerCheckoutCtaState(value, strings: strings)
     }
 
+    func testSeatsAlreadyHeldCanGoToCheckoutWhenSalesClose() {
+        let cta = resolve {
+            $0.salesClosed = true
+            $0.holdActive = true
+        }
+        XCTAssertNotEqual(cta.label, strings.text(.salesClosedCta))
+    }
+
+    func testTheCartRowSaysSalesClosedOnlyWithNothingHeld() throws {
+        let closedFree = try XCTUnwrap(decodeSeatLayerPickerSnapshot(Self.snapshot(salesClosed: true, holdActive: false)))
+        let closedHeld = try XCTUnwrap(decodeSeatLayerPickerSnapshot(Self.snapshot(salesClosed: true, holdActive: true)))
+        let open = try XCTUnwrap(decodeSeatLayerPickerSnapshot(Self.snapshot(salesClosed: false, holdActive: false)))
+        XCTAssertTrue(seatLayerPickerSalesClosedWithNoHold(closedFree))
+        XCTAssertFalse(seatLayerPickerSalesClosedWithNoHold(closedHeld))
+        XCTAssertFalse(seatLayerPickerSalesClosedWithNoHold(open))
+        XCTAssertFalse(seatLayerPickerSalesClosedWithNoHold(nil))
+    }
+
+    func testTheDateLineIsThePagesOwnWhenItSendsOne() throws {
+        let labelled = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            Self.snapshot(salesClosed: true, holdActive: false, startsAtLabel: "Sat 6 December, 19:30")
+        ))
+        XCTAssertEqual(labelled.event.startsAtLabel, "Sat 6 December, 19:30")
+        XCTAssertEqual(
+            seatLayerPickerEventDateLine(labelled.event, locale: Locale(identifier: "en_GB")),
+            "Sat 6 December, 19:30"
+        )
+        let unlabelled = try XCTUnwrap(decodeSeatLayerPickerSnapshot(
+            Self.snapshot(salesClosed: true, holdActive: false)
+        ))
+        XCTAssertNil(unlabelled.event.startsAtLabel)
+        let line = seatLayerPickerEventDateLine(unlabelled.event, locale: Locale(identifier: "en_GB"))
+        XCTAssertEqual(line?.contains("December 2026"), true)
+    }
+
+    private static func snapshot(
+        salesClosed: Bool,
+        holdActive: Bool,
+        startsAtLabel: String? = nil
+    ) -> JSONValue {
+        var event: [String: JSONValue] = [
+            "key": "ev_1",
+            "name": "Show",
+            "salesClosed": .bool(salesClosed),
+            "startsAt": .double(1_796_585_400_000),
+            "timezone": "Europe/London",
+        ]
+        if let startsAtLabel { event["startsAtLabel"] = .string(startsAtLabel) }
+        return [
+            "schema": .string(seatLayerPickerSnapshotSchema),
+            "sessionId": "session-1",
+            "revision": 1,
+            "event": .object(event),
+            "hold": ["active": .bool(holdActive)],
+        ]
+    }
+
     func testNothingOutranksAnEventThatHasStoppedSelling() {
         let cta = resolve {
             $0.salesClosed = true

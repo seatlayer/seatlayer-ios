@@ -30,6 +30,8 @@ public enum SeatLayerPickerRadiusTokens {
     public static let headerLogo: Double = 6
     /// `999`
     public static let pill: Double = 999
+    /// `14`
+    public static let explainerToast: Double = 14
 
     /// Every value in this group, keyed by its token name.
     public static let all: [String: Double] = [
@@ -44,5 +46,6 @@ public enum SeatLayerPickerRadiusTokens {
         "chip": chip,
         "headerLogo": headerLogo,
         "pill": pill,
+        "explainerToast": explainerToast,
     ]
 }

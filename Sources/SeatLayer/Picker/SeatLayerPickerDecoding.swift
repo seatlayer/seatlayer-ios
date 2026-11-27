@@ -148,7 +148,8 @@ private func decodePickerEvent(_ value: JSONValue?) -> SeatLayerPickerEventDetai
         timezone: item["timezone"]?.stringValue,
         locale: item["locale"]?.stringValue,
         posterURL: item["posterUrl"]?.stringValue,
-        salesClosed: item["salesClosed"]?.boolValue ?? false
+        salesClosed: item["salesClosed"]?.boolValue ?? false,
+        startsAtLabel: item["startsAtLabel"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
     )
 }
 

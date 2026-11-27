@@ -245,7 +245,7 @@ final class DesignTokensTests: XCTestCase {
         // A named locale opts into the reviewed dictionary.
         let english = SeatLayerPickerStrings(localeIdentifier: "en")
         XCTAssertEqual(english.text(.close), "Close")
-        XCTAssertEqual(english.text(.testMode), "TEST MODE")
+        XCTAssertEqual(english.text(.testMode), "Test mode")
 
         // A locale with no dictionary keeps the token wording rather than
         // borrowing the reviewed English.

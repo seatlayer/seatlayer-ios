@@ -57,6 +57,32 @@ and the buyer lost the hold handed to checkout.
 - Two pages ended within a minute are replaced. A third ends in the error view,
   where Try again loads the page and takes up the hold.
 
+**Checkout**
+
+- The sale comes from the page. When the app's server has booked the order,
+  the app calls `markBooked()` (or `markBooked(holdId:)`). Under
+  `hold-mark-booked-v1` the page settles the hold and says whether it was
+  booked. Only a booked answer for the hold handed to checkout shows "You're
+  all set" and calls `onBooked`, once; `controller.bookings` publishes the
+  same. A hold that ends any other way (it runs out, is released, or its page
+  closes) is not a sale. `supportsMarkBooked` says whether the loaded page can
+  be told; an older page gets nothing and `markBooked()` returns false.
+- When sales close, seats already held still go to checkout. With none held,
+  the row says "Sales are closed" with the event's date and has no button.
+  The snapshot's event gains `startsAtLabel`.
+- A refused action says why, in the web picker's sentences: the order limit
+  with its number, "We couldn't find 3 seats together", the seats just taken
+  by name, the maintenance notice or how long it lasts, access paused, expired
+  or revoked, a lost connection. Some have a second line. The code and the
+  server's message still go to `onError` only. An error the app's checkout
+  throws that conforms to `SeatLayerPickerBuyerFacingError` shows its
+  `buyerMessage` as it is; any other says "Check your connection and try
+  again."
+- `BridgeErrorPayload.meta` carries what the server said beyond the code
+  (`max`, `retryAfterS`, `notice`, `status`).
+- Standing places the page did not hold (`held: false`) are a refusal:
+  `holdGeneralAdmission` throws `hold_unavailable` and the prompt stays open.
+
 **Design system**
 
 - Every colour, size, radius, duration, curve, haptic strength and buyer-facing
@@ -69,6 +95,8 @@ and the buyer lost the hold handed to checkout.
 - Both themes are complete ground sets; the accent, its ink, the font and the
   host radius are the organizer's brand in both. `SeatLayerPickerTheme` gains
   `fontFamily`, `logo`, `radius`, `buttonRadius` and `layout` overrides.
+- The strings are the ones React Native and Flutter ship: 43 languages (was
+  37), with their newer wording.
 
 **The seat card**
 
@@ -135,7 +163,8 @@ and the buyer lost the hold handed to checkout.
   the map once. A chart that fails to load says so and offers Retry.
 - Access lost, sales closed, sold out, a seat taken by another buyer, an
   expired or lapsed hold, and "You're all set" each have their native
-  surface; `onBooked` fires once when a handed-off hold becomes a sale, and
+  surface; `onBooked` fires once when `markBooked()` books the handed-off
+  hold, and
   `showBookedOverlay` lets a host with its own confirmation keep the overlay
   down.
 - The hold countdown lives in the header pill only. A buyer back from checkout
@@ -157,6 +186,8 @@ and the buyer lost the hold handed to checkout.
 
 **Breaking**
 
+- `onBooked` and "You're all set" no longer follow a hold that disappears.
+  The app calls `markBooked()` after its server has booked the order.
 - `SeatLayerPickerAccessNeed.count` and `SeatLayerPickerMapState.atVenueFit`
   are optional: "not reported" is no longer read as zero or false.
 - Removed: the dense ticket-list helpers and tokens, `fromPrice`, the

@@ -27,7 +27,19 @@ extension SeatLayerPickerController {
         ]
         if let tierId { payload["tierId"] = tierId.map(JSONValue.string) ?? .null }
         if let ttlMs { payload["ttlMs"] = .int(ttlMs) }
-        return try await mutation("picker.holdGA", .object(payload))
+        return try await enqueue { generation in
+            let result = try await self.send("picker.holdGA", .object(payload))
+            let snapshot = try await self.applyMutationResult(result, generation: generation)
+            // `held: false` is the page's refusal: it took no places and
+            // sends no error, so the prompt would close as if it had.
+            if result["held"]?.boolValue == false {
+                throw SeatLayerError.bridge(.init(
+                    code: "hold_unavailable",
+                    message: "The standing places could not be held."
+                ))
+            }
+            return snapshot
+        }
     }
 
     @discardableResult
@@ -111,7 +123,7 @@ extension SeatLayerPickerController {
                 ) else {
                     throw SeatLayerError.decoding("picker.continue returned no checkout handoff")
                 }
-                self.lastHandoffHoldId = handoff.holdId
+                self.lastHandoff = handoff
                 return handoff
             }
         }
@@ -120,6 +132,36 @@ extension SeatLayerPickerController {
             if checkoutFlight?.id == id { checkoutFlight = nil }
         }
         return try await task.value
+    }
+
+    /// Settles a hold your server has booked: the map shows the seats booked,
+    /// the hold clock stops, and the picker never releases that hold.
+    ///
+    /// Call it only after your server has booked. Called earlier, the seats
+    /// show as taken until the server hold expires. Without `holdId` it settles
+    /// the hold this picker handed to checkout. Returns whether the page booked
+    /// it; false where there was no such hold or the page cannot be told.
+    /// `onBooked` and "You're all set" follow a true answer for the handed-off
+    /// hold, once.
+    @discardableResult
+    public func markBooked(holdId: String? = nil) async throws -> Bool {
+        if let holdId { try validateNonEmpty(holdId, named: "holdId") }
+        guard supportsMarkBooked else { return false }
+        let handoff = lastHandoff
+        let booked = try await enqueue { generation in
+            let result = try await self.send(
+                "picker.markBooked",
+                .object(compacting: ["holdId": holdId.map(JSONValue.string)])
+            )
+            _ = try await self.applyMutationResult(result, generation: generation)
+            return result["booked"]?.boolValue ?? false
+        }
+        if booked, let handoff, holdId == nil || holdId == handoff.holdId {
+            lastHandoff = nil
+            holdToResumeAfterReload = nil
+            bookingSubject.send(handoff)
+        }
+        return booked
     }
 
     /// Hold the current selection without minting a checkout handoff.

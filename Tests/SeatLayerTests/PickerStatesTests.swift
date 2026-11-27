@@ -30,19 +30,14 @@ final class PickerStatesTests: XCTestCase {
         XCTAssertNil(tracker.booked)
     }
 
-    func testAHoldThatVanishesWithAReplacedPageIsNotASale() {
+    func testTheSaleIsWhatThePageSaidIsBookedOnce() {
         var tracker = SeatLayerPickerBookedTracker()
         tracker.handedOff(handoff())
-        _ = tracker.observe(holdActive: true)
-        // The system closed the page: the new page has no hold until it
-        // resumes the one handed to checkout.
-        tracker.pageReplaced()
-        XCTAssertFalse(tracker.observe(holdActive: false))
-        XCTAssertNil(tracker.booked)
-        // The new page resumed it; a later vanish is a sale again.
-        XCTAssertFalse(tracker.observe(holdActive: true))
-        XCTAssertTrue(tracker.observe(holdActive: false))
+        XCTAssertTrue(tracker.said(handoff()))
         XCTAssertEqual(tracker.booked?.holdId, "hold-1")
+        XCTAssertNil(tracker.pending)
+        // A repeat for the same hold is not a second sale.
+        XCTAssertFalse(tracker.said(handoff()))
     }
 
     func testASnapshotBeforeTheHandOffLandedIsNotASale() {

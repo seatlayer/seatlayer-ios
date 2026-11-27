@@ -15,6 +15,23 @@ extension SeatLayerPickerController {
     }
 
     func send(_ command: String, _ payload: JSONValue? = nil) async throws -> JSONValue {
+        do {
+            return try await sendNow(command, payload)
+        } catch let error as SeatLayerError {
+            let label = payload?["label"]?.stringValue
+            let line = label.flatMap { label in
+                snapshot?.cartLines.first { $0.label == label }
+            }
+            lastFailure = (error, .init(
+                command: command,
+                quantity: payload?["qty"]?.intValue,
+                label: line?.displayLabel ?? label
+            ))
+            throw error
+        }
+    }
+
+    private func sendNow(_ command: String, _ payload: JSONValue?) async throws -> JSONValue {
         guard phase != .destroyed else { throw SeatLayerError.destroyed }
         guard isReady || command == "picker.destroy" else {
             throw SeatLayerError.bridge(.init(
