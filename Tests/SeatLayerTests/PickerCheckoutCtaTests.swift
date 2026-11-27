@@ -83,6 +83,33 @@ final class PickerCheckoutCtaTests: XCTestCase {
         ]
     }
 
+    func testTheFinderIsOfferedOnlyWhereItCanFindSomething() throws {
+        func decoded(_ value: JSONValue) throws -> SeatLayerPickerSnapshot {
+            try XCTUnwrap(decodeSeatLayerPickerSnapshot(value))
+        }
+        func with(_ base: JSONValue, _ key: String, _ value: JSONValue) -> JSONValue {
+            guard case .object(var object) = base else { return base }
+            object[key] = value
+            return .object(object)
+        }
+        let open = Self.snapshot(salesClosed: false, holdActive: false)
+        XCTAssertTrue(seatLayerPickerFinderAllowed(try decoded(open)))
+        XCTAssertTrue(seatLayerPickerFinderAllowed(nil))
+        XCTAssertFalse(seatLayerPickerFinderAllowed(try decoded(Self.snapshot(salesClosed: true, holdActive: false))))
+        XCTAssertFalse(seatLayerPickerFinderAllowed(try decoded(Self.snapshot(salesClosed: false, holdActive: true))))
+        XCTAssertFalse(seatLayerPickerFinderAllowed(try decoded(with(open, "hold", ["active": false, "ownership": "host"]))))
+        let soldOut = with(open, "catalog", ["categories": [["key": "a", "label": "A", "available": 0]]])
+        XCTAssertFalse(seatLayerPickerFinderAllowed(try decoded(soldOut)))
+        let left = with(open, "catalog", ["categories": [["key": "a", "label": "A", "available": 3]]])
+        XCTAssertTrue(seatLayerPickerFinderAllowed(try decoded(left)))
+    }
+
+    func testASoldOutEventSaysSelectSeats() {
+        let cta = resolve { $0.ticketCount = 0; $0.canOfferFind = false }
+        XCTAssertEqual(cta.label, strings.text(.selectSeats))
+        XCTAssertFalse(cta.enabled)
+    }
+
     func testNothingOutranksAnEventThatHasStoppedSelling() {
         let cta = resolve {
             $0.salesClosed = true
@@ -127,7 +154,7 @@ final class PickerCheckoutCtaTests: XCTestCase {
         XCTAssertTrue(securing.busy)
 
         let opening = resolve { $0.handoffInFlight = true }
-        XCTAssertEqual(opening.label, strings.text(.openingCheckout))
+        XCTAssertEqual(opening.label, strings.text(.seatsSecuredOpeningCheckout))
         XCTAssertTrue(opening.busy)
     }
 

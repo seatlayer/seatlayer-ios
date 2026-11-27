@@ -120,10 +120,34 @@ and the buyer lost the hold handed to checkout.
 
 **The ticket sheet**
 
-- One surface: a disc handle straddling the sheet's edge, a footer that reads
-  "N tickets · total" or "No seats selected" with the seats listed under it,
-  and one button that says what it is doing: hold seats and checkout,
-  continue, securing your seats, opening checkout, or why it is waiting.
+- On a phone the cart is one row, as on the web: a circle with a chevron,
+  the count and total with the seats' names under them, and the button.
+  Tapping the circle or the words opens the list (at most 240 points); a new
+  seat closes it. The disc
+  handle over the sheet's edge is gone, and the SeatLayer credit is no longer
+  drawn under the cart.
+- The button is as wide as its words, up to 46% of the row, on two balanced
+  lines; longer words step the letters down (14, 12.5, 11.5). When the
+  picker's own words still don't fit, or the app gives its own `checkoutBar`,
+  the button goes full width under the words.
+- Count and total share a line when they fit; else the total goes under the
+  count, never cut. The seats line names a shared section once
+  ("Dress Circle · C-6, C-7") and a table, booth or standing area by its own
+  name, once.
+- The cart's text grows with the buyer's text size up to 1.6 times, as the
+  design's sheet clamp says; past that the row keeps its size.
+- While a seat card asks, the row is faded and takes no taps. A refusal or a
+  lapsed hold stands over the row.
+- The button says "Securing your seats…" until the seats are held, then
+  "Seats secured. Opening checkout…". A sold-out event keeps the row with
+  "Select seats" and offers no `Find best seats`; nor does a hold kept by the
+  app or a selection the page calls invalid.
+- When sales close with nothing held, the row says "Sales are closed" with
+  the event's date and has no button.
+- Amounts have their currency's decimals and a thousands mark in the picker's
+  language (KWD 12.625, ₹125,000, 1.234,50 €), a whole amount none, and
+  halves round up as on the map. An app's own price formatter still comes
+  first.
 - Open, the cart shows one card per ticket (capped at three and a sliver
   before it scrolls), each with its × and its eye; tapping a card takes the
   map to that seat and the sheet stays where the buyer put it; a card swipes
@@ -183,6 +207,16 @@ and the buyer lost the hold handed to checkout.
 - Composition: three new parts (`accessPanel`, `bookedOverlay`, `toast`),
   each replaceable by name. The picker's own toast band carries the messages
   it has to volunteer.
+
+**Fixed**
+
+- After a checkout handoff, "Continue to checkout" was off until the app
+  called `resumeAfterCheckout()`, so a buyer back from the app's checkout
+  without paying could not check out again while the hold ran (since 0.4.0).
+  The button now stays on: each press asks the page again and calls the
+  checkout handler with the same hold, as React Native does. Apps that call
+  `resumeAfterCheckout()` keep working; it still lets the buyer change the
+  cart.
 
 **Breaking**
 

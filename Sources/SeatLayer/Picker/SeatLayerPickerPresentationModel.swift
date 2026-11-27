@@ -176,22 +176,17 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         guard controller.isReady,
               !options.readOnly,
               !actionInFlight,
-              checkoutHandoff == nil || resumedAfterCheckout,
               activePrompt == nil,
               pendingSeat == nil,
               !confirmedCartLines.isEmpty,
               // Seats already held can still go to checkout when sales close.
               controller.snapshot?.event.salesClosed != true
-                  || controller.snapshot?.hold.active == true,
-              // A hold the host owns closes the till — that is the handoff
-              // having happened. `resumeAfterCheckout()` is the host saying the
-              // buyer came back and may keep going against that same hold, so
-              // it opens the till again; without this the button offers
-              // "Continue to checkout" and can never do it, for the rest of the
-              // session. The hold is NOT taken back: checking out again hands
-              // the host the same hold with whatever the buyer has added.
-              controller.snapshot?.hold.owner != "host" || resumedAfterCheckout
+                  || controller.snapshot?.hold.active == true
         else { return false }
+        // A hold already handed to the host stays open to checkout: a buyer
+        // back from the app's checkout without paying presses "Continue to
+        // checkout" and the same hold is handed over again. The cart itself
+        // stays shut until `resumeAfterCheckout()` (see `canMutateCart`).
         return controller.snapshot?.selectionValidity?.isValid != false
     }
 
@@ -605,17 +600,15 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
         seatViewOpeningSubject.send(seat)
     }
 
-    /// Create or reuse the authoritative hold and deliver it to the host once.
-    /// If the host rejects the handoff by throwing, the runtime releases that
-    /// exact hold and the buyer stays in the picker.
+    /// Create or reuse the authoritative hold and deliver it to the host.
+    /// Presses that overlap share one delivery; a later press asks the runtime
+    /// again, which hands back the hold the host already has, and delivers it
+    /// again. If the host rejects the handoff by throwing, the runtime releases
+    /// that exact hold and the buyer stays in the picker.
     @discardableResult
     public func checkout(
         using handler: @escaping SeatLayerPickerCheckoutHandler
     ) async throws -> SeatLayerPickerCheckoutHandoff {
-        // A handoff already given back is reused — except after the buyer has
-        // resumed and added more seats, where continuing must ask the runtime
-        // again so the hold is replaced with one covering the whole cart.
-        if let checkoutHandoff, !resumedAfterCheckout { return checkoutHandoff }
         if let checkoutTask { return try await checkoutTask.value }
 
         let task = Task { @MainActor [weak self, controller, options] in

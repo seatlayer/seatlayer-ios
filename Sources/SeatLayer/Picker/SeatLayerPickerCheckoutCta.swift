@@ -139,7 +139,7 @@ public func seatLayerCheckoutCtaState(
     // 3. and 4. Work the buyer has already asked for. The hold comes first
     //    because the handoff cannot exist until it succeeds.
     if input.creatingHold { return reason(strings.text(.securingSeats), busy: true) }
-    if input.handoffInFlight { return reason(strings.text(.openingCheckout), busy: true) }
+    if input.handoffInFlight { return reason(strings.text(.seatsSecuredOpeningCheckout), busy: true) }
 
     // 5. A selection the event's own rules reject. Say what would fix it where
     //    the runtime gave a number to say it with. `required` is 0 for a rule
@@ -201,4 +201,16 @@ public func seatLayerCheckoutCtaState(
 
     // 9. Nothing in the way: the caller's own label.
     return SeatLayerPickerCheckoutCta(label: input.label, enabled: input.canCheckout)
+}
+
+/// Whether the event, as the snapshot tells it, leaves room for the finder:
+/// not sold out or closed, no hold made yet (or held by the app), and a
+/// selection the event takes.
+func seatLayerPickerFinderAllowed(_ snapshot: SeatLayerPickerSnapshot?) -> Bool {
+    guard let snapshot else { return true }
+    return !snapshot.event.salesClosed
+        && !snapshot.hold.active
+        && snapshot.hold.owner != "host"
+        && seatLayerPickerInventoryStatus(snapshot) != .soldOut
+        && snapshot.selectionValidity?.isValid != false
 }
