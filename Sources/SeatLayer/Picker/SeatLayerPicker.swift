@@ -187,6 +187,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var reportedHold: SeatLayerPickerHold?
     @State private var phoneCartHeight = SeatLayerPickerSizeTokens.peekHeight
     @State private var containerWidth: Double?
+    @State private var connectionAnchors = SeatLayerPickerConnectionAnchors()
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
     @State private var bookedTracker = SeatLayerPickerBookedTracker()
@@ -349,6 +350,16 @@ private struct SeatLayerPickerReadyLayout: View {
                 requiredTruthChrome
                     .dynamicTypeSize(...DynamicTypeSize.large)
 
+                if !chromeVisibility.panorama, !immersiveInspectionVisible {
+                    SeatLayerPickerConnectionLayer(
+                        anchors: connectionAnchors,
+                        fallbackTop: primaryChromeHeight + 4,
+                        wide: usesWideLayout
+                    )
+                    .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                }
+
                 if let flight = presentation.selectionFlight,
                    let flightColor = selectionFlightColor(flight, palette: palette) {
                     SeatLayerPickerSelectionFlightOverlay(
@@ -398,6 +409,10 @@ private struct SeatLayerPickerReadyLayout: View {
                 }
             }
             .clipped()
+            .onPreferenceChange(SeatLayerPickerBlockedRegionsPreferenceKey.self) { entries in
+                let anchors = SeatLayerPickerConnectionAnchors(entries)
+                if anchors != connectionAnchors { connectionAnchors = anchors }
+            }
             .seatLayerPickerBlockedRegions(interactionEnabled: !interactionBlocked)
         }
         .background(palette.background)

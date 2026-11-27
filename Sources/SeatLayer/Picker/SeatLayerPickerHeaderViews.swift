@@ -222,17 +222,24 @@ public struct SeatLayerPickerHoldCountdown: View {
                     expiresAt: expiresAt,
                     now: context.date.timeIntervalSince1970
                 )
-                let expiring = remaining <= seatLayerPickerHoldExpiringSeconds
+                // With the line down, a clock at 0:00 waits there in grey: the
+                // hold's end is the server's to say once the line is back.
+                let waiting = remaining == 0 && controller.connection?.lineDown == true
+                let expiring = remaining <= seatLayerPickerHoldExpiringSeconds && !waiting
                 let clock = seatLayerPickerHoldClock(remaining)
                 HStack(spacing: 5) {
                     statusLight(expiring: expiring, palette: palette, date: context.date)
                     Text(clock).monospacedDigit()
                 }
                 .seatLayerPickerFont(size: 12, weight: .bold)
-                .foregroundColor(expiring ? palette.onAccent : palette.text)
+                .foregroundColor(expiring ? palette.onAccent : waiting ? palette.mutedText : palette.text)
                 .padding(.horizontal, 10)
                 .frame(minHeight: pillHeight)
-                .background(expiring ? palette.accent : palette.background)
+                .background(
+                    expiring
+                        ? palette.accent
+                        : waiting ? palette.mutedText.opacity(0.12) : palette.background
+                )
                 .clipShape(Capsule())
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(style.strings.text(.heldFor, replacing: ["clock": clock]))
