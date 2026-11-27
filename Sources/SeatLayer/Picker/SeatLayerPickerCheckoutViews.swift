@@ -170,10 +170,23 @@ public struct SeatLayerPickerActionError: View {
         palette: SeatLayerPickerPalette
     ) -> some View {
         HStack(alignment: .top, spacing: 8) {
+            let words = seatLayerPickerErrorWords(
+                error,
+                failure: controller.failure(for: error),
+                strings: style.strings
+            )
             Image(systemName: "exclamationmark.circle.fill")
-            Text(seatLayerPickerBuyerErrorText(error, strings: style.strings))
-                .seatLayerPickerFont(size: 12, weight: .semibold)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(words.message)
+                    .seatLayerPickerFont(size: 12, weight: .semibold)
+                if let detail = words.detail {
+                    Text(detail)
+                        .seatLayerPickerFont(size: 12, weight: .medium)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
             Button {
                 presentation.dismissActionError()
             } label: {

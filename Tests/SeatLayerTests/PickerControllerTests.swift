@@ -647,6 +647,43 @@ final class PickerControllerTests: XCTestCase {
         } catch {}
     }
 
+    func testARefusedCommandIsRememberedWithWhatItAskedFor() async throws {
+        let refusal = SeatLayerError.bridge(.init(code: "not_enough_together", message: "409"))
+        let transport = PickerTransportSpy(failures: ["picker.bestAvailable": refusal])
+        let controller = readyController(transport: transport, commands: ["picker.bestAvailable"])
+
+        do {
+            _ = try await controller.bestAvailable(quantity: 3)
+            XCTFail("bestAvailable should have been refused")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error, refusal)
+            let failure = controller.failure(for: error)
+            XCTAssertEqual(failure?.command, "picker.bestAvailable")
+            XCTAssertEqual(failure?.quantity, 3)
+            XCTAssertEqual(
+                seatLayerPickerErrorWords(
+                    error,
+                    failure: failure,
+                    strings: SeatLayerPickerStrings(localeIdentifier: "en")
+                ).message,
+                "We couldn’t find 3 seats together. Try fewer seats or another ticket type."
+            )
+        }
+        XCTAssertNil(controller.failure(for: .bridge(.init(code: "sold_out", message: ""))))
+    }
+
+    func testStandingPlacesThePageDidNotHoldAreARefusal() async throws {
+        let transport = PickerTransportSpy(responses: ["picker.holdGA": ["held": false]])
+        let controller = readyController(transport: transport, commands: ["picker.holdGA"])
+
+        do {
+            _ = try await controller.holdGeneralAdmission(areaId: "ga-1", quantity: 2)
+            XCTFail("held: false should throw, so the prompt stays open")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error.code, "hold_unavailable")
+        }
+    }
+
     private static let handoffPayload: JSONValue = [
         "holdId": "hold-handed-off",
         "expiresAt": .double(1_800_000_000_000),
@@ -748,13 +785,16 @@ private actor PickerTransportSpy: SeatLayerPickerCommandTransport {
 
     private var calls: [Call] = []
     private let responses: [String: JSONValue]
+    private let failures: [String: SeatLayerError]
     private let delayNanoseconds: UInt64
 
     init(
         responses: [String: JSONValue] = [:],
+        failures: [String: SeatLayerError] = [:],
         delayNanoseconds: UInt64 = 0
     ) {
         self.responses = responses
+        self.failures = failures
         self.delayNanoseconds = delayNanoseconds
     }
 
@@ -763,6 +803,7 @@ private actor PickerTransportSpy: SeatLayerPickerCommandTransport {
         if delayNanoseconds > 0 {
             try await Task.sleep(nanoseconds: delayNanoseconds)
         }
+        if let failure = failures[name] { throw failure }
         return responses[name] ?? .object([:])
     }
 

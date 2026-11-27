@@ -648,6 +648,9 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
             throw error
         } catch {
             let wrapped = SeatLayerError.transport(error.localizedDescription)
+            if let message = seatLayerPickerOwnBuyerMessage(error) {
+                controller.lastFailure = (wrapped, .init(buyerMessage: message))
+            }
             lastActionError = wrapped
             controller.record(wrapped)
             throw wrapped

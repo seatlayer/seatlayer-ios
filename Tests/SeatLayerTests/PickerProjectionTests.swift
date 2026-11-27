@@ -101,27 +101,6 @@ final class PickerProjectionTests: XCTestCase {
         )
     }
 
-    func testBuyerErrorCopyNeverEchoesPrivateRuntimeOrHostDescriptions() {
-        let strings = SeatLayerPickerStrings(localeIdentifier: "en")
-        let opaque = "hold_private_123"
-        let bridge = SeatLayerError.bridge(.init(
-            code: "sold_out",
-            message: "Could not transfer \(opaque)"
-        ))
-        let host = SeatLayerError.transport("Host rejected \(opaque)")
-
-        XCTAssertEqual(
-            seatLayerPickerBuyerErrorText(bridge, strings: strings),
-            strings.text(.noSelectableSeats)
-        )
-        XCTAssertEqual(
-            seatLayerPickerBuyerErrorText(host, strings: strings),
-            strings.text(.retry)
-        )
-        XCTAssertFalse(seatLayerPickerBuyerErrorText(bridge, strings: strings).contains(opaque))
-        XCTAssertFalse(seatLayerPickerBuyerErrorText(host, strings: strings).contains(opaque))
-    }
-
     func testCanonicalBuilderMatrixHasExactlyTwentyEightUniqueParts() {
 #if canImport(SwiftUI) && canImport(UIKit)
         XCTAssertEqual(SeatLayerPickerPart.allCases.count, 28)

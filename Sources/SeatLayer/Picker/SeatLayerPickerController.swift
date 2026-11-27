@@ -27,6 +27,9 @@ public final class SeatLayerPickerController: ObservableObject {
     @Published public internal(set) var snapshot: SeatLayerPickerSnapshot?
     @Published public internal(set) var seatView: SeatLayerSeatView?
     @Published public internal(set) var lastError: SeatLayerError?
+    /// The action the last failed command asked for, beside its error, so the
+    /// buyer's sentence can name what was refused.
+    var lastFailure: (error: SeatLayerError, failure: SeatLayerPickerActionFailure)?
     @Published public internal(set) var availabilityOutcome: SeatLayerPickerAvailabilityOutcome?
     @Published public internal(set) var holdLapse: SeatLayerPickerHoldLapse?
     @Published public internal(set) var generalAdmissionCandidate: GAArea?
@@ -491,6 +494,12 @@ public final class SeatLayerPickerController: ObservableObject {
         guard acceptsRuntimeOwner(owner) else { return }
         lastError = error
         phase = .failed(error)
+    }
+
+    /// The action `error` answered, when the picker sent it.
+    func failure(for error: SeatLayerError) -> SeatLayerPickerActionFailure? {
+        guard let lastFailure, lastFailure.error == error else { return nil }
+        return lastFailure.failure
     }
 
     func record(_ error: SeatLayerError, owner: UUID? = nil) {

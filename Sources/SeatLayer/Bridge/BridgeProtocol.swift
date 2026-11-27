@@ -118,17 +118,22 @@ public struct BridgeErrorPayload: Sendable, Equatable {
     public var code: String
     public var message: String
     public var details: JSONValue?
+    /// What the server said about the refusal beyond its code: a limit
+    /// (`max`), a wait (`retryAfterS`), a notice or the HTTP `status`.
+    public var meta: JSONValue?
 
-    public init(code: String, message: String, details: JSONValue? = nil) {
+    public init(code: String, message: String, details: JSONValue? = nil, meta: JSONValue? = nil) {
         self.code = code
         self.message = message
         self.details = details
+        self.meta = meta
     }
 
     public init(_ value: JSONValue?) {
         self.code = value?["code"]?.stringValue ?? "unknown_error"
         self.message = value?["message"]?.stringValue ?? ""
         self.details = value?["details"]
+        self.meta = value?["meta"]?.objectValue == nil ? nil : value?["meta"]
     }
 
     /// The seats an availability failure (`sold_out`, `not_enough_together`, a

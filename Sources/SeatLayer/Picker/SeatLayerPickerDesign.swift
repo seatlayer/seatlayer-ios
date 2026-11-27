@@ -451,25 +451,3 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
         return candidate.isEmpty ? "en" : candidate
     }
 }
-
-/// Deliberately derives buyer copy from stable error classification, never
-/// from a bridge or host-provided description that could contain private
-/// checkout state. Integrators still receive the complete typed error through
-/// callbacks for their own diagnostics.
-func seatLayerPickerBuyerErrorText(
-    _ error: SeatLayerError,
-    strings: SeatLayerPickerStrings
-) -> String {
-    let unavailableCodes: Set<String> = [
-        "sold_out",
-        "not_enough_together",
-        "hold_unavailable",
-        "event_closed",
-        "sales_closed",
-        "no_inventory",
-    ]
-    if unavailableCodes.contains(error.code) {
-        return strings.text(.noSelectableSeats)
-    }
-    return error.isRetryable ? strings.text(.retry) : strings.text(.errorMessage)
-}

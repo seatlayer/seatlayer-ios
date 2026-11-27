@@ -27,7 +27,19 @@ extension SeatLayerPickerController {
         ]
         if let tierId { payload["tierId"] = tierId.map(JSONValue.string) ?? .null }
         if let ttlMs { payload["ttlMs"] = .int(ttlMs) }
-        return try await mutation("picker.holdGA", .object(payload))
+        return try await enqueue { generation in
+            let result = try await self.send("picker.holdGA", .object(payload))
+            let snapshot = try await self.applyMutationResult(result, generation: generation)
+            // `held: false` is the page's refusal: it took no places and
+            // sends no error, so the prompt would close as if it had.
+            if result["held"]?.boolValue == false {
+                throw SeatLayerError.bridge(.init(
+                    code: "hold_unavailable",
+                    message: "The standing places could not be held."
+                ))
+            }
+            return snapshot
+        }
     }
 
     @discardableResult
