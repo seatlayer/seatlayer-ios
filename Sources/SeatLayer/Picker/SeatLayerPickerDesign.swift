@@ -403,9 +403,12 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
             ?? known[canonicalKey].map { text($0) }
             ?? fallback
         guard let count else { return label }
+        let shown = String(max(0, count))
+        // The shared locale strings name the two parts `first` and `second`;
+        // the English default and older overrides name them `need` and `count`.
         return text(
             .accessNeedWithCount,
-            replacing: ["need": label, "count": String(max(0, count))]
+            replacing: ["first": label, "second": shown, "need": label, "count": shown]
         )
     }
 
