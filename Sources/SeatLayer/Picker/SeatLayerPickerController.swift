@@ -101,6 +101,13 @@ public final class SeatLayerPickerController: ObservableObject {
 
     public private(set) var bundleInfo: BundleInfo?
 
+    /// The page's line to the server, or nil while the page has said nothing
+    /// (a page without `connection-state-v1` never does).
+    @Published public internal(set) var connection: SeatLayerConnectionState?
+    /// What the picker's connection status says now.
+    @Published public internal(set) var connectionShown: SeatLayerConnectionShown = .none
+    lazy var connectionWatch: SeatLayerConnectionWatch = makeConnectionWatch()
+
     /// The 3D touch mode the picker was started with. The Rotate / Move
     /// control is drawn only for `.classic`: with the map's gestures the
     /// fingers already move and turn the venue.
@@ -344,6 +351,7 @@ public final class SeatLayerPickerController: ObservableObject {
         pendingSuccessfulChartLoads.removeAll(keepingCapacity: false)
         chartLoadFailure = nil
         lastPublishedSelectionValidity = nil
+        connectionWatch.reset()
         bundleInfo = nil
         transport = nil
         phase = .loading
@@ -406,6 +414,7 @@ public final class SeatLayerPickerController: ObservableObject {
         guard acceptsRuntimeOwner(owner) else { return }
         guard snapshots.apply(candidate) else { return }
         snapshot = candidate
+        connectionWatch.seatsRead()
         publishSelectionValidity(candidate.selectionValidity)
         if candidate.hold.active { holdLapse = nil }
         applyHaptics(for: SeatLayerPickerHapticSnapshot(candidate))
@@ -553,6 +562,7 @@ public final class SeatLayerPickerController: ObservableObject {
         mapFramed = false
         hapticPolicy = SeatLayerPickerHaptics.initialState
         lastPublishedSelectionValidity = nil
+        connectionWatch.reset()
         phase = .destroyed
     }
 

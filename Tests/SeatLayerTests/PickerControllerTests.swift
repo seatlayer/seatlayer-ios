@@ -809,3 +809,45 @@ private actor PickerTransportSpy: SeatLayerPickerCommandTransport {
 
     func recordedCalls() -> [Call] { calls }
 }
+
+extension PickerControllerTests {
+    private func connectionController(
+        capabilities: [String] = ["connection-state-v1"]
+    ) -> (SeatLayerPickerController, ManualConnectionClock) {
+        let controller = readyController(
+            transport: PickerTransportSpy(),
+            commands: [],
+            capabilities: capabilities
+        )
+        let clock = ManualConnectionClock()
+        controller.connectionWatch = controller.makeConnectionWatch(schedule: clock.schedule)
+        return (controller, clock)
+    }
+
+    func testThePagesLineIsFollowedOnlyWhenThePageNamesTheCapability() {
+        let (older, olderClock) = connectionController(capabilities: [])
+        older.accept(connection: ["state": "offline"])
+        olderClock.advance(5)
+        XCTAssertNil(older.connection)
+        XCTAssertEqual(older.connectionShown, .none)
+
+        let (controller, clock) = connectionController()
+        controller.accept(connection: ["state": "offline"])
+        XCTAssertEqual(controller.connection, .offline)
+        clock.advance(3)
+        XCTAssertEqual(controller.connectionShown, .offline)
+        controller.accept(connection: ["state": "live"])
+        XCTAssertEqual(controller.connectionShown, .updating)
+        controller.accept(snapshot: pickerSnapshot(revision: 1))
+        XCTAssertEqual(controller.connectionShown, .back, "back once the seats are read again")
+    }
+
+    func testANewPageForgetsTheOldPagesLine() {
+        let (controller, clock) = connectionController()
+        controller.accept(connection: ["state": "offline"])
+        clock.advance(3)
+        controller.beginLoading()
+        XCTAssertNil(controller.connection)
+        XCTAssertEqual(controller.connectionShown, .none)
+    }
+}
