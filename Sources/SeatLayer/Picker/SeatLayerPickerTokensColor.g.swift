@@ -115,6 +115,8 @@ public enum SeatLayerPickerDarkColorTokens {
     public static let immersiveCaptionBorder = "#33FFFFFF"
     /// `#EEF3FB`
     public static let immersiveCaptionInk = "#EEF3FB"
+    /// `#2EFFFFFF`
+    public static let immersiveModeSelected = "#2EFFFFFF"
     /// `#556278`
     public static let chrome = "#556278"
     /// `#8CE9EEF7`
@@ -144,6 +146,7 @@ public enum SeatLayerPickerDarkColorTokens {
         "immersiveCaption": immersiveCaption,
         "immersiveCaptionBorder": immersiveCaptionBorder,
         "immersiveCaptionInk": immersiveCaptionInk,
+        "immersiveModeSelected": immersiveModeSelected,
         "chrome": chrome,
         "chromeLine": chromeLine,
     ]

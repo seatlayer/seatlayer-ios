@@ -58,6 +58,8 @@ public enum SeatLayerPickerMotionDurationTokens {
     public static let revealDelay = 900
     /// `650` ms — deliberately outside the budget.
     public static let shellSweep = 650
+    /// `1600` ms — deliberately outside the budget.
+    public static let loadingBreath = 1600
 
     /// The durations inside the budget, keyed by token name.
     public static let inBudget: [String: Int] = [
@@ -89,6 +91,7 @@ public enum SeatLayerPickerMotionDurationTokens {
         "toastDwell": toastDwell,
         "revealDelay": revealDelay,
         "shellSweep": shellSweep,
+        "loadingBreath": loadingBreath,
     ]
 
     /// What the picker does when the viewer asks for less movement.

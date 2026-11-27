@@ -222,7 +222,7 @@ styles[.checkoutBar] = SeatLayerPickerPartStyle(
 ```
 
 **Visibility and words: options and strings.** Chrome gates remove optional
-default parts, while the 37 bundled locale dictionaries resolve exact BCP-47,
+default parts, while the 43 bundled locale dictionaries resolve exact BCP-47,
 then language, then English:
 
 ```swift

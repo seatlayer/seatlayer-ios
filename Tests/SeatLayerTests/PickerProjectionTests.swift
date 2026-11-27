@@ -70,7 +70,7 @@ final class PickerProjectionTests: XCTestCase {
     }
 
     func testGeneratedLocaleCatalogAndFallback() {
-        XCTAssertEqual(SeatLayerPickerStrings.supportedLocales.count, 37)
+        XCTAssertEqual(SeatLayerPickerStrings.supportedLocales.count, 43)
         XCTAssertEqual(
             SeatLayerPickerStrings(localeIdentifier: "de-DE").text(.continueWord),
             "Weiter"

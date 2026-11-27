@@ -25,6 +25,8 @@ public enum SeatLayerPickerOpacityTokens {
     public static let noteBodyInk: Double = 0.75
     /// `0.18`
     public static let warnPillWash: Double = 0.18
+    /// `0.55`
+    public static let legendSoldOut: Double = 0.55
     /// `0.38`
     public static let confirmScrim: Double = 0.38
     /// `0.5`
@@ -39,6 +41,7 @@ public enum SeatLayerPickerOpacityTokens {
         "noteHairline": noteHairline,
         "noteBodyInk": noteBodyInk,
         "warnPillWash": warnPillWash,
+        "legendSoldOut": legendSoldOut,
         "confirmScrim": confirmScrim,
         "confirmScrimFlat": confirmScrimFlat,
     ]

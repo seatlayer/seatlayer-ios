@@ -12,6 +12,50 @@ public enum SeatLayerPickerSizeTokens {
     public static let phoneBreakpoint: Double = 640
     /// `840`
     public static let wideBreakpoint: Double = 840
+    /// `600`
+    public static let tabletShortestSide: Double = 600
+    /// `360`
+    public static let widePanelWidth: Double = 360
+    /// `16`
+    public static let widePanelPadX: Double = 16
+    /// `11`
+    public static let widePanelHeadingFontSize: Double = 11
+    /// `14`
+    public static let widePanelHeadingPadTop: Double = 14
+    /// `16`
+    public static let widePanelSeatsHeadingPadTop: Double = 16
+    /// `4`
+    public static let widePanelHeadingPadBottom: Double = 4
+    /// `12`
+    public static let widePanelPlaceholderBarHeight: Double = 12
+    /// `12`
+    public static let widePanelPlaceholderBarGap: Double = 12
+    /// `46`
+    public static let widePanelPlaceholderButtonHeight: Double = 46
+    /// `40`
+    public static let widePriceRowHeight: Double = 40
+    /// `8`
+    public static let widePriceRowPadX: Double = 8
+    /// `10`
+    public static let widePriceDotSize: Double = 10
+    /// `8`
+    public static let widePriceDotGap: Double = 8
+    /// `13`
+    public static let widePriceFontSize: Double = 13
+    /// `220`
+    public static let widePriceListMaxHeight: Double = 220
+    /// `320`
+    public static let accessPopoverWidth: Double = 320
+    /// `8`
+    public static let accessPopoverGap: Double = 8
+    /// `12`
+    public static let accessPopoverMargin: Double = 12
+    /// `14`
+    public static let accessPopoverPadX: Double = 14
+    /// `14`
+    public static let accessPopoverPadTop: Double = 14
+    /// `10`
+    public static let accessPopoverPadBottom: Double = 10
     /// `38`
     public static let headerHeight: Double = 38
     /// `22`
@@ -86,6 +130,8 @@ public enum SeatLayerPickerSizeTokens {
     public static let footPadX: Double = 16
     /// `2`
     public static let footPadBottom: Double = 2
+    /// `10`
+    public static let footMinInset: Double = 10
     /// `8`
     public static let footTotalGap: Double = 8
     /// `44`
@@ -298,6 +344,14 @@ public enum SeatLayerPickerSizeTokens {
     public static let immersiveNavChipFontSize: Double = 12.5
     /// `32`
     public static let immersiveNavCloseSize: Double = 32
+    /// `3`
+    public static let immersiveModePairPadding: Double = 3
+    /// `28`
+    public static let immersiveModeSegmentHeight: Double = 28
+    /// `10`
+    public static let immersiveModeSegmentPaddingX: Double = 10
+    /// `18`
+    public static let immersiveModeIconSize: Double = 18
     /// `11.5`
     public static let immersiveCaptionFontSize: Double = 11.5
     /// `6`
@@ -338,8 +392,18 @@ public enum SeatLayerPickerSizeTokens {
     public static let accessSheetMinHeight: Double = 240
     /// `15`
     public static let accessNoteIconSize: Double = 15
+    /// `17`
+    public static let accessSheetTitleFontSize: Double = 17
+    /// `0.1`
+    public static let accessGroupHeadingTracking: Double = 0.1
     /// `232`
     public static let toastCardLift: Double = 232
+    /// `13.5`
+    public static let explainerToastFontSize: Double = 13.5
+    /// `14`
+    public static let explainerToastPaddingX: Double = 14
+    /// `12`
+    public static let explainerToastPaddingY: Double = 12
     /// `56`
     public static let confirmScrimClearRadius: Double = 56
     /// `88`
@@ -356,6 +420,28 @@ public enum SeatLayerPickerSizeTokens {
     public static let all: [String: Double] = [
         "phoneBreakpoint": phoneBreakpoint,
         "wideBreakpoint": wideBreakpoint,
+        "tabletShortestSide": tabletShortestSide,
+        "widePanelWidth": widePanelWidth,
+        "widePanelPadX": widePanelPadX,
+        "widePanelHeadingFontSize": widePanelHeadingFontSize,
+        "widePanelHeadingPadTop": widePanelHeadingPadTop,
+        "widePanelSeatsHeadingPadTop": widePanelSeatsHeadingPadTop,
+        "widePanelHeadingPadBottom": widePanelHeadingPadBottom,
+        "widePanelPlaceholderBarHeight": widePanelPlaceholderBarHeight,
+        "widePanelPlaceholderBarGap": widePanelPlaceholderBarGap,
+        "widePanelPlaceholderButtonHeight": widePanelPlaceholderButtonHeight,
+        "widePriceRowHeight": widePriceRowHeight,
+        "widePriceRowPadX": widePriceRowPadX,
+        "widePriceDotSize": widePriceDotSize,
+        "widePriceDotGap": widePriceDotGap,
+        "widePriceFontSize": widePriceFontSize,
+        "widePriceListMaxHeight": widePriceListMaxHeight,
+        "accessPopoverWidth": accessPopoverWidth,
+        "accessPopoverGap": accessPopoverGap,
+        "accessPopoverMargin": accessPopoverMargin,
+        "accessPopoverPadX": accessPopoverPadX,
+        "accessPopoverPadTop": accessPopoverPadTop,
+        "accessPopoverPadBottom": accessPopoverPadBottom,
         "headerHeight": headerHeight,
         "headerLogoSize": headerLogoSize,
         "headerCloseSize": headerCloseSize,
@@ -393,6 +479,7 @@ public enum SeatLayerPickerSizeTokens {
         "footPadTop": footPadTop,
         "footPadX": footPadX,
         "footPadBottom": footPadBottom,
+        "footMinInset": footMinInset,
         "footTotalGap": footTotalGap,
         "checkoutButtonHeight": checkoutButtonHeight,
         "confirmCardGutter": confirmCardGutter,
@@ -499,6 +586,10 @@ public enum SeatLayerPickerSizeTokens {
         "immersiveNavChipPaddingX": immersiveNavChipPaddingX,
         "immersiveNavChipFontSize": immersiveNavChipFontSize,
         "immersiveNavCloseSize": immersiveNavCloseSize,
+        "immersiveModePairPadding": immersiveModePairPadding,
+        "immersiveModeSegmentHeight": immersiveModeSegmentHeight,
+        "immersiveModeSegmentPaddingX": immersiveModeSegmentPaddingX,
+        "immersiveModeIconSize": immersiveModeIconSize,
         "immersiveCaptionFontSize": immersiveCaptionFontSize,
         "immersiveGlassBlur": immersiveGlassBlur,
         "immersiveCaptionBlur": immersiveCaptionBlur,
@@ -519,7 +610,12 @@ public enum SeatLayerPickerSizeTokens {
         "accessSheetMaxHeightFraction": accessSheetMaxHeightFraction,
         "accessSheetMinHeight": accessSheetMinHeight,
         "accessNoteIconSize": accessNoteIconSize,
+        "accessSheetTitleFontSize": accessSheetTitleFontSize,
+        "accessGroupHeadingTracking": accessGroupHeadingTracking,
         "toastCardLift": toastCardLift,
+        "explainerToastFontSize": explainerToastFontSize,
+        "explainerToastPaddingX": explainerToastPaddingX,
+        "explainerToastPaddingY": explainerToastPaddingY,
         "confirmScrimClearRadius": confirmScrimClearRadius,
         "confirmScrimFeatherRadius": confirmScrimFeatherRadius,
         "confirmScrimBlur": confirmScrimBlur,

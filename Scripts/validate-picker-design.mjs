@@ -39,7 +39,7 @@ for (const file of generatedTokenFiles(root)) {
 const localeSource = JSON.parse(localeBytes);
 const generated = read("Sources", "SeatLayer", "Picker", "SeatLayerPickerLocales.g.swift").toString();
 check(generated === renderLocales(localeSource), "SeatLayerPickerLocales.g.swift is stale; run the locale generator");
-check(Object.keys(localeSource.strings ?? {}).length === 37, "The canonical locale source must contain exactly 37 locales");
+check(Object.keys(localeSource.strings ?? {}).length === 43, "The canonical locale source must contain exactly 43 locales");
 
 if (failures.length) {
   for (const failure of failures) console.error(`picker design validation: ${failure}`);
