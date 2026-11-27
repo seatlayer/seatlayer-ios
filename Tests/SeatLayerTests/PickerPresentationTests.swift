@@ -154,8 +154,40 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertEqual(continued.map(\.holdId), ["opaque-test-hold"])
         XCTAssertEqual(calls.map(\.name), ["picker.continue"])
         XCTAssertEqual(presentation.checkoutHandoff?.holdId, "opaque-test-hold")
-        XCTAssertFalse(presentation.canCheckout)
+        // A buyer back from the app's checkout can press again.
+        XCTAssertTrue(presentation.canCheckout)
         _ = continueCancellable
+    }
+
+    /// A press after the handoff asks the runtime again and hands the app the
+    /// same hold again, as React Native does: "Continue to checkout" is never
+    /// a button that cannot check out.
+    func testALaterPressHandsTheSameHoldOverAgain() async throws {
+        let transport = PresentationTransportSpy(
+            responses: ["picker.continue": checkoutResponse()]
+        )
+        let controller = readyController(transport: transport, commands: ["picker.continue"])
+        let presentation = SeatLayerPickerPresentationModel(
+            controller: controller,
+            options: .init(confirmSelection: false)
+        )
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["A-1"]))
+
+        var delivered: [String] = []
+        let handler: SeatLayerPickerCheckoutHandler = { delivered.append($0.holdId) }
+        _ = try await presentation.checkout(using: handler)
+        controller.accept(snapshot: snapshot(
+            revision: 2,
+            labels: ["A-1"],
+            hold: ["active": true, "ownership": "host"]
+        ))
+        XCTAssertTrue(presentation.canCheckout)
+        XCTAssertFalse(presentation.canMutateCart)
+
+        _ = try await presentation.checkout(using: handler)
+        let calls = await transport.recordedCalls()
+        XCTAssertEqual(delivered, ["opaque-test-hold", "opaque-test-hold"])
+        XCTAssertEqual(calls.map(\.name), ["picker.continue", "picker.continue"])
     }
 
     func testRemovalInspectionAndClosePublishOnlyAcceptedNativeActions() async throws {
@@ -657,7 +689,7 @@ final class PickerPresentationTests: XCTestCase {
 
         _ = try await presentation.checkout { _ in }
         XCTAssertNotNil(presentation.checkoutHandoff)
-        XCTAssertFalse(presentation.canCheckout)
+        XCTAssertTrue(presentation.canCheckout)
 
         presentation.resumeAfterCheckout()
         XCTAssertTrue(presentation.resumedAfterCheckout)
@@ -738,10 +770,9 @@ final class PickerPresentationTests: XCTestCase {
 
     /// The buyer came back from the host's checkout with the hold still theirs.
     ///
-    /// `resumeAfterCheckout()` says so, and its whole point is that the action
-    /// works again — a "Continue to checkout" that can never check out is a
-    /// dead end for the rest of the session.
-    func testComingBackFromCheckoutOpensTheTillAgain() async throws {
+    /// Checkout stays open throughout; `resumeAfterCheckout()` is what lets
+    /// the buyer change the cart again.
+    func testComingBackFromCheckoutOpensTheCartAgain() async throws {
         let transport = PresentationTransportSpy(
             responses: ["picker.continue": checkoutResponse()]
         )
@@ -760,7 +791,8 @@ final class PickerPresentationTests: XCTestCase {
             labels: ["A-1"],
             hold: ["active": true, "ownership": "host"]
         ))
-        XCTAssertFalse(presentation.canCheckout)
+        XCTAssertTrue(presentation.canCheckout)
+        XCTAssertFalse(presentation.canMutateCart)
 
         presentation.resumeAfterCheckout()
         XCTAssertTrue(presentation.canCheckout)
@@ -770,7 +802,8 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.canMutateInventory)
     }
 
-    /// Until the host says so, a host-owned hold keeps the picker's controls shut.
+    /// Until the host says so, a host-owned hold keeps the picker's cart shut;
+    /// checkout stays open so the same hold can be handed over again.
     func testAHostOwnedHoldStillClosesThePickersOwnControls() {
         let controller = readyController(transport: PresentationTransportSpy(), commands: [])
         let presentation = SeatLayerPickerPresentationModel(
@@ -783,7 +816,7 @@ final class PickerPresentationTests: XCTestCase {
             hold: ["active": true, "ownership": "host"]
         ))
         XCTAssertFalse(presentation.canMutateCart)
-        XCTAssertFalse(presentation.canCheckout)
+        XCTAssertTrue(presentation.canCheckout)
     }
 
     /// A chart that keys its cart lines by ROW gives both seats of 102-A one
