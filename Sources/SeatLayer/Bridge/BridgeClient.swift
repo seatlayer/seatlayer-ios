@@ -47,6 +47,19 @@ public actor BridgeClient {
         "release", "releaseLabels",
     ]
 
+    /// Commands that can place a hold. The page waits up to 40 seconds for the
+    /// server's answer, so a shorter native limit would call a hold that worked
+    /// failed. These wait at least `holdCommandTimeout`.
+    public static let holdCommands: Set<String> = [
+        "hold", "holdGA", "bestAvailable", "resumeHold", "extendHold",
+        "picker.continue", "picker.holdSelection", "picker.holdGA",
+        "picker.bestAvailable", "picker.setTableQuantity",
+        "picker.resumeHold", "picker.extendHold",
+    ]
+
+    /// Shortest deadline for a command in `holdCommands`.
+    public static let holdCommandTimeout: TimeInterval = 45
+
     /// Event types the bundle uses to report a command failure out of band.
     public static let defaultCommandErrorEvents: Set<String> = ["error"]
 
@@ -57,6 +70,7 @@ public actor BridgeClient {
         let order: UInt64
         let continuation: CheckedContinuation<JSONValue, Error>
         let timeoutTask: Task<Void, Never>
+        let timeout: TimeInterval
     }
 
     private weak var channel: BridgeChannel?
@@ -89,6 +103,12 @@ public actor BridgeClient {
         return min(timeout, 86_400)
     }
 
+    /// The deadline one command gets: `base`, raised to `holdCommandTimeout`
+    /// for a command that can place a hold.
+    static func timeout(for command: String, base: TimeInterval) -> TimeInterval {
+        holdCommands.contains(command) ? max(base, holdCommandTimeout) : base
+    }
+
     public func attach(channel: BridgeChannel) {
         self.channel = channel
     }
@@ -108,6 +128,7 @@ public actor BridgeClient {
         let id = "n\(nextID)"
         let order = nextID
         let envelope = Envelope(kind: .cmd, type: name, id: id, payload: payload)
+        let timeout = Self.timeout(for: name, base: self.timeout)
 
         // Register the continuation BEFORE sending: a synchronous reply must
         // never arrive to an empty pending table.
@@ -126,7 +147,8 @@ public actor BridgeClient {
                     command: name,
                     order: order,
                     continuation: continuation,
-                    timeoutTask: timeoutTask
+                    timeoutTask: timeoutTask,
+                    timeout: timeout
                 )
                 Task { await channel.send(envelope) }
             }
@@ -146,7 +168,7 @@ public actor BridgeClient {
         guard let entry = pending.removeValue(forKey: id) else { return }
         entry.timeoutTask.cancel()
         entry.continuation.resume(
-            throwing: SeatLayerError.timeout(command: entry.command, seconds: timeout)
+            throwing: SeatLayerError.timeout(command: entry.command, seconds: entry.timeout)
         )
     }
 

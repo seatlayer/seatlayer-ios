@@ -81,7 +81,8 @@ final class PickerImmersiveTests: XCTestCase {
         let available = SeatLayerPickerImmersive.availability(
             snapshot: snapshot,
             bundle: complete,
-            seatView: makeSeatView()
+            seatView: makeSeatView(),
+            touchNavigation3D: .classic
         )
         XCTAssertTrue(available.venue3D)
         XCTAssertTrue(available.navigationMode)
@@ -102,7 +103,26 @@ final class PickerImmersiveTests: XCTestCase {
         XCTAssertFalse(SeatLayerPickerImmersive.availability(
             snapshot: snapshot,
             bundle: missingNavigationCommand,
-            seatView: nil
+            seatView: nil,
+            touchNavigation3D: .classic
+        ).navigationMode)
+    }
+
+    func testTheRotateMoveControlIsDrawnForTheClassicGesturesAlone() throws {
+        let snapshot = try makeSnapshot(map: [
+            "buyerView": "venue3d",
+            "view3dTargetSeatId": "target",
+        ], features: ["venue3d": true, "seatView": true])
+        let bundle = makeBundle()
+        for mode: SeatLayer3DTouchNavigation? in [nil, .map] {
+            let available = SeatLayerPickerImmersive.availability(
+                snapshot: snapshot, bundle: bundle, seatView: nil, touchNavigation3D: mode
+            )
+            XCTAssertTrue(available.venue3D)
+            XCTAssertFalse(available.navigationMode, "\(String(describing: mode))")
+        }
+        XCTAssertTrue(SeatLayerPickerImmersive.availability(
+            snapshot: snapshot, bundle: bundle, seatView: nil, touchNavigation3D: .classic
         ).navigationMode)
     }
 

@@ -46,9 +46,13 @@ public struct SeatLayerConfiguration: Sendable {
     public var selectionValidators: [SelectionValidator]?
 
     /// Native-side deadline for a single command before it fails `sl_timeout`.
+    /// A command that can place a hold waits at least
+    /// `BridgeClient.holdCommandTimeout` (45 seconds), longer than the page
+    /// waits for the server.
     public var commandTimeout: TimeInterval = BridgeClient.defaultTimeout
-    /// How long to wait for `sys.ready` before failing the load.
-    public var handshakeTimeout: TimeInterval = 30
+    /// How long to wait for `sys.ready` before failing the load. The page keeps
+    /// retrying a slow server for up to about 40 seconds before it is ready.
+    public var handshakeTimeout: TimeInterval = 45
     /// Free-form host identification sent in `init.host`, for server-side and
     /// bundle-side diagnostics.
     public var hostInfo: [String: String] = [:]
@@ -149,7 +153,7 @@ public enum SeatLayer {
     /// This SDK's version.
     public static let sdkVersion = "0.4.0"
     /// Immutable hosted runtime loaded by production views.
-    public static let hostedWebVersion = "0.84.1"
+    public static let hostedWebVersion = "1.0.5"
     /// Runtime retained only for explicit offline demo/test fixtures.
     public static let legacyFixtureWebVersion = "0.59.0"
     @available(*, deprecated, renamed: "hostedWebVersion")

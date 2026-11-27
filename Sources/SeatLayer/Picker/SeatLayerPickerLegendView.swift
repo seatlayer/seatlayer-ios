@@ -52,7 +52,8 @@ public struct SeatLayerPickerPriceLegend: View {
         let immersive = SeatLayerPickerImmersive.availability(
             snapshot: snapshot,
             bundle: controller.bundleInfo,
-            seatView: controller.seatView
+            seatView: controller.seatView,
+            touchNavigation3D: controller.touchNavigation3D
         )
         let chips = SeatLayerPickerLegendModel.chips(
             snapshot: snapshot,

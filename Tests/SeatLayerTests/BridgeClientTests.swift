@@ -289,19 +289,48 @@ final class BridgeClientTests: XCTestCase {
 
         let started = Date()
         do {
-            _ = try await client.command("hold")
+            _ = try await client.command("getSelection")
             XCTFail("expected a timeout")
         } catch let error as SeatLayerError {
             guard case .timeout(let command, let seconds) = error else {
                 return XCTFail("expected .timeout, got \(error)")
             }
-            XCTAssertEqual(command, "hold")
+            XCTAssertEqual(command, "getSelection")
             XCTAssertEqual(seconds, 0.25)
             XCTAssertEqual(error.code, BridgeErrorCode.timeout)
         } catch {
             XCTFail("unexpected error \(error)")
         }
         XCTAssertLessThan(Date().timeIntervalSince(started), 3)
+    }
+
+    func testACommandThatCanPlaceAHoldWaitsLongerThanThePageWaitsForTheServer() {
+        // The page waits up to 40 seconds for a hold's answer.
+        XCTAssertGreaterThan(BridgeClient.holdCommandTimeout, 40)
+        for command in ["hold", "holdGA", "picker.holdSelection", "picker.holdGA",
+                        "picker.bestAvailable", "picker.continue", "picker.setTableQuantity",
+                        "picker.resumeHold", "picker.extendHold"] {
+            XCTAssertEqual(BridgeClient.timeout(for: command, base: 15), 45, command)
+            XCTAssertEqual(BridgeClient.timeout(for: command, base: 60), 60, command)
+        }
+        XCTAssertEqual(BridgeClient.timeout(for: "picker.getSnapshot", base: 15), 15)
+        XCTAssertEqual(BridgeClient.timeout(for: "picker.setFloor", base: 15), 15)
+    }
+
+    func testAHoldCommandThatNeverAnswersReportsItsOwnLongerDeadline() async {
+        let channel = FakeChannel() // never answers
+        let client = BridgeClient(channel: channel, timeout: 0.25)
+        let task = Task { try await client.command("picker.holdSelection") }
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        // Past the 0.25 s base deadline, a hold is still waiting.
+        XCTAssertFalse(task.isCancelled)
+        await client.close()
+        do {
+            _ = try await task.value
+            XCTFail("expected the closed client to end the command")
+        } catch let error as SeatLayerError {
+            if case .timeout = error { XCTFail("a hold must not time out at the base deadline") }
+        } catch {}
     }
 
     func testInvalidTimeoutsAreNormalizedBeforeNanosecondConversion() {
@@ -342,8 +371,9 @@ final class BridgeClientTests: XCTestCase {
         let channel = FakeChannel()
         let client = BridgeClient(channel: channel, timeout: 0.2)
 
+        // A command without the longer hold deadline, so it times out at 0.2 s.
         do {
-            _ = try await client.command("hold")
+            _ = try await client.command("getSelection")
             XCTFail("expected a timeout")
         } catch {
             // expected
@@ -355,8 +385,8 @@ final class BridgeClientTests: XCTestCase {
 
         // The late reply lands. If it were delivered, this would crash on a
         // double-resume; the test passing IS the assertion.
-        await client.ingest(Envelope(kind: .res, type: "hold", id: staleID,
-                                     payload: ["hold": ["holdId": "late", "expiresAt": 1]]))
+        await client.ingest(Envelope(kind: .res, type: "getSelection", id: staleID,
+                                     payload: ["selection": []]))
         openCount = await client.openCommandCount
         XCTAssertEqual(openCount, 0)
     }

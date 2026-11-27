@@ -28,6 +28,7 @@ public final class SeatLayerPickerMapView: UIView {
     ) {
         self.configuration = configuration
         let resolvedController = controller ?? SeatLayerPickerController()
+        resolvedController.touchNavigation3D = options.touchNavigation3D
         self.controller = resolvedController
         let pageURL = configuration.pageURL ?? SeatLayer.mobilePageURL
         let prewarmedHost = SeatLayerPickerPrewarmPool.shared.consume(pageURL: pageURL)

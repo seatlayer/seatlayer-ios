@@ -35,7 +35,8 @@ public struct SeatLayerVenue3D: View {
         let availability = SeatLayerPickerImmersive.availability(
             snapshot: controller.snapshot,
             bundle: controller.bundleInfo,
-            seatView: controller.seatView
+            seatView: controller.seatView,
+            touchNavigation3D: controller.touchNavigation3D
         )
         if availability.venue3D,
            !availability.panoramaChrome,
@@ -287,7 +288,8 @@ public struct SeatLayerVenue3D: View {
                   SeatLayerPickerImmersive.availability(
                       snapshot: snapshot,
                       bundle: controller.bundleInfo,
-                      seatView: controller.seatView
+                      seatView: controller.seatView,
+                      touchNavigation3D: controller.touchNavigation3D
                   ).venue3D,
                   let request = SeatLayerPickerImmersive.request(
                       for: action,
@@ -319,7 +321,8 @@ public struct SeatLayerVenue3D: View {
                   SeatLayerPickerImmersive.availability(
                       snapshot: snapshot,
                       bundle: controller.bundleInfo,
-                      seatView: controller.seatView
+                      seatView: controller.seatView,
+                      touchNavigation3D: controller.touchNavigation3D
                   ).seatViewAction else { return }
             let seat = snapshot.map.view3DTargetSeat
                 ?? snapshot.selection.first { $0.id == seatId }
@@ -335,7 +338,8 @@ public struct SeatLayerVenue3D: View {
                   SeatLayerPickerImmersive.availability(
                       snapshot: current,
                       bundle: controller.bundleInfo,
-                      seatView: controller.seatView
+                      seatView: controller.seatView,
+                      touchNavigation3D: controller.touchNavigation3D
                   ).navigationMode else { return }
             _ = try await controller.setVenue3DNavigationMode(next)
         }
@@ -346,7 +350,8 @@ public struct SeatLayerVenue3D: View {
             let availability = SeatLayerPickerImmersive.availability(
                 snapshot: controller.snapshot,
                 bundle: controller.bundleInfo,
-                seatView: controller.seatView
+                seatView: controller.seatView,
+                touchNavigation3D: controller.touchNavigation3D
             )
             switch action {
             case .zoomIn where availability.zoomIn:

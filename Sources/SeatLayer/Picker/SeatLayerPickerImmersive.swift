@@ -240,7 +240,8 @@ public enum SeatLayerPickerImmersive {
     public static func availability(
         snapshot: SeatLayerPickerSnapshot?,
         bundle: BundleInfo?,
-        seatView: SeatLayerSeatView?
+        seatView: SeatLayerSeatView?,
+        touchNavigation3D: SeatLayer3DTouchNavigation? = nil
     ) -> SeatLayerPickerImmersiveAvailability {
         guard let snapshot, let bundle else { return .unavailable }
         let native = bundle.supports(capability: "native-chrome-contract-v1")
@@ -249,7 +250,10 @@ public enum SeatLayerPickerImmersive {
             && native
             && bundle.supports(capability: "venue-3d-v1")
             && bundle.supports(command: "picker.setBuyerView")
+        // With the map's gestures the fingers already move and turn the venue,
+        // so the mode control is drawn for the earlier gestures alone.
         let navigation = venue
+            && touchNavigation3D == .classic
             && bundle.supports(capability: "venue-3d-controls-v1")
             && bundle.supports(command: "picker.setVenue3DNavigationMode")
         let seatViewAction = venue
