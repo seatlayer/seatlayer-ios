@@ -48,6 +48,8 @@ struct SeatLayerPickerConnectionFeed: ViewModifier {
     }
 
     private func tell(_ error: SeatLayerError) {
+        // A page that did not load is told by its own panel.
+        guard !controller.pageFailed else { return }
         let failure = controller.failure(for: error)
         guard seatLayerPickerToldAsMessage(error, failure: failure) else { return }
         if seatLayerPickerFailureKind(error) == .server {

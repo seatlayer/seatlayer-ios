@@ -6,6 +6,12 @@ extension SeatLayerPickerController {
         isReady && supports(capability: "connection-state-v1")
     }
 
+    /// The page did not load: its panel says why.
+    var pageFailed: Bool {
+        if case .failed = phase { return true }
+        return false
+    }
+
     func makeConnectionWatch(schedule: SeatLayerConnectionSchedule? = nil) -> SeatLayerConnectionWatch {
         let watch = SeatLayerConnectionWatch(schedule: schedule)
         watch.onShown = { [weak self] shown in self?.connectionShown = shown }

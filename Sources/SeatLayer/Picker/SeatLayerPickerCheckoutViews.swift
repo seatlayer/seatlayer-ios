@@ -158,8 +158,10 @@ public struct SeatLayerPickerActionError: View {
     public init() {}
 
     public var body: some View {
-        // A lost line is told by the small message instead (§3.4.2).
+        // A lost line is told by the small message instead, and a page that
+        // did not load by its own panel (§3.4.2).
         if let error = presentation.lastActionError,
+           !controller.pageFailed,
            !seatLayerPickerToldAsMessage(error, failure: controller.failure(for: error)) {
             let palette = resolveSeatLayerPickerPalette(
                 style: style,
