@@ -20,6 +20,14 @@ public final class SeatLayerPickerMapView: UIView {
     private var loadTask: Task<Void, Never>?
     private var loadWaiters: [UUID: CheckedContinuation<ReadyInfo, Error>] = [:]
     private var loadedReadyInfo: ReadyInfo?
+    private var pageRecovery = SeatLayerPickerPageRecovery()
+    private var awaitingActive: NSObjectProtocol?
+    /// Whether the app is in front. Read when the system ends the page: a page
+    /// of an app in the background is mostly ended there, and reloading it
+    /// there would only be ended again.
+    var applicationIsActive: () -> Bool = {
+        UIApplication.shared.applicationState == .active
+    }
 
     public init(
         configuration: SeatLayerConfiguration,
@@ -29,6 +37,9 @@ public final class SeatLayerPickerMapView: UIView {
         self.configuration = configuration
         let resolvedController = controller ?? SeatLayerPickerController()
         resolvedController.touchNavigation3D = options.touchNavigation3D
+        resolvedController.initialHoldId = options.initialHoldId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
         self.controller = resolvedController
         let pageURL = configuration.pageURL ?? SeatLayer.mobilePageURL
         let prewarmedHost = SeatLayerPickerPrewarmPool.shared.consume(pageURL: pageURL)
@@ -51,6 +62,7 @@ public final class SeatLayerPickerMapView: UIView {
     }
 
     deinit {
+        if let awaitingActive { NotificationCenter.default.removeObserver(awaitingActive) }
         loadTask?.cancel()
         let waiters = Array(loadWaiters.values)
         loadWaiters.removeAll(keepingCapacity: false)
@@ -69,6 +81,45 @@ public final class SeatLayerPickerMapView: UIView {
             chartView.topAnchor.constraint(equalTo: topAnchor),
             chartView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        chartView.onPageLost = { [weak self] in self?.pageLost() }
+    }
+
+    /// The system ended the page after it was ready, mostly to free memory.
+    /// It is loaded again, at once when the app is in front and otherwise when
+    /// it comes back, and asked for the hold handed to checkout. Two pages
+    /// ended within a minute are replaced; the third ends in the error view.
+    func pageLost(at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
+        guard configuration != nil else { return }
+        controller.pageLost()
+        loadedReadyInfo = nil
+        guard pageRecovery.lost(at: now) else {
+            controller.fail(.transport("The system keeps closing the SeatLayer page."))
+            return
+        }
+        chartView.dropInitialHoldFromPageStart()
+        if let awaitingActive {
+            NotificationCenter.default.removeObserver(awaitingActive)
+            self.awaitingActive = nil
+        }
+        guard applicationIsActive() else {
+            awaitingActive = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.reloadLostPage() }
+            }
+            return
+        }
+        reloadLostPage()
+    }
+
+    private func reloadLostPage() {
+        if let awaitingActive {
+            NotificationCenter.default.removeObserver(awaitingActive)
+            self.awaitingActive = nil
+        }
+        Task { @MainActor [weak self] in _ = try? await self?.load() }
     }
 
     /// Start the hosted renderer once and await its protocol-2 handshake.
@@ -101,6 +152,10 @@ public final class SeatLayerPickerMapView: UIView {
 
     /// Tear down the chart and reject subsequent controller actions.
     public func destroy() async {
+        if let awaitingActive {
+            NotificationCenter.default.removeObserver(awaitingActive)
+            self.awaitingActive = nil
+        }
         loadTask?.cancel()
         loadTask = nil
         loadedReadyInfo = nil
@@ -361,4 +416,8 @@ public final class SeatLayerPickerViewController: UIHostingController<SeatLayerP
     }
 }
 #endif
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
 #endif
