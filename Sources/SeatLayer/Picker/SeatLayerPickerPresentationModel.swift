@@ -165,6 +165,8 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
     var unansweredSeats: [SelectedSeat] {
         var seats: [SelectedSeat] = []
         if let pendingSeat { seats.append(pendingSeat) }
+        // A table whose guests are still being chosen is not in the cart yet.
+        if let pendingTable { seats.append(pendingTable) }
         if let candidateSeat, cardIntent == .add,
            identity(of: candidateSeat) != pendingSeat.flatMap(identity) {
             seats.append(candidateSeat)
@@ -379,8 +381,14 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
 
     public func confirmTable(_ table: SelectedSeat) {
         guard let identity = identity(of: table) else { return }
+        // The table as the runtime now has it, with the guests just chosen.
+        let current = controller.snapshot?.selection.first {
+            self.identity(of: $0) == identity
+        } ?? table
+        publishSelectionFlight(for: current)
         answered.insert(identity)
         pendingTable = nextTable(in: controller.snapshot)
+        seatSelectionSubject.send(current)
     }
 
     /// Reject the exact pending seat and wait for the runtime snapshot that

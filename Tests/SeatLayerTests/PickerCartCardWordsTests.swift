@@ -87,11 +87,27 @@ final class PickerCartCardWordsTests: XCTestCase {
         XCTAssertEqual(words.position, "Box-4 · 2")
     }
 
+    /// A table booked as one is named once, "Table T2", with how many guests
+    /// it is for under it; it read "T2 · T2".
+    func testATableBookedAsOneIsNamedOnce() {
+        let words = seatLayerPickerCartCardWords(
+            line: line(label: "T2", section: "Gallery", row: "T2", number: nil,
+                       objectType: "table", quantity: 4),
+            seat: nil,
+            sectionCode: nil,
+            typeLabel: "Dinner"
+        )
+        XCTAssertEqual(words.name, "Table T2")
+        XCTAssertEqual(words.position, "Guests 4 · Dinner")
+    }
+
     private func line(
         label: String,
         section: String?,
         row: String?,
-        number: String?
+        number: String?,
+        objectType: String = "seat",
+        quantity: Int = 1
     ) -> SeatLayerPickerCartLine {
         SeatLayerPickerCartLine(
             lineKey: "row_1",
@@ -99,13 +115,13 @@ final class PickerCartCardWordsTests: XCTestCase {
             displayLabel: nil,
             displayType: nil,
             objectId: "row-a",
-            objectType: "seat",
+            objectType: objectType,
             categoryKey: "standard",
             tierId: nil,
             tierName: nil,
             unitPrice: 180,
             currency: "EUR",
-            quantity: 1,
+            quantity: quantity,
             seatId: label,
             sectionLabel: section,
             rowLabel: row,

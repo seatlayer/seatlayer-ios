@@ -148,7 +148,8 @@ public struct SeatLayerPickerCartCard: View {
                 controller.snapshot,
                 sectionLabel: line.sectionLabel ?? seat?.sectionLabel
             ),
-            typeLabel: ticketTypeLabel
+            typeLabel: ticketTypeLabel,
+            strings: style.strings
         )
     }
 

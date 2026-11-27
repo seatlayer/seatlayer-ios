@@ -263,12 +263,17 @@ public struct SeatLayerVenue3D: View {
     private func caption(for seat: SelectedSeat?) -> String? {
         guard let seat else { return nil }
         let seatNumber = seat.seatNumber ?? seat.buyerFacingLabel
-        let values = [
-            seat.sectionLabel,
-            seat.rowLabel.map { "\(style.strings.text(.rowWord)) \($0)" },
-            seatNumber.isEmpty ? nil : "\(style.strings.text(.seatWord)) \(seatNumber)",
-            style.strings.text(.viewFromYourSeat),
-        ].compactMap { value -> String? in
+        let named: [String?]
+        if let table = seatLayerPickerTableIdentity(seat, strings: style.strings) {
+            named = table.map { "\($0.word) \($0.value)" }
+        } else {
+            named = [
+                seat.rowLabel.map { "\(style.strings.text(.rowWord)) \($0)" },
+                seatNumber.isEmpty ? nil : "\(style.strings.text(.seatWord)) \(seatNumber)",
+            ]
+        }
+        let parts: [String?] = [seat.sectionLabel] + named + [style.strings.text(.viewFromYourSeat)]
+        let values = parts.compactMap { value -> String? in
             guard let value,
                   !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return value

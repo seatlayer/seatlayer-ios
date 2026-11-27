@@ -181,7 +181,8 @@ public func seatLayerPickerCartCardWords(
     line: SeatLayerPickerCartLine,
     seat: SelectedSeat?,
     sectionCode: String?,
-    typeLabel: String?
+    typeLabel: String?,
+    strings: SeatLayerPickerStrings = SeatLayerPickerStrings()
 ) -> SeatLayerPickerCartCardWords {
     // The line's own address first, the selected seat's second: a line the
     // buyer never tapped — a best-available result, a resumed hold — is in no
@@ -192,6 +193,19 @@ public func seatLayerPickerCartCardWords(
     let type = typeLabel?.trimmingCharacters(in: .whitespaces) ?? ""
     let buyerFacing = (line.displayLabel ?? line.label)
         .trimmingCharacters(in: .whitespaces)
+
+    // A table booked as one has no row or seat: its name is both. The web's
+    // cart names it "Table T2", with how many guests it is for under it.
+    if line.objectType == "table" {
+        let tableName = row ?? seatLayerPickerFirstWord(line.displayLabel, seat?.displayLabel)
+            ?? buyerFacing
+        var parts = ["\(strings.text(.guestsWord)) \(line.quantity)"]
+        if !type.isEmpty { parts.append(type) }
+        return SeatLayerPickerCartCardWords(
+            name: "\(strings.text(.tableWord)) \(tableName)",
+            position: parts.joined(separator: " · ")
+        )
+    }
 
     // Where a chart has no sections the ticket type names the card instead:
     // `Q · 12` on its own names nothing a buyer can find in a venue.
@@ -359,6 +373,11 @@ func seatLayerPickerIdentityCells(
             longSection: section.count > seatLayerPickerConfirmSectionShortMax
         ))
     }
+    if let table = seatLayerPickerTableIdentity(seat, strings: strings) {
+        return cells + table.map {
+            SeatLayerPickerIdentityCell(eyebrow: $0.word, value: $0.value, longSection: false)
+        }
+    }
     if seat.rowLabel != nil {
         cells.append(SeatLayerPickerIdentityCell(
             eyebrow: seatLayerPickerRowWord(seat, strings: strings),
@@ -374,6 +393,34 @@ func seatLayerPickerIdentityCells(
     return cells
 }
 
+
+/// A table booked as one (`objectType` table with a `bookingMode`): its party
+/// size and its name, "Guests 4" and "Table T2" ("Guests 2–6" where the buyer
+/// chooses how many), or nil for anything else.
+///
+/// The runtime sends such a table with its name as the row and no seat
+/// number, so the row and seat cells would print the name twice. The name is
+/// given with or without a section.
+func seatLayerPickerTableIdentity(
+    _ seat: SelectedSeat,
+    strings: SeatLayerPickerStrings
+) -> [(word: String, value: String)]? {
+    let mode = seat.bookingMode?.trimmingCharacters(in: .whitespaces) ?? ""
+    guard seat.objectType?.rawValue == "table", !mode.isEmpty else { return nil }
+    let guests: String?
+    if mode == "variable", let min = seat.minOccupancy, let max = seat.maxOccupancy {
+        guests = min == max ? "\(min)" : "\(min)–\(max)"
+    } else {
+        guests = seat.capacity.map { "\($0)" }
+    }
+    let name = [seat.rowLabel, seat.displayLabel]
+        .map { $0?.trimmingCharacters(in: .whitespaces) ?? "" }
+        .first { !$0.isEmpty } ?? seat.buyerFacingLabel
+    var parts: [(word: String, value: String)] = []
+    if let guests { parts.append((strings.text(.guestsWord), guests)) }
+    parts.append((strings.text(.tableWord), name))
+    return parts
+}
 
 /// The metre figure as the runtime rounded it.
 ///
@@ -460,3 +507,8 @@ func seatLayerPickerCubicBezierValue(
     return axis(curve.y1, curve.y2, min(1, max(0, guess)))
 }
 
+/// Whether a decision prompt `content` points tall scrolls in `room` points:
+/// only when it is taller, so a prompt that fits never moves under a thumb.
+func seatLayerPickerPromptScrolls(content: Double, room: Double) -> Bool {
+    content > room + 0.5
+}
