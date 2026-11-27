@@ -716,7 +716,7 @@ final class PickerPresentationTests: XCTestCase {
         let controller = SeatLayerPickerController(
             transport: transport,
             bundleInfo: BundleInfo([
-                "bundle": "1.0.5",
+                "bundle": "1.0.6",
                 "protocol": ["min": 2, "max": 2],
                 "capabilities": .array(capabilities.map(JSONValue.string)),
                 "commands": .array(commands.map(JSONValue.string)),
