@@ -1,3 +1,5 @@
+import Foundation
+
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
 
@@ -292,10 +294,14 @@ public struct SeatLayerPickerCartSheetFoot: View {
             SeatLayerPickerPartHost(.holdLapse) { SeatLayerHoldLapseNotice() }
             SeatLayerPickerPartHost(.actionError) { SeatLayerPickerActionError() }
             SeatLayerPickerCartTotalLine()
-            SeatLayerPickerPartHost(.checkoutBar) {
-                SeatLayerPickerCheckoutBar(onCheckout: onCheckout)
+            // Sales closed with nothing held: the row says so, and there is
+            // nothing to press.
+            if !seatLayerPickerSalesClosedWithNoHold(controller.snapshot) {
+                SeatLayerPickerPartHost(.checkoutBar) {
+                    SeatLayerPickerCheckoutBar(onCheckout: onCheckout)
+                }
+                .padding(.top, SeatLayerPickerSizeTokens.footTotalGap)
             }
-            .padding(.top, SeatLayerPickerSizeTokens.footTotalGap)
             if seatLayerPickerAttributionVisible(in: controller.snapshot) {
                 SeatLayerPickerAttribution()
                     .padding(.top, SeatLayerPickerSizeTokens.footPadTop)
@@ -347,7 +353,18 @@ public struct SeatLayerPickerCartTotalLine: View {
                 seatLayerPickerAnimation(.bump, reduceMotion: reduceMotion),
                 value: swollen
             )
-            if !seatLine.isEmpty {
+            if closed {
+                if let date = closedDateLine {
+                    Text(date)
+                        .seatLayerPickerFont(
+                            size: SeatLayerPickerSheetMetrics.seatLineSize,
+                            weight: .semibold
+                        )
+                        .foregroundColor(palette.mutedText)
+                        .lineLimit(2)
+                        .padding(.top, SeatLayerPickerSheetMetrics.seatLinePadTop)
+                }
+            } else if !seatLine.isEmpty {
                 Button {
                     presentation.sheetDetent = .open
                 } label: {
@@ -390,18 +407,28 @@ public struct SeatLayerPickerCartTotalLine: View {
         }
     }
 
+    private var closed: Bool { seatLayerPickerSalesClosedWithNoHold(controller.snapshot) }
+
     private var summary: String {
+        if closed { return style.strings.text(.salesClosed) }
         let totals = presentation.confirmedCartTotals
         guard totals.quantity > 0 else { return style.strings.text(.noSeatsSelected) }
         return style.strings.ticketCount(totals.quantity)
     }
 
     private var totalText: String? {
+        if closed { return nil }
         let totals = presentation.confirmedCartTotals
         guard totals.quantity > 0,
               !totals.hasMixedCurrencies,
               let currency = totals.currency else { return nil }
         return seatLayerPickerMoney(totals.total, currency: currency, style: style)
+    }
+
+    private var closedDateLine: String? {
+        controller.snapshot.flatMap {
+            seatLayerPickerEventDateLine($0.event, locale: style.strings.resolvedLocale)
+        }
     }
 
     /// "204 · Q · 7,  204 · Q · 8" — the cart's own labels, muted, on one line.
@@ -415,3 +442,29 @@ public struct SeatLayerPickerCartTotalLine: View {
     }
 }
 #endif
+
+/// Sales have closed and the buyer holds nothing: the cart row says so and
+/// offers no button. Seats already held can still go to checkout.
+func seatLayerPickerSalesClosedWithNoHold(_ snapshot: SeatLayerPickerSnapshot?) -> Bool {
+    guard let snapshot else { return false }
+    return snapshot.event.salesClosed && !snapshot.hold.active
+}
+
+/// The event's date: the page's own `startsAtLabel` where it sent one, else
+/// the start in the buyer's locale and the event's time zone.
+func seatLayerPickerEventDateLine(
+    _ event: SeatLayerPickerEventDetails,
+    locale: Locale
+) -> String? {
+    if let label = event.startsAtLabel { return label }
+    guard let startsAt = event.startsAt else { return nil }
+    let seconds = startsAt > 10_000_000_000 ? startsAt / 1_000 : startsAt
+    let formatter = DateFormatter()
+    formatter.locale = locale
+    formatter.dateStyle = .long
+    formatter.timeStyle = .short
+    if let timezone = event.timezone, let zone = TimeZone(identifier: timezone) {
+        formatter.timeZone = zone
+    }
+    return formatter.string(from: Date(timeIntervalSince1970: seconds))
+}

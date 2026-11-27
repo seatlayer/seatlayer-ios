@@ -180,7 +180,9 @@ public final class SeatLayerPickerPresentationModel: ObservableObject {
               activePrompt == nil,
               pendingSeat == nil,
               !confirmedCartLines.isEmpty,
-              controller.snapshot?.event.salesClosed != true,
+              // Seats already held can still go to checkout when sales close.
+              controller.snapshot?.event.salesClosed != true
+                  || controller.snapshot?.hold.active == true,
               // A hold the host owns closes the till — that is the handoff
               // having happened. `resumeAfterCheckout()` is the host saying the
               // buyer came back and may keep going against that same hold, so

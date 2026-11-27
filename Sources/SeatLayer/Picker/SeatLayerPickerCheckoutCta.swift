@@ -111,8 +111,9 @@ public func seatLayerCheckoutCtaState(
         )
     }
 
-    // 1. Nothing else is worth saying about an event that has stopped selling.
-    if input.salesClosed { return reason(strings.text(.salesClosedCta)) }
+    // 1. Nothing else is worth saying about an event that has stopped selling,
+    //    unless the buyer already holds seats: those can still go to checkout.
+    if input.salesClosed, !input.holdActive { return reason(strings.text(.salesClosedCta)) }
 
     // 2. A prompt the buyer has not answered. The places under it are already
     //    in the runtime's selection, so without this the button reads as live.

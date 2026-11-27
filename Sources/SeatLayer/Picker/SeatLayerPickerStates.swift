@@ -190,20 +190,10 @@ public struct SeatLayerPickerSalesClosedStatement: View {
         .accessibilityIdentifier("seatlayer-sales-closed")
     }
 
-    /// The event's own date line, in the buyer's locale and the event's zone.
     private var eventDateLine: String? {
-        guard let event = controller.snapshot?.event, let startsAt = event.startsAt else {
-            return nil
+        controller.snapshot.flatMap {
+            seatLayerPickerEventDateLine($0.event, locale: style.strings.resolvedLocale)
         }
-        let seconds = startsAt > 10_000_000_000 ? startsAt / 1_000 : startsAt
-        let formatter = DateFormatter()
-        formatter.locale = style.strings.resolvedLocale
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        if let timezone = event.timezone, let zone = TimeZone(identifier: timezone) {
-            formatter.timeZone = zone
-        }
-        return formatter.string(from: Date(timeIntervalSince1970: seconds))
     }
 
     // tokens.json gap: the neutral text tint the statement sits on.
