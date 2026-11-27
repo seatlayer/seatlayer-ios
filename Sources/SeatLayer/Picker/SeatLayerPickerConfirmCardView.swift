@@ -547,6 +547,15 @@ struct SeatLayerPickerConfirmationCard: View {
         var parts: [String] = []
         let section = seat.sectionLabel?.trimmingCharacters(in: .whitespaces) ?? ""
         if !section.isEmpty { parts.append(section) }
+        if let table = seatLayerPickerTableIdentity(seat, strings: style.strings) {
+            parts += table.map { "\($0.word) \($0.value)" }
+            if let category { parts.append(category.label) }
+            if let priceText { parts.append(priceText) }
+            return style.strings.text(
+                .seatIdentity,
+                replacing: ["parts": parts.joined(separator: ", ")]
+            )
+        }
         let row = seatLayerPickerRowLabel(
             seat.rowLabel,
             section: seat.sectionLabel,

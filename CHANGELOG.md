@@ -117,6 +117,15 @@ and the buyer lost the hold handed to checkout.
   platform's back gesture give the seat back. The card answers with haptic
   cues and sizes itself to what it says.
 - The card comes up inside the 3D venue too, with `View from this seat`.
+- A table booked as one shows how many guests it takes and its name:
+  "Gallery | Guests 4 | Table T2", or "Guests 2–6" where the buyer chooses
+  how many. It read "Row T2 | Seat T2". The table's name shows with or
+  without a section. The card's spoken sentence and the 3D view's caption name
+  the table the same way, and its line in the cart reads "Table T2" with
+  "Guests 4" under it (it read "T2 · T2").
+- The general-admission and table prompts scroll when they are taller than
+  the screen (a short phone, large text, many ticket types), and open at
+  their foot with the buttons in sight. They ran off the screen.
 
 **The ticket sheet**
 
@@ -210,6 +219,13 @@ and the buyer lost the hold handed to checkout.
 
 **Fixed**
 
+- A general-admission hold the page refuses (the places were just taken)
+  says why inside the prompt, which stays open. The sentence was drawn behind
+  the prompt, where the buyer could not see it. The prompt's second button is
+  Cancel, and the table prompt's is Remove, as on React Native and Flutter.
+- A table whose guests were still being chosen counted in the cart's total
+  and count. It counts once the buyer selects it, and selecting it now tells
+  the app (`seatSelections`) as a seat's answer does.
 - After a checkout handoff, "Continue to checkout" was off until the app
   called `resumeAfterCheckout()`, so a buyer back from the app's checkout
   without paying could not check out again while the hold ran (since 0.4.0).

@@ -25,6 +25,30 @@ final class PickerPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.canCheckout)
     }
 
+    /// A table whose guests are still being chosen is not in the cart, and
+    /// choosing them tells the app the table was selected.
+    func testATableStillChoosingGuestsStaysOutOfTheCartUntilAnswered() throws {
+        let transport = PresentationTransportSpy()
+        let controller = readyController(transport: transport, commands: [])
+        let presentation = SeatLayerPickerPresentationModel(controller: controller)
+        var selected: [String] = []
+        let selections = presentation.seatSelections.sink { selected.append($0.label) }
+
+        controller.accept(snapshot: snapshot(revision: 1, labels: ["T2"], variableTable: true))
+        let table = try XCTUnwrap(presentation.pendingTable)
+        XCTAssertEqual(table.label, "T2")
+        XCTAssertTrue(presentation.confirmedCartLines.isEmpty)
+        XCTAssertEqual(presentation.confirmedCartTotal, 0)
+        XCTAssertFalse(presentation.canCheckout)
+
+        presentation.confirmTable(table)
+        XCTAssertNil(presentation.pendingTable)
+        XCTAssertEqual(presentation.confirmedCartLines.map(\.label), ["T2"])
+        XCTAssertEqual(selected, ["T2"])
+        XCTAssertEqual(presentation.selectionFlight?.label, "T2")
+        _ = selections
+    }
+
     func testSalesClosureDisablesCheckoutPromptsAndNewInventoryMutation() async {
         let transport = PresentationTransportSpy()
         let controller = readyController(
@@ -932,7 +956,8 @@ final class PickerPresentationTests: XCTestCase {
         salesClosed: Bool = false,
         hold: [String: JSONValue] = ["active": false],
         rowLineKey: String? = nil,
-        seatIds: [String]? = nil
+        seatIds: [String]? = nil,
+        variableTable: Bool = false
     ) -> JSONValue {
         func seatId(_ index: Int) -> String {
             seatIds?[index] ?? "seat-\(index + 1)"
@@ -948,6 +973,13 @@ final class PickerPresentationTests: XCTestCase {
             ]
             if let tierId { seat["tierId"] = .string(tierId) }
             if let tiers { seat["tiers"] = .array(tiers) }
+            if variableTable {
+                seat["objectType"] = "table"
+                seat["bookingMode"] = "variable"
+                seat["minOccupancy"] = 2
+                seat["maxOccupancy"] = 6
+                seat["quantity"] = 2
+            }
             return .object(seat)
         }
         let items: [JSONValue] = labels.enumerated().map { index, label in
@@ -963,6 +995,7 @@ final class PickerPresentationTests: XCTestCase {
                 "seatId": .string(seatId(index)),
             ]
             if let tierId { item["tierId"] = .string(tierId) }
+            if variableTable { item["objectType"] = "table" }
             return .object(item)
         }
         var map: [String: JSONValue] = [

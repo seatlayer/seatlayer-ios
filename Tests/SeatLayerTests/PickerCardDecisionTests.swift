@@ -126,6 +126,34 @@ final class PickerCardDecisionTests: XCTestCase {
         XCTAssertEqual(cells[0].value, "GA-1")
     }
 
+    /// A table booked as one: its guests and its name, never "Row T2 | Seat
+    /// T2". A party table gives the range the buyer chooses from.
+    func testATableBookedAsOneShowsGuestsAndItsName() throws {
+        let whole = try seat(
+            #"{"id":"c1","label":"T2","objectType":"table","bookingMode":"whole","capacity":4,"sectionLabel":"Gallery","rowLabel":"T2"}"#
+        )
+        let party = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","minOccupancy":2,"maxOccupancy":6,"capacity":6,"rowLabel":"T3"}"#
+        )
+        let cells = seatLayerPickerIdentityCells(whole, strings: strings, sectionCode: nil)
+        XCTAssertEqual(cells.map(\.eyebrow), ["Section", "Guests", "Table"])
+        XCTAssertEqual(cells.map(\.value), ["Gallery", "4", "T2"])
+        // No section: the table's name still shows.
+        let partyCells = seatLayerPickerIdentityCells(party, strings: strings, sectionCode: nil)
+        XCTAssertEqual(partyCells.map(\.value), ["2–6", "T3"])
+        // A chair of a table, or a seat, keeps row and seat.
+        let chair = try seat(
+            #"{"id":"c1","label":"T2-1","objectType":"seat","rowLabel":"T2","seatNumber":"1"}"#
+        )
+        XCTAssertNil(seatLayerPickerTableIdentity(chair, strings: strings))
+    }
+
+    /// A prompt taller than its room scrolls; one that fits does not.
+    func testAPromptScrollsOnlyWhenTallerThanItsRoom() {
+        XCTAssertFalse(seatLayerPickerPromptScrolls(content: 400, room: 400))
+        XCTAssertTrue(seatLayerPickerPromptScrolls(content: 401, room: 400))
+    }
+
     /// A clipped section name is a name the buyer cannot check the map against,
     /// so only the long ones give up the big type to wrap.
     func testOnlyALongSectionDropsToTheWrappingType() throws {

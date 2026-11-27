@@ -1,5 +1,6 @@
 #if canImport(SwiftUI) && canImport(UIKit)
 import SwiftUI
+import UIKit
 
 /// Compact confirmation-card spelling used by the canonical builder matrix.
 public struct SeatLayerConfirmCard: View {
@@ -27,6 +28,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
     @State private var quantity = 1
     @State private var tierId: String?
     @State private var busy = false
+    @State private var refused: String?
 
     public init(area: GAArea? = nil) {
         suppliedArea = area
@@ -67,14 +69,16 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                     more: style.strings.text(.moreTickets)
                 )
                 totalRow(for: area)
+                refusalLine
                 actionRow(
-                    cancelTitle: style.strings.text(.removeWord),
+                    cancelTitle: style.strings.text(.cancel),
                     confirmTitle: confirmTitle(for: area),
                     confirmEnabled: maximum(for: area) > 0 && tierIsReady(for: area)
                 ) {
                     controller.dismissGeneralAdmissionCandidate()
                 } confirm: {
                     busy = true
+                    refused = nil
                     Task { @MainActor in
                         defer { busy = false }
                         do {
@@ -93,13 +97,42 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                                 )
                             }
                             controller.dismissGeneralAdmissionCandidate()
-                        } catch let error as SeatLayerError { controller.record(error) }
-                        catch { controller.record(.transport(error.localizedDescription)) }
+                        } catch {
+                            let failure = (error as? SeatLayerError)
+                                ?? .transport(error.localizedDescription)
+                            controller.record(failure)
+                            // The prompt stays, and says why where the buyer
+                            // is looking: the page's own line is behind it.
+                            refuse(failure)
+                        }
                     }
                 }
             }
             .id(area.id)
         }
+    }
+
+    /// Why the last press was refused, in the error's colour, until the next.
+    @ViewBuilder
+    private var refusalLine: some View {
+        if let refused {
+            Text(refused)
+                .seatLayerPickerFont(size: 13, weight: .semibold)
+                .foregroundColor(paletteForPrompt.error)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("seatlayer-prompt-refusal")
+        }
+    }
+
+    private func refuse(_ error: SeatLayerError) {
+        let words = seatLayerPickerErrorWords(
+            error,
+            failure: controller.failure(for: error),
+            strings: style.strings
+        )
+        let text = [words.message, words.detail].compactMap { $0 }.joined(separator: " ")
+        refused = text
+        UIAccessibility.post(notification: .announcement, argument: text)
     }
 
     private func maximum(for area: GAArea) -> Int {
@@ -177,8 +210,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         let palette = resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, snapshot: controller.snapshot)
-        VStack {
-            Spacer(minLength: 0)
+        SeatLayerPickerPromptSheet(surface: palette.surface) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -213,12 +245,6 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
             }
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(palette.surface)
-            .clipShape(UnevenRoundedRectangleCompat(
-                topLeading: SeatLayerPickerRadiusTokens.sheet,
-                topTrailing: SeatLayerPickerRadiusTokens.sheet
-            ))
-            .shadow(color: .black.opacity(0.24), radius: 18, y: -4)
         }
         .frame(maxWidth: SeatLayerPickerSizeTokens.confirmCardMaxWidth)
         .accessibilityElement(children: .contain)
@@ -325,8 +351,7 @@ public struct SeatLayerPickerTablePrompt: View {
                 snapshot: controller.snapshot
             )
             let range = bounds(for: table)
-            VStack {
-                Spacer(minLength: 0)
+            SeatLayerPickerPromptSheet(surface: palette.surface) {
                 VStack(alignment: .leading, spacing: 14) {
                     head(table, palette: palette)
                     summary(table, palette: palette, range: range)
@@ -347,12 +372,6 @@ public struct SeatLayerPickerTablePrompt: View {
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(palette.surface)
-                .clipShape(UnevenRoundedRectangleCompat(
-                    topLeading: SeatLayerPickerRadiusTokens.sheet,
-                    topTrailing: SeatLayerPickerRadiusTokens.sheet
-                ))
-                .shadow(color: .black.opacity(0.24), radius: 18, y: -4)
             }
             .frame(maxWidth: SeatLayerPickerSizeTokens.confirmCardMaxWidth)
             .id(table.id)
@@ -496,7 +515,7 @@ public struct SeatLayerPickerTablePrompt: View {
         palette: SeatLayerPickerPalette
     ) -> some View {
         HStack(spacing: 10) {
-            Button(style.strings.text(.cancel)) {
+            Button(style.strings.text(.removeWord)) {
                 Task { @MainActor in _ = await presentation.cancelTable() }
             }
             .frame(maxWidth: .infinity, minHeight: SeatLayerPickerSizeTokens.minimumHitTarget)
