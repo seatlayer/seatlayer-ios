@@ -333,6 +333,35 @@ final class BridgeClientTests: XCTestCase {
         } catch {}
     }
 
+    func testAQuestionToTheBuyerHasNoDeadline() async throws {
+        let channel = FakeChannel()
+        let client = BridgeClient(channel: channel, timeout: 0.25)
+        let task = Task { try await client.command("season.requestClose") }
+        // Long past the base deadline, the buyer is still answering.
+        try await Task.sleep(nanoseconds: 600_000_000)
+        let id = try XCTUnwrap(channel.sent.first?.id)
+        await client.ingest(Envelope(kind: .res, type: "season.requestClose", id: id, payload: ["outcome": "kept"]))
+        let result = try await task.value
+        XCTAssertEqual(result["outcome"], "kept")
+        // A page that goes away still ends it.
+        let pending = Task { try await client.command("season.requestClose") }
+        try await Task.sleep(nanoseconds: 50_000_000)
+        await client.close()
+        do {
+            _ = try await pending.value
+            XCTFail("expected the closed client to end the command")
+        } catch let error as SeatLayerError {
+            XCTAssertEqual(error, .destroyed)
+        }
+    }
+
+    func testSeasonHoldsWaitAsLongAsAHoldMay() {
+        for command in ["season.holdSameSeat", "season.holdBestAvailable", "season.restoreOperation"] {
+            XCTAssertEqual(BridgeClient.timeout(for: command, base: 15), BridgeClient.holdCommandTimeout, command)
+        }
+        XCTAssertEqual(BridgeClient.timeout(for: "season.release", base: 15), 15)
+    }
+
     func testInvalidTimeoutsAreNormalizedBeforeNanosecondConversion() {
         XCTAssertEqual(BridgeClient.normalizedTimeout(-1), BridgeClient.defaultTimeout)
         XCTAssertEqual(BridgeClient.normalizedTimeout(.nan), BridgeClient.defaultTimeout)
