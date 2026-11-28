@@ -282,6 +282,25 @@ let strings = SeatLayerPickerStrings(
 
 **3D limit.** `SeatLayerPickerOptions(max3DSeats:)`: 3D opens for venues up to 60,000 seats; on a touch screen the default is 30,000 unless you set this option.
 
+**Your own prices.** Show the prices your backend charges on the price list, the
+seat card and the cart, by category and by single seat:
+
+```swift
+let options = SeatLayerPickerOptions(
+    pricing: SeatLayerPickerPricing(
+        categories: ["stalls": SeatLayerCategoryPricing(base: 45, tiers: ["child": 20])],
+        objects: [
+            "A-12": SeatLayerSeatPricing(60),
+            "A-13": .tiers(["adult": 60, "child": 30]),
+        ]
+    )
+)
+```
+
+A seat's own price wins over its category's. New options reach the open map, as
+does `controller.setPricing(pricing)`. These prices are for display: charge from
+your server.
+
 **One whole part: a builder.** Each builder receives the live snapshot,
 controller, presentation state, style, and the canonical `defaultContent`:
 

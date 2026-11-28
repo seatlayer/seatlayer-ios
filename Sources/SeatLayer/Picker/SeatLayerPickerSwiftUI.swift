@@ -108,6 +108,15 @@ public struct SeatLayerPickerMap: UIViewRepresentable {
     }
 
     public func updateUIView(_ uiView: SeatLayerPickerMapView, context: Context) {
+        // New prices reach the open map without a reload.
+        let pricing = options.pricing?.bridgeValue
+        if context.coordinator.pricing != pricing {
+            context.coordinator.pricing = pricing
+            let sent = options.pricing
+            Task { @MainActor in
+                try? await controller.setPricing(sent)
+            }
+        }
         guard context.coordinator.themeMode != themeMode
                 || context.coordinator.mapTheme != mapTheme else { return }
         context.coordinator.themeMode = themeMode
@@ -122,20 +131,24 @@ public struct SeatLayerPickerMap: UIViewRepresentable {
     }
 
     public func makeCoordinator() -> Coordinator {
-        Coordinator(themeMode: themeMode, mapTheme: mapTheme)
+        Coordinator(themeMode: themeMode, mapTheme: mapTheme, pricing: options.pricing?.bridgeValue)
     }
 
     public final class Coordinator {
         fileprivate weak var mapView: SeatLayerPickerMapView?
         fileprivate var themeMode: SeatLayerPickerThemeMode?
         fileprivate var mapTheme: SeatLayerPickerMapTheme?
+        /// The prices the page was last given: at load, then by `setPricing`.
+        fileprivate var pricing: JSONValue?
 
         fileprivate init(
             themeMode: SeatLayerPickerThemeMode?,
-            mapTheme: SeatLayerPickerMapTheme?
+            mapTheme: SeatLayerPickerMapTheme?,
+            pricing: JSONValue?
         ) {
             self.themeMode = themeMode
             self.mapTheme = mapTheme
+            self.pricing = pricing
         }
     }
 }

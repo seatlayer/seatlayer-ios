@@ -68,6 +68,7 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
                 "access-needs-v1",
                 "hold-selection-v1",
                 "hold-mark-booked-v1",
+                "host-pricing-v1",
                 "seat-view-thumbnail-v1",
                 "accessibility-focus-v1",
                 "section-access-counts-v1",

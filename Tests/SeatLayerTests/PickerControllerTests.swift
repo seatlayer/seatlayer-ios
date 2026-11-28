@@ -635,6 +635,43 @@ final class PickerControllerTests: XCTestCase {
         XCTAssertTrue(sent.isEmpty)
     }
 
+    func testSetPricingSendsThePagesShapeAndNilPutsTheChartsPricesBack() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(
+            transport: transport,
+            commands: ["picker.setPricing"],
+            capabilities: ["host-pricing-v1"]
+        )
+        XCTAssertTrue(controller.supportsHostPricing)
+
+        try await controller.setPricing(SeatLayerPickerPricing(
+            categories: ["stalls": SeatLayerCategoryPricing(base: 45)],
+            formatter: { amount, _ in "\(amount)" }
+        ))
+        try await controller.setPricing(nil)
+
+        let sent = await transport.recordedCalls().filter { $0.name == "picker.setPricing" }
+        // The formatter stays with the options: only prices go on the wire.
+        XCTAssertEqual(sent.map(\.payload), [
+            .object(["pricing": .object(["prices": .object(["stalls": .double(45)])])]),
+            .object(["pricing": .null]),
+        ])
+    }
+
+    func testSetPricingOnAPageWithoutHostPricingSendsNothing() async throws {
+        let transport = PickerTransportSpy()
+        let controller = readyController(transport: transport, commands: ["picker.setPricing"])
+
+        let snapshot = try await controller.setPricing(SeatLayerPickerPricing(
+            categories: ["stalls": SeatLayerCategoryPricing(base: 45)]
+        ))
+
+        XCTAssertNil(snapshot)
+        XCTAssertFalse(controller.supportsHostPricing)
+        let sent = await transport.recordedCalls().filter { $0.name == "picker.setPricing" }
+        XCTAssertTrue(sent.isEmpty)
+    }
+
     func testMarkBookedRefusesAnEmptyHoldId() async {
         let controller = readyController(
             transport: PickerTransportSpy(),

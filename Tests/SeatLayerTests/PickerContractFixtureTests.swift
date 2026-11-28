@@ -131,7 +131,7 @@ final class PickerContractFixtureTests: XCTestCase {
         XCTAssertTrue(core.requiredEvents.isEmpty)
         // The command and event tables are documentation of what the wrapper
         // sends and listens for; the handshake demands neither.
-        XCTAssertEqual(strings(root["usedCommands"]).count, 43)
+        XCTAssertEqual(strings(root["usedCommands"]).count, 44)
         XCTAssertTrue(strings(root["usedEvents"]).contains("seat.retap"))
         XCTAssertEqual(strings(root["optionalCapabilities"]), core.optionalCapabilities)
 

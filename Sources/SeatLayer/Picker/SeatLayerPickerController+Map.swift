@@ -178,6 +178,17 @@ extension SeatLayerPickerController {
     public func zoomOut() async throws { _ = try await mutation("picker.zoomOut") }
     public func zoomToFit() async throws { _ = try await mutation("picker.zoomToFit") }
 
+    /// Changes the prices the buyer is shown on the open map, without a
+    /// reload. `nil`, or pricing with no usable price, puts the chart's own
+    /// prices back. The formatter is not sent: it stays with the options. A
+    /// page without `host-pricing-v1` keeps the chart's prices, and nothing is
+    /// sent. Display only: the hold is still priced by the server.
+    @discardableResult
+    public func setPricing(_ pricing: SeatLayerPickerPricing?) async throws -> SeatLayerPickerSnapshot? {
+        guard supportsHostPricing else { return nil }
+        return try await mutation("picker.setPricing", ["pricing": pricing?.bridgeValue ?? .null])
+    }
+
     public func setThemeMode(
         _ mode: SeatLayerPickerThemeMode?,
         mapTheme: SeatLayerPickerMapTheme? = nil
