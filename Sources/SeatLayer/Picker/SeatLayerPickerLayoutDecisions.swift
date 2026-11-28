@@ -33,12 +33,20 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
     var pendingSeatId: String?
     var hasActivePrompt: Bool
     var isRegularWidth: Bool
+    /// The vertical size class. An iPhone held sideways is regular in width
+    /// and compact in height; only a box regular both ways is a tablet's.
+    var isRegularHeight: Bool
     var isAccessibilityTypeSize: Bool
     var phoneCartHeight: Double
     /// The picker's OWN measured container width, never the device or the
     /// window. Nil before the first layout pass, where the size class is the
     /// only reading there is.
     var containerWidth: Double?
+    /// The same box's height, measured with its width.
+    var containerHeight: Double?
+    /// Whether the levels' pill, at its measured width, fits on the map's top
+    /// line between the test chip and the Map | 3D control.
+    var levelsFitTopLine: Bool
     /// The bottom safe inset, absorbed once by whichever surface owns the
     /// bottom edge.
     var bottomSafeInset: Double
@@ -53,9 +61,12 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         pendingSeatId: String?,
         hasActivePrompt: Bool,
         isRegularWidth: Bool,
+        isRegularHeight: Bool = true,
         isAccessibilityTypeSize: Bool,
         phoneCartHeight: Double,
         containerWidth: Double? = nil,
+        containerHeight: Double? = nil,
+        levelsFitTopLine: Bool = false,
         bottomSafeInset: Double = 0
     ) {
         self.snapshot = snapshot
@@ -67,9 +78,12 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         self.pendingSeatId = pendingSeatId
         self.hasActivePrompt = hasActivePrompt
         self.isRegularWidth = isRegularWidth
+        self.isRegularHeight = isRegularHeight
         self.isAccessibilityTypeSize = isAccessibilityTypeSize
         self.phoneCartHeight = phoneCartHeight
         self.containerWidth = containerWidth
+        self.containerHeight = containerHeight
+        self.levelsFitTopLine = levelsFitTopLine
         self.bottomSafeInset = max(0, bottomSafeInset)
     }
 }
@@ -87,6 +101,9 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
     let showsBuyerViewControl: Bool
     let topRailVisible: Bool
     let floorRailVisible: Bool
+    /// Held sideways the map is short, so the levels stand on its top line,
+    /// between the test chip and the Map | 3D control, where all three fit.
+    let levelsOnTopLine: Bool
     let truthBandVisibleAtTop: Bool
     let primaryChromeHeight: Double
     let topChromeHeight: Double
@@ -137,12 +154,21 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             // wide as the box it was given, and a size class describes the
             // window. Below `phoneBreakpoint` is compact, at or above
             // `wideBreakpoint` is wide, and between the two the compact
-            // composition holds. The size class only decides before the first
-            // layout pass has measured anything.
+            // composition holds.
+            //
+            // Width alone is not enough: a phone held sideways is 852 to 956
+            // wide but only 375 to 440 tall, and the wide composition is built
+            // for a tablet's height. So the box's shorter side must also reach
+            // `tabletShortestSide`; a phone is a phone however it is held.
+            // The size classes only decide before the first layout pass has
+            // measured anything, and an iPhone held sideways is compact in
+            // height there.
             if let width = context.containerWidth, width > 0 {
+                let height = context.containerHeight.flatMap { $0 > 0 ? $0 : nil } ?? width
                 usesWideLayout = width >= SeatLayerPickerSizeTokens.wideBreakpoint
+                    && min(width, height) >= SeatLayerPickerSizeTokens.tabletShortestSide
             } else {
-                usesWideLayout = context.isRegularWidth
+                usesWideLayout = context.isRegularWidth && context.isRegularHeight
             }
         }
         wideRailWidth = context.isAccessibilityTypeSize
@@ -175,8 +201,23 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             && (snapshot?.map.floors.count ?? 0) > 1
         truthBandVisibleAtTop = !visibility.panorama && testMode
 
+        var sideways = false
+        if let width = context.containerWidth, let height = context.containerHeight,
+           width > 0, height > 0 {
+            sideways = width > height
+        }
+        levelsOnTopLine = floorRailVisible
+            && !usesWideLayout
+            && !visibility.venue3D
+            && sideways
+            && context.levelsFitTopLine
+
         var primary = topRailVisible ? SeatLayerPickerReadyMetrics.topRailHeight : 0
-        if floorRailVisible { primary += SeatLayerPickerReadyMetrics.floorRailHeight }
+        // On the top line the levels share the band the Map | 3D control
+        // already takes; with nothing else on that line they need their own.
+        if floorRailVisible, !(levelsOnTopLine && topRailVisible) {
+            primary += SeatLayerPickerReadyMetrics.floorRailHeight
+        }
         primaryChromeHeight = primary
 
         var top = primary

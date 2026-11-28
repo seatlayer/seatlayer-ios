@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+**A phone held sideways**
+
+- The picker keeps the phone layout on a phone held sideways. The wide
+  layout needs a box at least 840 points wide whose shorter side is at least
+  600 points, as on React Native and Flutter. Before the first measure the
+  size classes decide, and an iPhone held sideways is compact in height.
+  `options.layout = .wide` is still honoured.
+- The levels stand on the map's top line, between the "Test mode" badge and
+  the Map / 3D control, where all three fit. They took a line of their own
+  under the control, and the badge a third. Upright nothing moves. The
+  connection status goes under that line while the levels hold it.
+- The open cart list, and the "Find seats together" tray, leave the map its
+  top line (60 points) and scroll below it. On a short map they were taller
+  than the map and pushed the whole picker up: the header went off the top
+  and the cart row off the bottom.
+- The map's controls stand under that top line: beside one another on a map
+  too short for one column of them, and not at all on a map too short for
+  even one, as under the open list. The filter button stood over the Map / 3D
+  control.
+- The map's controls follow the picker's layout. They read the size class,
+  so on an iPhone Plus or Pro Max held sideways they could follow the wide
+  layout while the picker was laid out as a phone.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**

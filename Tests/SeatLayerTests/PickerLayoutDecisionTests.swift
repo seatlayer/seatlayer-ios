@@ -100,6 +100,66 @@ final class PickerLayoutDecisionTests: XCTestCase {
         )
     }
 
+    func testHeldSidewaysTheLevelsShareTheTopLineWhereTheyFit() throws {
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(mode: "test", floors: ["Stalls", "Circle"]),
+            isRegularHeight: false,
+            containerWidth: 852,
+            containerHeight: 393,
+            levelsFitTopLine: true
+        ))
+
+        XCTAssertTrue(decision.levelsOnTopLine)
+        // The levels' own line is given back to the map.
+        XCTAssertEqual(decision.primaryChromeHeight, SeatLayerPickerReadyMetrics.topRailHeight)
+        XCTAssertEqual(
+            decision.topChromeHeight,
+            SeatLayerPickerReadyMetrics.topRailHeight + SeatLayerPickerReadyMetrics.truthBandHeight
+        )
+    }
+
+    func testTheLevelsKeepTheirOwnLineUprightWideOrWhenTheyDoNotFit() throws {
+        let floors = try makeSnapshot(floors: ["Stalls", "Circle"])
+        let cases: [(String, SeatLayerPickerLayoutContext)] = [
+            ("upright", makeContext(
+                snapshot: floors, containerWidth: 393, containerHeight: 852, levelsFitTopLine: true
+            )),
+            ("sideways, too wide", makeContext(
+                snapshot: floors, isRegularHeight: false,
+                containerWidth: 852, containerHeight: 393, levelsFitTopLine: false
+            )),
+            ("tablet", makeContext(
+                snapshot: floors, isRegularWidth: true,
+                containerWidth: 1180, containerHeight: 820, levelsFitTopLine: true
+            )),
+        ]
+        for (name, context) in cases {
+            let decision = SeatLayerPickerLayoutDecision(context)
+            XCTAssertFalse(decision.levelsOnTopLine, name)
+            XCTAssertEqual(
+                decision.primaryChromeHeight,
+                SeatLayerPickerReadyMetrics.topRailHeight + SeatLayerPickerReadyMetrics.floorRailHeight,
+                name
+            )
+        }
+    }
+
+    func testTheLevelsOnTheTopLineStandInTheMiddleOfTheSwitchesLine() {
+        let strip = 34.0
+        let withSwitch = SeatLayerPickerAnchorPlan(
+            topTrailingControlHeight: SeatLayerPickerSizeTokens.viewModeControlHeight
+        )
+        XCTAssertEqual(
+            withSwitch.topLineLevelsTop(stripHeight: strip),
+            SeatLayerPickerSizeTokens.mapAnchorInset
+                + (SeatLayerPickerSizeTokens.viewModeControlHeight - strip) / 2
+        )
+        XCTAssertEqual(
+            SeatLayerPickerAnchorPlan().topLineLevelsTop(stripHeight: strip),
+            SeatLayerPickerSizeTokens.mapAnchorInset
+        )
+    }
+
     func testLoadingPhaseAlwaysShowsTheStatusOverlay() throws {
         let decision = SeatLayerPickerLayoutDecision(
             makeContext(snapshot: nil, phase: .loading)
@@ -124,7 +184,8 @@ final class PickerLayoutDecisionTests: XCTestCase {
         let wide = SeatLayerPickerLayoutDecision(makeContext(
             snapshot: try makeSnapshot(),
             isRegularWidth: false,
-            containerWidth: SeatLayerPickerSizeTokens.wideBreakpoint
+            containerWidth: SeatLayerPickerSizeTokens.wideBreakpoint,
+            containerHeight: SeatLayerPickerSizeTokens.tabletShortestSide
         ))
         XCTAssertTrue(wide.usesWideLayout)
 
@@ -135,6 +196,98 @@ final class PickerLayoutDecisionTests: XCTestCase {
             containerWidth: SeatLayerPickerSizeTokens.phoneBreakpoint + 1
         ))
         XCTAssertFalse(between.usesWideLayout)
+    }
+
+    func testAPhoneHeldSidewaysKeepsThePhoneLayout() throws {
+        // Every iPhone held sideways is shorter than `tabletShortestSide`, and
+        // the larger ones are wider than `wideBreakpoint`: the box the picker
+        // measures, safe areas included. Plus and Pro Max are also regular in
+        // width. The 320-point SE (1st generation) runs the iOS 15 floor.
+        let sideways: [(String, Double, Double, Bool)] = [
+            ("iPhone SE (1st generation)", 568, 320, false),
+            ("iPhone SE", 667, 375, false),
+            ("iPhone 16", 852, 393, false),
+            ("iPhone 16 Pro", 874, 402, false),
+            ("iPhone 16 Plus", 932, 430, true),
+            ("iPhone 16 Pro Max", 956, 440, true),
+        ]
+        for (name, width, height, regularWidth) in sideways {
+            let decision = SeatLayerPickerLayoutDecision(makeContext(
+                snapshot: try makeSnapshot(),
+                isRegularWidth: regularWidth,
+                isRegularHeight: false,
+                containerWidth: width,
+                containerHeight: height
+            ))
+            XCTAssertFalse(decision.usesWideLayout, name)
+            XCTAssertGreaterThan(decision.bottomChromeHeight, 0, "\(name) keeps the one-row cart")
+            XCTAssertLessThan(
+                decision.viewportInsets.right,
+                SeatLayerPickerReadyMetrics.wideRailWidth,
+                "\(name) has no rail"
+            )
+        }
+    }
+
+    func testATabletBoxStillTakesTheWideLayout() throws {
+        let tablets: [(String, Double, Double)] = [
+            ("iPad mini landscape", 1133, 744),
+            ("iPad Air 11 landscape", 1180, 820),
+            ("iPad Pro 13 landscape", 1376, 1032),
+            ("iPad Pro 13 portrait", 1032, 1376),
+        ]
+        for (name, width, height) in tablets {
+            let decision = SeatLayerPickerLayoutDecision(makeContext(
+                snapshot: try makeSnapshot(),
+                isRegularWidth: true,
+                containerWidth: width,
+                containerHeight: height
+            ))
+            XCTAssertTrue(decision.usesWideLayout, name)
+        }
+        // Upright on the smaller iPads the box is under `wideBreakpoint`.
+        let upright = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(),
+            isRegularWidth: true,
+            containerWidth: 820,
+            containerHeight: 1180
+        ))
+        XCTAssertFalse(upright.usesWideLayout)
+    }
+
+    func testAWideButShortBoxIsLaidOutAsAPhone() throws {
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(),
+            isRegularWidth: true,
+            containerWidth: 1000,
+            containerHeight: SeatLayerPickerSizeTokens.tabletShortestSide - 1
+        ))
+        XCTAssertFalse(decision.usesWideLayout)
+    }
+
+    func testAnAppThatAsksForTheWideLayoutGetsItSideways() throws {
+        var options = SeatLayerPickerOptions()
+        options.layout = .wide
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(),
+            isRegularWidth: false,
+            isRegularHeight: false,
+            options: options,
+            containerWidth: 852,
+            containerHeight: 393
+        ))
+        XCTAssertTrue(decision.usesWideLayout)
+    }
+
+    func testBeforeTheFirstMeasureASidewaysPhoneIsAPhone() throws {
+        // Plus and Pro Max held sideways are regular in width, compact in height.
+        let sideways = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(),
+            isRegularWidth: true,
+            isRegularHeight: false,
+            containerWidth: nil
+        ))
+        XCTAssertFalse(sideways.usesWideLayout)
     }
 
     func testAnUnmeasuredContainerStillFallsBackToTheSizeClass() throws {
@@ -189,10 +342,13 @@ final class PickerLayoutDecisionTests: XCTestCase {
         pendingSeatId: String? = nil,
         hasActivePrompt: Bool = false,
         isRegularWidth: Bool = false,
+        isRegularHeight: Bool = true,
         isAccessibilityTypeSize: Bool = false,
         phoneCartHeight: Double = SeatLayerPickerSizeTokens.peekHeight,
         options: SeatLayerPickerOptions = SeatLayerPickerOptions(),
         containerWidth: Double? = nil,
+        containerHeight: Double? = nil,
+        levelsFitTopLine: Bool = false,
         bottomSafeInset: Double = 0
     ) -> SeatLayerPickerLayoutContext {
         SeatLayerPickerLayoutContext(
@@ -205,9 +361,12 @@ final class PickerLayoutDecisionTests: XCTestCase {
             pendingSeatId: pendingSeatId,
             hasActivePrompt: hasActivePrompt,
             isRegularWidth: isRegularWidth,
+            isRegularHeight: isRegularHeight,
             isAccessibilityTypeSize: isAccessibilityTypeSize,
             phoneCartHeight: phoneCartHeight,
             containerWidth: containerWidth,
+            containerHeight: containerHeight,
+            levelsFitTopLine: levelsFitTopLine,
             bottomSafeInset: bottomSafeInset
         )
     }

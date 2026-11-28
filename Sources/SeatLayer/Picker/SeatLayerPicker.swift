@@ -176,6 +176,8 @@ private struct SeatLayerPickerReadyLayout: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.layoutDirection) private var layoutDirection
     let configuration: SeatLayerConfiguration
     let callbacks: SeatLayerPickerCallbacks
     let onCheckout: SeatLayerPickerCheckoutHandler
@@ -187,6 +189,9 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var reportedHold: SeatLayerPickerHold?
     @State private var phoneCartHeight = SeatLayerPickerSizeTokens.peekHeight
     @State private var containerWidth: Double?
+    @State private var containerHeight: Double?
+    @State private var mapWidth: Double = 0
+    @State private var mapHeight: Double?
     @State private var connectionAnchors = SeatLayerPickerConnectionAnchors()
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
@@ -242,7 +247,13 @@ private struct SeatLayerPickerReadyLayout: View {
                         SeatLayerPickerPartHost(.floorStrip) {
                             SeatLayerPickerFloorStrip(compact: !usesWideLayout)
                         }
-                        .padding(.top, decision.anchorPlan.leadingRailTop)
+                        .padding(.top, decision.levelsOnTopLine
+                            ? decision.anchorPlan.topLineLevelsTop(
+                                stripHeight: SeatLayerPickerFloorStrip.height(compact: true)
+                            )
+                            : decision.anchorPlan.leadingRailTop)
+                        .padding(.leading, decision.levelsOnTopLine ? topLineRoom.leading : 0)
+                        .padding(.trailing, decision.levelsOnTopLine ? topLineRoom.trailing : 0)
                         .dynamicTypeSize(...DynamicTypeSize.large)
                         Spacer(minLength: 0)
                     }
@@ -354,7 +365,8 @@ private struct SeatLayerPickerReadyLayout: View {
                     SeatLayerPickerConnectionLayer(
                         anchors: connectionAnchors,
                         fallbackTop: primaryChromeHeight + 4,
-                        wide: usesWideLayout
+                        wide: usesWideLayout,
+                        levelsOnLine: decision.levelsOnTopLine
                     )
                     .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
                     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -408,7 +420,25 @@ private struct SeatLayerPickerReadyLayout: View {
                     }
                 }
             }
+            // Chrome standing on the map is told its height. An open cart
+            // region leaves the map its top line, so the map is never pushed
+            // taller than the room it is given.
+            .environment(\.seatLayerPickerMapHeight, mapHeight)
+            .environment(\.seatLayerPickerWideLayout, usesWideLayout)
             .clipped()
+            .background {
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(key: SeatLayerPickerMapWidthKey.self, value: geometry.size.width)
+                        .preference(key: SeatLayerPickerMapHeightKey.self, value: geometry.size.height)
+                }
+            }
+            .onPreferenceChange(SeatLayerPickerMapWidthKey.self) { width in
+                if width > 0, width != mapWidth { mapWidth = width }
+            }
+            .onPreferenceChange(SeatLayerPickerMapHeightKey.self) { height in
+                if height > 0, height != mapHeight { mapHeight = height }
+            }
             .onPreferenceChange(SeatLayerPickerBlockedRegionsPreferenceKey.self) { entries in
                 let anchors = SeatLayerPickerConnectionAnchors(entries)
                 if anchors != connectionAnchors { connectionAnchors = anchors }
@@ -418,6 +448,7 @@ private struct SeatLayerPickerReadyLayout: View {
         .background(palette.background)
         .seatLayerPickerContainerMetrics(
             width: $containerWidth,
+            height: $containerHeight,
             bottomSafeInset: $bottomSafeInset
         )
         .seatLayerPickerToastFeed()
@@ -662,7 +693,7 @@ private struct SeatLayerPickerReadyLayout: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.top, decision.anchorPlan.testBadgeTop(
-                            floorStripHeight: floorRailVisible
+                            floorStripHeight: floorRailVisible && !decision.levelsOnTopLine
                                 ? SeatLayerPickerFloorStrip.height(compact: !usesWideLayout)
                                 : nil
                         ))
@@ -741,10 +772,46 @@ private struct SeatLayerPickerReadyLayout: View {
             pendingSeatId: presentation.pendingSeat?.id,
             hasActivePrompt: presentation.activePrompt != nil,
             isRegularWidth: horizontalSizeClass == .regular,
+            isRegularHeight: verticalSizeClass != .compact,
             isAccessibilityTypeSize: dynamicTypeSize.isAccessibilitySize,
             phoneCartHeight: phoneCartHeight,
             containerWidth: containerWidth,
+            containerHeight: containerHeight,
+            levelsFitTopLine: levelsFitTopLine,
             bottomSafeInset: bottomSafeInset
+        )
+    }
+
+    /// Whether the levels' pill fits on the map's top line, at the widths the
+    /// test chip, the Map | 3D control and the pill were last drawn at.
+    private var levelsFitTopLine: Bool {
+        let rightToLeft = layoutDirection == .rightToLeft
+        return seatLayerPickerLevelsFitTopLine(
+            mapWidth: mapWidth,
+            testChip: connectionAnchors.testChip.map {
+                seatLayerPickerLeadingFrame($0, mapWidth: mapWidth, rightToLeft: rightToLeft)
+            },
+            viewMode: connectionAnchors.viewMode.map {
+                seatLayerPickerLeadingFrame($0, mapWidth: mapWidth, rightToLeft: rightToLeft)
+            },
+            pillWidth: Double(connectionAnchors.floorRail?.width ?? 0)
+        )
+    }
+
+    /// The room the test chip and the Map | 3D control take at either end of
+    /// the top line, in leading-edge terms, so the levels stand between them.
+    private var topLineRoom: (leading: Double, trailing: Double) {
+        let rightToLeft = layoutDirection == .rightToLeft
+        let gap = SeatLayerPickerSizeTokens.mapAnchorGap
+        let chip = connectionAnchors.testChip.map {
+            seatLayerPickerLeadingFrame($0, mapWidth: mapWidth, rightToLeft: rightToLeft)
+        }
+        let control = connectionAnchors.viewMode.map {
+            seatLayerPickerLeadingFrame($0, mapWidth: mapWidth, rightToLeft: rightToLeft)
+        }
+        return (
+            leading: chip.map { Double($0.maxX) + gap } ?? 10,
+            trailing: control.map { mapWidth - Double($0.minX) + gap } ?? 10
         )
     }
 

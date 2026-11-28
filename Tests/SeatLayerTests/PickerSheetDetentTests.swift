@@ -211,4 +211,22 @@ final class PickerSheetDetentTests: XCTestCase {
             accuracy: 0.001
         )
     }
+
+    func testTheOpenRegionLeavesTheMapItsTopLine() {
+        // A phone held sideways: 430 tall, header and prices take 100, the
+        // row 76. The region gets what is left under the 60-point top line.
+        XCTAssertEqual(seatLayerPickerMapTopLine, 60)
+        XCTAssertEqual(
+            seatLayerPickerCartRegionHeight(wanted: 240, mapHeight: 330, rowHeight: 76),
+            330 - 76 - 60
+        )
+        // Upright the map has room: the region gets what it wants.
+        XCTAssertEqual(
+            seatLayerPickerCartRegionHeight(wanted: 240, mapHeight: 600, rowHeight: 89),
+            240
+        )
+        // Never below nothing, and unchanged outside a picker.
+        XCTAssertEqual(seatLayerPickerCartRegionHeight(wanted: 240, mapHeight: 100, rowHeight: 76), 0)
+        XCTAssertEqual(seatLayerPickerCartRegionHeight(wanted: 240, mapHeight: nil, rowHeight: 76), 240)
+    }
 }

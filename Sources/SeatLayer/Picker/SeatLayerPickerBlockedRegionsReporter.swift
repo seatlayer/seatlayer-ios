@@ -328,6 +328,29 @@ private struct SeatLayerPickerContainerWidthKey: PreferenceKey {
     }
 }
 
+/// The map stack's own width, which the top line's pieces are placed across.
+struct SeatLayerPickerMapWidthKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
+/// The map stack's own height, which chrome standing on it is fitted to.
+struct SeatLayerPickerMapHeightKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct SeatLayerPickerContainerHeightKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 private struct SeatLayerPickerBottomInsetKey: PreferenceKey {
     static var defaultValue: Double = 0
     static func reduce(value: inout Double, nextValue: () -> Double) {
@@ -343,6 +366,7 @@ extension View {
     /// it to exactly one surface and the layout is what knows which.
     func seatLayerPickerContainerMetrics(
         width: Binding<Double?>,
+        height: Binding<Double?>,
         bottomSafeInset: Binding<Double>
     ) -> some View {
         background {
@@ -351,6 +375,10 @@ extension View {
                     .preference(
                         key: SeatLayerPickerContainerWidthKey.self,
                         value: geometry.size.width
+                    )
+                    .preference(
+                        key: SeatLayerPickerContainerHeightKey.self,
+                        value: geometry.size.height
                     )
                     .preference(
                         key: SeatLayerPickerBottomInsetKey.self,
@@ -362,6 +390,10 @@ extension View {
         .onPreferenceChange(SeatLayerPickerContainerWidthKey.self) { measured in
             guard measured > 0 else { return }
             width.wrappedValue = measured
+        }
+        .onPreferenceChange(SeatLayerPickerContainerHeightKey.self) { measured in
+            guard measured > 0 else { return }
+            height.wrappedValue = measured
         }
         .onPreferenceChange(SeatLayerPickerBottomInsetKey.self) { measured in
             bottomSafeInset.wrappedValue = max(0, measured)
