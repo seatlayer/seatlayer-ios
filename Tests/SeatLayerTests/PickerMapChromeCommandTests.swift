@@ -278,7 +278,7 @@ final class PickerMapChromeCommandTests: XCTestCase {
         capabilities: [String] = []
     ) -> SeatLayerPickerController {
         let bundle = BundleInfo([
-            "bundle": "1.0.6",
+            "bundle": "1.0.8",
             "protocol": ["min": 2, "max": 2],
             "capabilities": .array(capabilities.map(JSONValue.string)),
             "commands": .array(commands.map(JSONValue.string)),

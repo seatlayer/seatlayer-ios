@@ -92,7 +92,7 @@ final class BridgeProfileTests: XCTestCase {
     func testABundleWithNoCommandsOrEventsStillBoots() throws {
         let profile = SeatLayerBridgeProfile.picker()
         let bare = BundleInfo([
-            "bundle": "1.0.6",
+            "bundle": "1.0.8",
             "protocol": ["min": 1, "max": 2],
             "capabilities": .array(
                 profile.requiredCapabilities.map(JSONValue.string)
@@ -138,7 +138,7 @@ final class BridgeProfileTests: XCTestCase {
     func testPickerProfileReportsAMissingRequiredCapability() {
         let profile = SeatLayerBridgeProfile.picker()
         let incomplete = BundleInfo([
-            "bundle": "1.0.6",
+            "bundle": "1.0.8",
             "protocol": ["min": 1, "max": 2],
             "capabilities": .array(
                 profile.requiredCapabilities.dropLast().map(JSONValue.string)
@@ -174,7 +174,7 @@ final class BridgeProfileTests: XCTestCase {
         events: [String]? = nil
     ) -> BundleInfo {
         BundleInfo([
-            "bundle": "1.0.6",
+            "bundle": "1.0.8",
             "protocol": ["min": 1, "max": 2],
             "capabilities": .array(
                 (capabilities ?? profile.requiredCapabilities + ["native-seat-view-chrome-v1"])

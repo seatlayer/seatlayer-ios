@@ -6,8 +6,8 @@ This work ships as 0.5.0, together with a newer map. 0.4.0 was never released;
 the last release is 0.3.4.
 
 The native picker follows the SeatLayer buyer picker's current phone design
-item by item, on hosted runtime `seatlayer-js@1.0.6`. Views load
-`https://cdn.seatlayer.io/seatlayer-js@1.0.6/mobile.html`.
+item by item, on hosted runtime `seatlayer-js@1.0.8`. Views load
+`https://cdn.seatlayer.io/seatlayer-js@1.0.8/mobile.html`.
 
 **A run of performances, new**
 
@@ -50,7 +50,7 @@ item by item, on hosted runtime `seatlayer-js@1.0.6`. Views load
 - The example app opens a Season with `SEATLAYER_SEASON_KEY` and
   `SEATLAYER_PUBLIC_KEY`.
 
-**The map: 0.84.1 to 1.0.6**
+**The map: 0.84.1 to 1.0.8**
 
 Public names stay; these are the changes an app or a buyer can notice.
 
@@ -80,8 +80,17 @@ Public names stay; these are the changes an app or a buyer can notice.
   commands keep `commandTimeout`, 15 seconds by default.
 - The map has 45 seconds to start (`handshakeTimeout`, was 30).
 - A standing area's line in the cart reads the area's name, and keeps its
-  "N left" count after a theme or language switch. What else changed on the
-  map is in the [changelog](https://docs.seatlayer.io/changelog/).
+  "N left" count after a theme or language switch.
+- The page names `connection-state-v1`, so the connection status, the offline
+  panel and the button's messages below are on.
+- A standing-area hold made while seats or tables were selected no longer
+  says "Seat T3 was just taken by another buyer." for the buyer's own seats
+  the moment the hold lands. A seat another buyer takes later is still
+  reported.
+- On a map 640 points wide or more, "+" stays on until the seat numbers show.
+- VoiceOver names the map's ⓘ buttons and display disc in the page's
+  language. What else changed on the map is in the
+  [changelog](https://docs.seatlayer.io/changelog/).
 
 **When iOS closes the map page**
 
