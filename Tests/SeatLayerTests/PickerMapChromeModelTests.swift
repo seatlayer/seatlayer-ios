@@ -129,6 +129,30 @@ final class PickerMapChromeModelTests: XCTestCase {
         XCTAssertNil(SeatLayerPickerRGB(hex: "not-a-colour"))
     }
 
+    // MARK: - Ink on the accent
+
+    func testABrandAccentCarriesWhiteWhereWhiteReadsElseTheNearBlack() {
+        func ink(_ accent: String, organizer: String? = nil, host: String? = nil) -> String {
+            seatLayerPickerOnAccentHex(
+                accent: accent,
+                hostInk: host,
+                organizerInk: organizer,
+                branded: true,
+                fallback: "#FFFFFF"
+            )
+        }
+        XCTAssertEqual(ink("#C8102E"), "#FFFFFF", "a brand red keeps white")
+        XCTAssertEqual(ink("#FFD400"), "#1A1200", "a yellow fails white")
+        XCTAssertEqual(ink("#FFD400", organizer: "#FFFFFF"), "#1A1200", "an organizer ink that does not read is dropped")
+        XCTAssertEqual(ink("#FFD400", organizer: "#222222"), "#222222", "one that reads is kept")
+        XCTAssertEqual(ink("#FFD400", host: "#FFFFFF"), "#FFFFFF", "the host's ink is obeyed as given")
+        XCTAssertEqual(
+            seatLayerPickerOnAccentHex(accent: "#6E7BFF", hostInk: nil, organizerInk: nil, branded: false, fallback: "#FDFDFF"),
+            "#FDFDFF",
+            "the picker's own accent keeps its own ink"
+        )
+    }
+
     // MARK: - Price rail
 
     func testAllPricesIsPinnedFirstAndSelectedWithNoFilter() throws {

@@ -198,7 +198,6 @@ public struct SeatLayerPickerTestModeIndicator: View {
             .dynamicTypeSize(...DynamicTypeSize.large)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(style.strings.text(.testModeLong))
-            .accessibilityHint(style.strings.text(.testModeExplained))
             .seatLayerPickerMapChromeRegion(SeatLayerPickerMapChromeKey.testChip)
         }
     }

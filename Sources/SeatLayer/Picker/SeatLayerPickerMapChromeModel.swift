@@ -85,6 +85,38 @@ public struct SeatLayerPickerRGB: Sendable, Equatable {
     }
 }
 
+/// The contrast a label on the accent has to clear: the accented surfaces all
+/// carry bold text at 15 points or larger, which WCAG sizes as large text.
+let seatLayerPickerOnAccentContrastFloor = 3.0
+
+/// The ink a brand accent carries when white cannot be read on it: a warm
+/// near-black, the web picker's ink for the same accents.
+let seatLayerPickerDarkOnAccent = "#1A1200"
+
+/// The ink on the accent, as a hex.
+///
+/// The host's own ink is obeyed as given. The organizer's is kept where it
+/// reads on the accent at `seatLayerPickerOnAccentContrastFloor`. Otherwise a
+/// brand accent carries white wherever white reads on it, else
+/// `seatLayerPickerDarkOnAccent`; the picker's own accent keeps its own ink.
+func seatLayerPickerOnAccentHex(
+    accent: String,
+    hostInk: String?,
+    organizerInk: String?,
+    branded: Bool,
+    fallback: String
+) -> String {
+    if let hostInk, SeatLayerPickerRGB(hex: hostInk) != nil { return hostInk }
+    guard let ground = SeatLayerPickerRGB(hex: accent) else { return fallback }
+    if let organizerInk, let ink = SeatLayerPickerRGB(hex: organizerInk),
+       ink.contrast(against: ground) >= seatLayerPickerOnAccentContrastFloor {
+        return organizerInk
+    }
+    guard branded else { return fallback }
+    let onWhite = 1.05 / (ground.luminance + 0.05)
+    return onWhite >= seatLayerPickerOnAccentContrastFloor ? "#FFFFFF" : seatLayerPickerDarkOnAccent
+}
+
 /// The two inks the picker sets the rest of its sentences in.
 ///
 /// Neither is pure black or pure white, mirroring `highestContrastInk` in the

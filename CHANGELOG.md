@@ -280,6 +280,12 @@ drawn)
   other small controls do; it answered on its 28-point chip only. The track
   looks as before. The level being drawn scrolls into view in a track with
   more levels than fit.
+- A brand accent's ink is checked against it: white where white reads on it
+  at 3:1, else a warm near-black (`#1A1200`, the web picker's). An
+  organizer's own ink is kept where it reads; a host's `onAccent` is obeyed as
+  given. A pale brand accent carried white text on its buttons and chips.
+- VoiceOver reads the test badge as "Test mode · books nothing" only; it
+  added a hint that pressing it explains test mode, which it does not.
 - The spotlight under a seat card stands on the seat. On a map at its edge,
   which could not move as far as asked, it stood up to 120 points above it.
   The veil is a flat 50 per cent (it was 38) and keeps its clear hole with

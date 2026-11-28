@@ -92,7 +92,15 @@ func resolveSeatLayerPickerPalette(
     let muted = role(style.theme.mutedText, defaults.muted)
     let divider = role(style.theme.divider, defaults.divider)
     let accent = brandRole(style.theme.accent, brand?.accent, defaults.accent)
-    let onAccent = brandRole(style.theme.onAccent, brand?.accentInk, defaults.onAccent)
+    // A pale brand accent with a fixed white ink is unreadable, so the ink is
+    // checked against the accent it stands on.
+    let onAccent = seatLayerPickerOnAccentHex(
+        accent: accent,
+        hostInk: style.theme.onAccent,
+        organizerInk: brand?.accentInk,
+        branded: accent != defaults.accent,
+        fallback: defaults.onAccent
+    )
     let error = role(style.theme.error, defaults.error)
     let warning = role(style.theme.warning, defaults.warning)
     let warnText = defaults.warnText
