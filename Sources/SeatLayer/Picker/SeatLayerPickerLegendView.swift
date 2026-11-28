@@ -67,7 +67,8 @@ public struct SeatLayerPickerPriceLegend: View {
                     style: style
                 )
             },
-            soldOutSuffix: style.strings.text(.soldOutTitle)
+            soldOutSuffix: style.strings.text(.soldOutTitle),
+            countsSeats: controller.supports(capability: "category-availability-v1")
         )
         if !immersive.panoramaChrome, let pinned = chips.first {
             HStack(spacing: 5) {
@@ -165,10 +166,21 @@ public struct SeatLayerPickerPriceLegend: View {
         } label: {
             HStack(spacing: 5) {
                 if let hex = entry.colorHex {
-                    categoryDot(hex: hex, palette: palette, selected: entry.selected)
+                    categoryDot(
+                        hex: hex,
+                        palette: palette,
+                        selected: entry.selected,
+                        // A sold-out price keys the grey the map paints on a
+                        // seat nobody can take, not a colour there is nothing
+                        // left of.
+                        muted: entry.soldOut
+                    )
                 }
                 Text(entry.label)
-                    .strikethrough(entry.soldOut, color: palette.mutedText)
+                    .strikethrough(
+                        entry.soldOut,
+                        color: entry.selected ? palette.onAccent : palette.text
+                    )
                     .lineLimit(1)
                     .monospacedDigit()
             }
@@ -179,11 +191,7 @@ public struct SeatLayerPickerPriceLegend: View {
                 // leads.
                 weight: naming ? .heavy : .bold
             )
-            .foregroundColor(
-                entry.selected
-                    ? palette.onAccent
-                    : entry.soldOut ? palette.mutedText : palette.text
-            )
+            .foregroundColor(entry.selected ? palette.onAccent : palette.text)
             .padding(.leading, compact ? 7 : 10)
             .padding(.trailing, compact ? 9 : 10)
             .frame(height: chipInkHeight)
@@ -195,6 +203,7 @@ public struct SeatLayerPickerPriceLegend: View {
                 )
             }
             .clipShape(Capsule())
+            .opacity(entry.soldOut && !entry.selected ? SeatLayerPickerOpacityTokens.legendSoldOut : 1)
             // The ink is the chip; the target is the whole band it sits in.
             .frame(
                 minWidth: SeatLayerPickerSizeTokens.minimumHitTarget,
@@ -203,7 +212,9 @@ public struct SeatLayerPickerPriceLegend: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!controller.isReady || entry.soldOut)
+        // A sold-out price still filters: the buyer can see where those
+        // seats were, and the filter is the way back out.
+        .disabled(!controller.isReady)
         .accessibilityLabel(entry.accessibilityLabel)
         .accessibilityAddTraits(entry.selected ? .isSelected : [])
         .opacity(revealed ? 1 : 0)
@@ -228,12 +239,15 @@ public struct SeatLayerPickerPriceLegend: View {
     private func categoryDot(
         hex: String,
         palette: SeatLayerPickerPalette,
-        selected: Bool
+        selected: Bool,
+        muted: Bool = false
     ) -> some View {
         let size = compact
             ? SeatLayerPickerSizeTokens.legendChipDotSize
             : SeatLayerPickerSizeTokens.legendChipDotSize + 3
-        let category = Color(uiColor: UIColor(slHex: hex) ?? .systemIndigo)
+        let category = muted
+            ? palette.mutedText
+            : Color(uiColor: UIColor(slHex: hex) ?? .systemIndigo)
         let light = !palette.dark
         let ring: Color? = selected ? palette.onAccent : (light ? category : nil)
         return Circle()

@@ -145,6 +145,18 @@ public final class SeatLayerPickerSeatLift {
     private var seenHeight: Double?
     private var isPending = false
     private var settleTask: Task<Void, Never>?
+    /// Asks made because an answer was news, one at a time.
+    private var newsTasks: [Task<Void, Never>] = []
+    /// How much is still missing of the way to where the seat was asked to
+    /// rest, as far as the answers have said.
+    private var short: Double = 0
+    /// Whether the question that stands has been answered before, and whether
+    /// the last answer found the seat in place.
+    private var answered = false
+    private var arrived = false
+    /// How often the question that stands was asked again because an answer
+    /// was news.
+    private var news = 0
 
     public init(
         settle: [Double] = SeatLayerPickerSeatLift.defaultSettle,
@@ -222,11 +234,14 @@ public final class SeatLayerPickerSeatLift {
         // this lift has already moved, so the pans folded into it are no longer
         // the shell's to add.
         if revision != self.revision { anchor = 0 }
+        if seatId != currentSeatId || next != fraction { short = 0 }
+        answered = false
+        arrived = false
+        news = 0
         currentSeatId = seatId
         fraction = next
         self.revision = revision
-        settleTask?.cancel()
-        settleTask = nil
+        cancelSettle()
         generation += 1
         let generation = generation
         Task { @MainActor [weak self] in
@@ -242,21 +257,71 @@ public final class SeatLayerPickerSeatLift {
         // it was, so the restore is refused for the same reason.
         if let gestures, answer.gestures != gestures { return }
         gestures = answer.gestures
-        pan += answer.dy
-        if answer.dy != 0 {
-            anchor += answer.dy
+        let again = answered
+        let wasThere = arrived
+        let moved = movedBy(answer.dy)
+        if moved != 0 {
+            pan += moved
+            anchor += moved
             onChanged?()
         }
-        guard settleTask == nil, !settle.isEmpty else { return }
-        settleTask = Task { @MainActor [weak self, settle] in
-            for delay in settle {
+        guard !settle.isEmpty else { return }
+        if settleTask == nil {
+            settleTask = Task { @MainActor [weak self, settle] in
+                for delay in settle {
+                    try? await Task.sleep(nanoseconds: UInt64(max(0, delay) * 1_000_000_000))
+                    guard let self, !Task.isCancelled,
+                          generation == self.generation,
+                          self.currentSeatId == seatId else { return }
+                    await self.lift(seatId: seatId, fraction: fraction, generation: generation)
+                }
+            }
+        } else if again, answer.dy != 0, moved != 0 || wasThere, news < settle.count {
+            // The seat moved since the last answer: ask once more, so a map
+            // that let go of its edge, or one a refit put back, is followed.
+            news += 1
+            let delay = settle[0]
+            newsTasks.append(Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(max(0, delay) * 1_000_000_000))
                 guard let self, !Task.isCancelled,
                       generation == self.generation,
                       self.currentSeatId == seatId else { return }
                 await self.lift(seatId: seatId, fraction: fraction, generation: generation)
-            }
+            })
         }
+    }
+
+    /// How far the seat has moved, now that the runtime has asked its map for
+    /// `dy`.
+    ///
+    /// `dy` is the way still left when the runtime was asked, and it answers
+    /// so whether or not its map can go there. The first time the map is taken
+    /// at its word. A map that is still short the next time stands at its
+    /// edge, and the seat is where that answer says it is; one that had
+    /// arrived was put back by a refit, and is brought back by this very pan.
+    private func movedBy(_ dy: Double) -> Double {
+        let moved: Double
+        if !answered {
+            // The same way short of the same place, on a newer snapshot.
+            let stuck = dy != 0 && dy == short
+            moved = stuck ? 0 : dy
+            if !stuck { short = 0 }
+        } else if arrived {
+            moved = 0
+        } else {
+            moved = short - dy
+            short = dy
+        }
+        answered = true
+        arrived = dy == 0
+        return moved
+    }
+
+    private func cancelSettle() {
+        settleTask?.cancel()
+        settleTask = nil
+        for task in newsTasks { task.cancel() }
+        newsTasks = []
     }
 
     /// Put the seat at its resting place, unless the buyer has moved the map,
@@ -275,8 +340,11 @@ public final class SeatLayerPickerSeatLift {
     /// Forget the lift without touching the map — the picker is going away.
     public func forget() {
         generation += 1
-        settleTask?.cancel()
-        settleTask = nil
+        cancelSettle()
+        short = 0
+        answered = false
+        arrived = false
+        news = 0
         seenHeight = nil
         isPending = false
         currentSeatId = nil

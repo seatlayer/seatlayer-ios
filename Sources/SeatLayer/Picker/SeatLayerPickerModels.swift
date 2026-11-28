@@ -49,6 +49,11 @@ public struct SeatLayerPickerCategory: Sendable, Equatable {
     public let availabilityReported: Bool
     public let notForSale: Bool
     public let tiers: [CategoryTier]
+    /// Seats still free in this category on live inventory, or nil when the
+    /// runtime has not said. Sent by a runtime that advertises
+    /// `category-availability-v1`. Unlike `available`, which reads zero
+    /// before counts arrive, nil here means unknown and a zero means sold out.
+    public let free: Int?
 
     init(
         key: String,
@@ -59,7 +64,8 @@ public struct SeatLayerPickerCategory: Sendable, Equatable {
         available: Int,
         availabilityReported: Bool = true,
         notForSale: Bool,
-        tiers: [CategoryTier]
+        tiers: [CategoryTier],
+        free: Int? = nil
     ) {
         self.key = key
         self.label = label
@@ -70,6 +76,7 @@ public struct SeatLayerPickerCategory: Sendable, Equatable {
         self.availabilityReported = availabilityReported
         self.notForSale = notForSale
         self.tiers = tiers
+        self.free = free
     }
 }
 

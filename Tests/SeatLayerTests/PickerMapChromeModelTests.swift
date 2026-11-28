@@ -52,6 +52,22 @@ final class PickerMapChromeModelTests: XCTestCase {
         )
     }
 
+    func testTheTestBadgeSharesTheTopLineWithMapAnd3DAndStepsUnderTheFloorStrip() {
+        let inset = SeatLayerPickerSizeTokens.mapAnchorInset
+        let gap = SeatLayerPickerSizeTokens.mapAnchorGap
+        let withSwitch = SeatLayerPickerAnchorPlan(
+            topTrailingControlHeight: SeatLayerPickerSizeTokens.viewModeControlHeight
+        )
+        // Beside the Map | 3D control, not under it.
+        XCTAssertEqual(withSwitch.testBadgeTop(floorStripHeight: nil), inset)
+        // One line under the floor strip, which itself is under the switch.
+        XCTAssertEqual(
+            withSwitch.testBadgeTop(floorStripHeight: 34),
+            inset + SeatLayerPickerSizeTokens.viewModeControlHeight + gap + 34 + gap
+        )
+        XCTAssertEqual(SeatLayerPickerAnchorPlan().testBadgeTop(floorStripHeight: 34), inset + 34 + gap)
+    }
+
     func testTheFloorRailStepsBelowTheMapAnd3DControlOnTheSameLine() {
         let alone = SeatLayerPickerAnchorPlan()
         XCTAssertEqual(alone.leadingRailTop, SeatLayerPickerSizeTokens.mapAnchorInset)
@@ -129,6 +145,30 @@ final class PickerMapChromeModelTests: XCTestCase {
         XCTAssertNil(SeatLayerPickerRGB(hex: "not-a-colour"))
     }
 
+    // MARK: - Ink on the accent
+
+    func testABrandAccentCarriesWhiteWhereWhiteReadsElseTheNearBlack() {
+        func ink(_ accent: String, organizer: String? = nil, host: String? = nil) -> String {
+            seatLayerPickerOnAccentHex(
+                accent: accent,
+                hostInk: host,
+                organizerInk: organizer,
+                branded: true,
+                fallback: "#FFFFFF"
+            )
+        }
+        XCTAssertEqual(ink("#C8102E"), "#FFFFFF", "a brand red keeps white")
+        XCTAssertEqual(ink("#FFD400"), "#1A1200", "a yellow fails white")
+        XCTAssertEqual(ink("#FFD400", organizer: "#FFFFFF"), "#1A1200", "an organizer ink that does not read is dropped")
+        XCTAssertEqual(ink("#FFD400", organizer: "#222222"), "#222222", "one that reads is kept")
+        XCTAssertEqual(ink("#FFD400", host: "#FFFFFF"), "#FFFFFF", "the host's ink is obeyed as given")
+        XCTAssertEqual(
+            seatLayerPickerOnAccentHex(accent: "#6E7BFF", hostInk: nil, organizerInk: nil, branded: false, fallback: "#FDFDFF"),
+            "#FDFDFF",
+            "the picker's own accent keeps its own ink"
+        )
+    }
+
     // MARK: - Price rail
 
     func testAllPricesIsPinnedFirstAndSelectedWithNoFilter() throws {
@@ -185,12 +225,28 @@ final class PickerMapChromeModelTests: XCTestCase {
             currency: "EUR",
             allPricesLabel: "All prices",
             amount: { "€\(Int($0))" },
-            soldOutSuffix: "Sold out"
+            soldOutSuffix: "Sold out",
+            countsSeats: true
         )
 
         XCTAssertTrue(chips[2].soldOut, "a reported zero is sold out")
         XCTAssertTrue(chips[2].accessibilityLabel.hasSuffix("Sold out"))
+        XCTAssertFalse(chips[1].soldOut, "available is not the live count")
         XCTAssertFalse(chips[3].soldOut, "an unreported count is unknown, never zero")
+    }
+
+    func testAZeroIsBelievedOnlyFromARuntimeThatCounts() throws {
+        let chips = SeatLayerPickerLegendModel.chips(
+            snapshot: try makeSnapshot(),
+            compact: true,
+            currency: "EUR",
+            allPricesLabel: "All prices",
+            amount: { "€\(Int($0))" },
+            soldOutSuffix: "Sold out",
+            countsSeats: false
+        )
+
+        XCTAssertFalse(chips.contains(where: \.soldOut))
     }
 
     func testAChartWithNoSellableCategoryDrawsNoRail() throws {
@@ -404,6 +460,7 @@ final class PickerMapChromeModelTests: XCTestCase {
                     "priceMin": 45,
                     "priceMax": 90,
                     "available": 0,
+                    "free": 0,
                 ]),
                 .object(["key": "guest", "label": "Guest list", "price": 0]),
             ]

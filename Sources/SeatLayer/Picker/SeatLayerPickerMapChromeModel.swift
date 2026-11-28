@@ -85,6 +85,38 @@ public struct SeatLayerPickerRGB: Sendable, Equatable {
     }
 }
 
+/// The contrast a label on the accent has to clear: the accented surfaces all
+/// carry bold text at 15 points or larger, which WCAG sizes as large text.
+let seatLayerPickerOnAccentContrastFloor = 3.0
+
+/// The ink a brand accent carries when white cannot be read on it: a warm
+/// near-black, the web picker's ink for the same accents.
+let seatLayerPickerDarkOnAccent = "#1A1200"
+
+/// The ink on the accent, as a hex.
+///
+/// The host's own ink is obeyed as given. The organizer's is kept where it
+/// reads on the accent at `seatLayerPickerOnAccentContrastFloor`. Otherwise a
+/// brand accent carries white wherever white reads on it, else
+/// `seatLayerPickerDarkOnAccent`; the picker's own accent keeps its own ink.
+func seatLayerPickerOnAccentHex(
+    accent: String,
+    hostInk: String?,
+    organizerInk: String?,
+    branded: Bool,
+    fallback: String
+) -> String {
+    if let hostInk, SeatLayerPickerRGB(hex: hostInk) != nil { return hostInk }
+    guard let ground = SeatLayerPickerRGB(hex: accent) else { return fallback }
+    if let organizerInk, let ink = SeatLayerPickerRGB(hex: organizerInk),
+       ink.contrast(against: ground) >= seatLayerPickerOnAccentContrastFloor {
+        return organizerInk
+    }
+    guard branded else { return fallback }
+    let onWhite = 1.05 / (ground.luminance + 0.05)
+    return onWhite >= seatLayerPickerOnAccentContrastFloor ? "#FFFFFF" : seatLayerPickerDarkOnAccent
+}
+
 /// The two inks the picker sets the rest of its sentences in.
 ///
 /// Neither is pure black or pure white, mirroring `highestContrastInk` in the
@@ -178,7 +210,8 @@ public enum SeatLayerPickerLegendModel {
         currency: String,
         allPricesLabel: String,
         amount: (Double) -> String,
-        soldOutSuffix: String
+        soldOutSuffix: String,
+        countsSeats: Bool = false
     ) -> [SeatLayerPickerLegendChip] {
         let categories = snapshot?.categories.filter { !$0.notForSale } ?? []
         guard !categories.isEmpty else { return [] }
@@ -195,7 +228,11 @@ public enum SeatLayerPickerLegendModel {
         ]
         for category in categories {
             let printed = amountText(category, amount: amount)
-            let soldOut = isSoldOut(category)
+            // A zero is believed only from a runtime that says it counts:
+            // without `category-availability-v1` an absent or zero figure
+            // means "not known yet", and striking a price the buyer can still
+            // book would lie.
+            let soldOut = countsSeats && isSoldOut(category)
             let spoken = [
                 printed.map { "\(category.label) — \($0)" } ?? category.label,
                 soldOut ? soldOutSuffix : "",
@@ -229,13 +266,13 @@ public enum SeatLayerPickerLegendModel {
         return "\(amount(category.priceMin))+"
     }
 
-    /// Sold out only on positive evidence.
+    /// Sold out only on positive evidence: the live `free` count is zero.
     ///
-    /// An absent availability figure means *unknown*, never zero: a rail that
-    /// struck a category through because nobody counted it would rewrite the
-    /// price ladder the buyer is reading.
+    /// An absent count means *unknown*, never zero: a rail that struck a
+    /// category through because nobody counted it would rewrite the price
+    /// ladder the buyer is reading.
     public static func isSoldOut(_ category: SeatLayerPickerCategory) -> Bool {
-        category.availabilityReported && category.available == 0
+        category.free == 0
     }
 }
 

@@ -72,13 +72,33 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                 .padding(.horizontal, sheetPadX)
                 .padding(.bottom, titleGap)
                 .measureSeatLayerAccessSheetBlock()
-            // The rows are the only part that scrolls: the title and the VIEW
-            // group stay put, so a chart carrying the whole vocabulary still
-            // shows the buyer what the sheet is and where the display
-            // switches are. Sized to the rows until the bound is reached,
-            // which is what keeps a two-row sheet two rows tall.
+            // Everything under the title scrolls as one: held sideways the
+            // sheet is short, and every row has to be reached and pressed.
+            // Sized to its content until the bound is reached, which is what
+            // keeps a two-row sheet two rows tall.
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 0) {
+                    // The two map switches come first and the provisions sit
+                    // under their own heading, so the switches never read as
+                    // two more provisions at the foot of the list.
+                    viewGroup(availability: availability, palette: palette)
+                    if !needs.isEmpty {
+                        Text(style.strings.text(.showSeatsFor))
+                            .seatLayerPickerFont(size: showSeatsForFontSize, weight: .bold)
+                            .modifier(SeatLayerPickerLetterSpacing(
+                                amount: showSeatsForFontSize * SeatLayerPickerSizeTokens.accessGroupHeadingTracking
+                            ))
+                            .foregroundColor(palette.mutedText)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
+                            .padding(.leading, SeatLayerPickerSizeTokens.accessRowPaddingX)
+                            .padding(.trailing, SeatLayerPickerSizeTokens.accessRowPaddingX)
+                            .padding(
+                                .top,
+                                availability.limitedView || availability.colorblind ? showSeatsForPadTop : 0
+                            )
+                            .padding(.bottom, showSeatsForPadBottom)
+                    }
                     ForEach(Array(needs.enumerated()), id: \.element.key) { index, need in
                         needRow(
                             need,
@@ -94,9 +114,6 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                 .padding(.horizontal, sheetPadX)
                 .measureSeatLayerAccessSheetBlock()
             }
-            viewGroup(availability: availability, palette: palette)
-                .padding(.horizontal, sheetPadX)
-                .measureSeatLayerAccessSheetBlock()
         }
         .padding(.bottom, sheetPadBottom)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -211,15 +228,6 @@ public struct SeatLayerPickerAccessibilityFilters: View {
         if availability.limitedView || availability.colorblind {
             // One container, so the group measures and lays out as one block.
             VStack(alignment: .leading, spacing: 0) {
-                Text(style.strings.text(.viewGroupTitle))
-                    .seatLayerPickerFont(size: viewHeadingFontSize, weight: .bold)
-                    .modifier(SeatLayerPickerLetterSpacing(amount: viewHeadingTracking))
-                    .foregroundColor(palette.mutedText)
-                    .accessibilityAddTraits(.isHeader)
-                    .padding(.leading, SeatLayerPickerSizeTokens.accessRowPaddingX)
-                    .padding(.top, viewHeadingPadTop)
-                    .padding(.trailing, SeatLayerPickerSizeTokens.accessRowPaddingX)
-                    .padding(.bottom, viewHeadingPadBottom)
                 if availability.limitedView {
                     row(
                         glyph: "restrictedView",
@@ -296,8 +304,10 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                         weight: .semibold
                     )
                     .foregroundColor(palette.text)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    // A name that does not fit wraps and its row grows: it is
+                    // never cut.
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, rowPaddingY)
                 if let note {
                     Button {
                         openNote = openNote == glyph ? nil : glyph
@@ -327,7 +337,7 @@ public struct SeatLayerPickerAccessibilityFilters: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, SeatLayerPickerSizeTokens.accessRowPaddingX)
-        .frame(height: rowHeight)
+        .frame(minHeight: rowHeight)
         .opacity(enabled ? 1 : disabledRowOpacity)
         .contentShape(Rectangle())
         .onTapGesture { if enabled { toggle() } }
@@ -422,9 +432,9 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     }
 
     /// The sheet takes the room its own content asks for, up to the bound —
-    /// two provisions and the VIEW group is a short sheet, not a bound-tall
-    /// one with a hole in the middle. Once the bound is reached the rows keep
-    /// their inner scroll and the map stays visible behind the rest.
+    /// two switches and two provisions is a short sheet, not a bound-tall one
+    /// with a hole in the middle. Once the bound is reached everything under
+    /// the title scrolls and the map stays visible behind the rest.
     private var sheetHeight: Double {
         guard measuredContent > 0 else { return sheetBound }
         return min(measuredContent, sheetBound)
@@ -436,6 +446,8 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     // into `Design/tokens.json` and regenerate; every value below is the
     // Flutter number, not a new one.
     private let rowHeight = 50.0
+    /// What keeps a row's text off its hairlines once it has grown.
+    private let rowPaddingY = 6.0
     private let countColumn = 68.0
     private let noteColumn = 36.0
     private let zeroCount = "0"
@@ -445,21 +457,15 @@ public struct SeatLayerPickerAccessibilityFilters: View {
     private let sheetPadX = 20.0
     private let sheetPadBottom = 20.0
     private let titleGap = 12.0
-    // tokens.json gap: the sheet's own title has no role in the type ramp.
-    // Flutter draws it at Material's `titleLarge` unchanged, which is 22 pt at
-    // the regular weight; the ramp's nearest role is `headerTitle` at 16, which
-    // is the picker's own header and a rung too quiet for a surface a buyer
-    // opened deliberately. 22/400 until a `sheetTitle` role exists.
-    private let titleFontSize = 22.0
-    private let titleWeight = 400.0
+    private let titleFontSize = SeatLayerPickerSizeTokens.accessSheetTitleFontSize
+    private let titleWeight = 800.0
     // tokens.json gap: the grabber's ink. Flutter takes Material's own drag
     // handle, which is the muted ink at this weight; the bar's width, height
     // and the block it centres in are all tokens.
     private let grabberOpacity = 0.4
-    private let viewHeadingFontSize = 11.0
-    private let viewHeadingTracking = 0.6
-    private let viewHeadingPadTop = 18.0
-    private let viewHeadingPadBottom = 4.0
+    private let showSeatsForFontSize = 11.0
+    private let showSeatsForPadTop = 18.0
+    private let showSeatsForPadBottom = 4.0
 
     private var noteIndent: Double {
         SeatLayerPickerSizeTokens.accessRowPaddingX

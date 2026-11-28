@@ -253,7 +253,9 @@ independent tokens (a host that darkens `background` for the map must not
 lose the event name) — with a hairline of `color.*.divider` under it. Left: the
 brand mark, a square of `size.headerLogoSize` at `radius.headerLogo`, filled
 with the accent and carrying either the organizer's logo image (cover-fitted) or
-the first letter of the brand or event name in `color.*.onAccent`. Centre: the
+the first letter of the brand or event name in `color.*.onAccent` (on a brand
+accent: the organizer's ink where it reads at 3:1, else white where white
+does, else `#1A1200`, the web picker's rule from runtime 1.0.1). Centre: the
 event name at `size.headerNameFontSize` w700, one line, ellipsized. Right, in
 order: the hold pill, the sales-closed pill, the close ring.
 
@@ -371,13 +373,20 @@ way. It is deliberately **not a chip**: it filters nothing, so it wears no
 pill, no hairline and no press target, and it is not a toggle to assistive
 technology.
 
-**Sold out.** A sold-out category keeps its chip, disabled and struck through —
-removing it would silently rewrite the price ladder the buyer was reading.
-An **absent** availability figure means *unknown*, never zero, and is never
-struck.
+**Sold out.** A sold-out category keeps its chip, struck through, at
+`opacity.legendSoldOut`, its dot in `color.*.mutedText` (the grey the map paints
+on a seat nobody can take) — removing it would silently rewrite the price ladder
+the buyer was reading. It **stays a toggle**: a tap switches the filter on and
+off like any other chip, so a buyer who pinned it can switch it off from the
+chip they switched it on with. Selected, it takes the accent ground at full
+strength and keeps the strike. Its accessible name ends with
+`strings.soldOutTitle`. Only a runtime that advertises
+`category-availability-v1` reports `free`, and only there is `free: 0` sold out:
+an **absent** figure means *unknown*, never zero, and is never struck.
 
-**States.** idle / selected / sold out / disabled; empty (the band is not
-drawn); over the immersive scene (not drawn).
+**States.** idle / selected / sold out (struck, still a toggle) / selected and
+sold out / disabled; empty (the band is not drawn); over the immersive scene
+(not drawn).
 
 **Motion.** On first reveal the chips stagger in on `motion.duration.stagger`
 between children, each on `motion.curve.easeEnter`. Filtering does not re-animate
@@ -680,15 +689,33 @@ colourblind switches; an unbounded scroll-controlled sheet answers that by
 taking the entire screen, and the map the buyer is filtering disappears behind
 the filter. The bound is
 `size.accessSheetMaxHeightFraction` of the screen, floored at
-`size.accessSheetMinHeight` and never taller than the screen itself, and the
-row list scrolls within it. (The web bounds its popover to the room above the
+`size.accessSheetMinHeight` and never taller than the screen itself, and
+everything under the title scrolls within it as one: held sideways the sheet
+is short, and every row, the two map switches included, has to be reached. (The web bounds its popover to the room above the
 ♿ button *inside the map*, for the mirror-image reason: a panel measured
 against the window opens straight through the ticket sheet below it.)
 
-Its sheet opens upward from the button and contains switch rows:
+Its sheet opens upward from the button. Its title, `strings.accessibilityTitle`,
+is the picker's own type, never the host's: `size.accessSheetTitleFontSize`
+w800, line height 1.2, in `color.*.text` and the picker font. It contains
+switch rows:
 
-- one row per access need the chart actually authors, in the runtime's order,
-  each with its live free count — `strings.accessFreeCount`, or **`0`** with
+- **first**, under the title, the two switches that act on the MAP rather
+  than on seats: `strings.hideLimitedView`, only where some seat is restricted
+  or obstructed, and `strings.colorblindSafe`. Neither of them reserves a count
+  column.
+- then, **under a group heading** `strings.showSeatsFor`, drawn exactly as
+  given — the string is written in capitals by its translator (English
+  `SHOW SEATS FOR`), and no port upper-cases it in code, which breaks Turkish,
+  Greek and Lithuanian — 11 /
+  w700 in `color.*.mutedText`, letter-spaced `size.accessGroupHeadingTracking`
+  em (1.1 at 11), inset 8 with 18 above (0 when
+  no map switch is drawn) and 4 below — the provisions (next bullet). The
+  heading is what stops the two map switches from reading as two more
+  provisions; it is drawn only where at least one provision exists. (`strings.viewGroupTitle` is no
+  longer drawn by the sheet; it stays a public string.)
+- each provision row: one per access need the chart actually authors, in the
+  runtime's order, each with its live free count — `strings.accessFreeCount`, or **`0`** with
   the row disabled when the last space goes. A figure, not a sentence: the
   count column carries numbers on every other row, "Not available" needed a
   chip to hold it and made the sold-out row the loudest line on the sheet, and
@@ -702,14 +729,6 @@ Its sheet opens upward from the button and contains switch rows:
   answers. A wheelchair row carries the note `strings.companionSeatsNote` where
   the chart has companion places — **behind an ⓘ**, not on a second line of the
   row: see "one line per row" below.
-- then, **under a group heading** `strings.viewGroupTitle` — 11 / w700 in
-  `color.*.mutedText`, letter-spaced .6, inset 8 with 18 above and 4 below —
-  the two switches that act on the MAP rather than on seats:
-  `strings.hideLimitedView`, only where some seat is restricted or obstructed,
-  and `strings.colorblindSafe`. The heading is what stops those two from
-  reading as two more provisions at the bottom of the provision list; it is
-  drawn only where at least one of the two rows exists. Neither of them
-  reserves a count column.
 
 **Every row wears a drawing, and it is the drawing that row is about.** Each
 provision row takes its own glyph from the shared per-attribute set (§3.8.9) by
@@ -748,8 +767,8 @@ label now (`size.accessNoteIconSize`, muted, accent while open, inside a
 line is a line whether or not the buyer has asked for it. The ⓘ carries the
 sentence as its own accessible name, so it is spoken either way, and it is a
 separate node from the row's switch because the two do different things. The
-label itself is `maxLines: 1` and truncates: a translation that runs long
-shortens rather than wrapping.
+label itself is never cut: a name too long for its cell wraps and its row
+grows.
 
 **The line reads icon · name · ⓘ · count · switch**, and the ⓘ shares ONE cell
 with the label: it explains the words beside it, not the switch at the far end.
@@ -1003,7 +1022,10 @@ blur, hairline `color.*.divider`, padding `size.floorRailPadding`, gap
 `size.floorRailGap`, horizontally scrollable. Each chip: height
 `size.floorChipHeight`, padding `size.floorChipPaddingX`, label at
 `size.floorChipFontSize`, `radius.pill`; idle ink `color.*.mutedText`,
-selected the accent ground with `color.*.onAccent`. An info glyph of
+selected the accent ground with `color.*.onAccent`. On a phone each chip
+answers a press on a band `size.minimumHitTarget` tall; the track is drawn at
+its own height in the middle of it, and the band takes no room. The chip of
+the level being drawn scrolls into view whenever it changes. An info glyph of
 `size.floorInfoSize` closes the track, inside a `size.minimumHitTarget` target,
 and is drawn only where the host takes an `onFloorInfo` action for it — a
 control that opens nothing is not drawn.
@@ -1045,23 +1067,30 @@ disc on a section-less chart, neighbours keeping full ink and numbers), but
 nothing quieted the MAP.
 
 So while a seat card is up the map takes a black veil at
-`opacity.confirmScrim` behind a `size.confirmScrimBlur` blur, masked by a
+`opacity.confirmScrimFlat`, with no blur, masked by a
 radial gradient that is fully clear to `size.confirmScrimClearRadius` around
 the tapped seat and reaches full strength at
 `size.confirmScrimFeatherRadius`. The hole is what makes this a spotlight
 rather than a curtain — the buyer is being asked about one seat and can still
 see it. The feather is what stops the hole reading as a drawn circle.
 
-Three rules bind it:
+There is no blur under the veil. The map is a platform view, and a backdrop
+blur over it is clipped to rectangles only, so a blur could not leave the round
+hole clear without straight edges through the seats around it. The veil is the
+same for every viewer, Reduce Transparency included: it is already flat, and
+the hole is what finds the seat.
+
+**The hole stands on the seat.** The runtime answers a lift with the pan it
+asked of its map; a map at its edge moves less. The first answer is taken at
+its word; a later answer for the same question that is still short says the
+map stopped at its edge, and the hole stands where that answer puts the seat.
+
+Two rules bind it:
 
 - **Only with a seat to spotlight.** No anchor — a prompt about no one seat, or
   the immersive scene, where the seat IS the picture — means no glass.
 - **It never takes a pointer event.** A press over the glass reaches the map
   underneath and cancels the card, exactly as a press on bare map does.
-- **Reduced transparency drops the blur** and deepens the veil to
-  `opacity.confirmScrimFlat`, so the map still recedes without being smeared.
-  Legibility is a setting, not a taste. Flutter has no direct reading of it, so
-  high contrast stands in.
 
 `scrimColor` stays a style slot for a host that wants a flat wash over the
 whole map instead; its default is transparent. While the card is up, the rest of the chrome is *paused*: the

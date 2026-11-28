@@ -14,7 +14,6 @@ public struct SeatLayerPickerSeatCardLayer: View {
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.seatLayerPickerCardStyles) private var slots
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The band the picker's own chrome stands on above the map.
@@ -54,7 +53,6 @@ public struct SeatLayerPickerSeatCardLayer: View {
                     SeatLayerPickerSpotlight(
                         seatPoint: seatPoint(for: subject.seat),
                         anchorDy: lift.anchorDy,
-                        reduceTransparency: reduceTransparency,
                         tint: slots.scrim,
                         // Tapping the glass gives the seat back. On this
                         // platform the map behind a decision is inert, so the

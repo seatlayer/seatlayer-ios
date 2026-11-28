@@ -53,6 +53,15 @@ public struct SeatLayerPickerFloorStrip: View {
         if floors.count > 1,
            controller.supportsFloorStack,
            snapshot?.map.buyerView == "map" {
+            let chosen = snapshot?.map.showsAllFloors == true
+                ? seatLayerAllFloors
+                : snapshot?.map.activeFloorId
+            let track = Self.height(compact: compact)
+            // Each chip answers a press on a band `minimumHitTarget` tall; the
+            // track is drawn at its own height in the middle of that band, and
+            // the band takes no room of its own.
+            let reach = max(0, (SeatLayerPickerSizeTokens.minimumHitTarget - track) / 2)
+            ScrollViewReader { scroller in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: SeatLayerPickerSizeTokens.floorRailGap) {
                     // The All-floors chip needs BOTH halves of the runtime's
@@ -79,14 +88,26 @@ public struct SeatLayerPickerFloorStrip: View {
                         infoGlyph(palette: palette, action: onFloorInfo)
                     }
                 }
-                .padding(SeatLayerPickerSizeTokens.floorRailPadding)
+                .padding(.horizontal, SeatLayerPickerSizeTokens.floorRailPadding)
+                .frame(height: track + reach * 2)
             }
-            .frame(height: Self.height(compact: compact))
+            // The level being drawn is always in view: a venue with more
+            // levels than the track shows scrolls to it when it changes.
+            .onAppear { reveal(chosen, with: scroller, animated: false) }
+            .onChange(of: chosen) { reveal($0, with: scroller, animated: true) }
+            }
+            .frame(height: track + reach * 2)
             .fixedSize(horizontal: true, vertical: false)
-            .background(palette.surface.opacity(0.92))
-            .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
-            .clipShape(Capsule())
+            .background {
+                Capsule()
+                    .fill(palette.surface.opacity(0.92))
+                    .overlay { Capsule().stroke(palette.divider, lineWidth: 1) }
+                    .frame(height: track)
+            }
+            // Drawn as the track alone; the band around it is for presses.
+            .mask { Capsule().frame(height: track) }
             .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
+            .padding(.vertical, -reach)
             .dynamicTypeSize(...DynamicTypeSize.large)
             // tokens.json gap: the rail wants a group name of its own
             // ("floors"); there is no string key for one.
@@ -130,12 +151,23 @@ public struct SeatLayerPickerFloorStrip: View {
                 )
                 .background(selected ? palette.accent : Color.clear)
                 .clipShape(Capsule())
+                .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .id(id)
         .disabled(!controller.isReady || selected)
         .accessibilityLabel(label)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func reveal(_ id: String?, with scroller: ScrollViewProxy, animated: Bool) {
+        guard let id else { return }
+        if animated {
+            withAnimation(.easeOut(duration: 0.2)) { scroller.scrollTo(id, anchor: .center) }
+        } else {
+            scroller.scrollTo(id, anchor: .center)
+        }
     }
 
     private func infoGlyph(

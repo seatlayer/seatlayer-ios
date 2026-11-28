@@ -24,28 +24,17 @@ struct SeatLayerPickerSpotlight: View {
     /// seat's reported point is where it sat before the lift. Without this the
     /// hole lands a whole lift band away from the seat.
     let anchorDy: Double
-    let reduceTransparency: Bool
     /// The host's own scrim colour, where it named one.
     let tint: Color?
     let onPress: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
-            // The veil is `opacity.confirmScrim`, and a viewer who asked for
-            // less transparency gets at least `confirmScrimFlat` — the shared
-            // token — but never less than this platform's own reduced-
-            // transparency floor, which is deeper still.
-            let opacity = reduceTransparency
-                ? max(
-                    SeatLayerPickerOpacityTokens.confirmScrimFlat,
-                    SeatLayerPickerTransparency.scrimOpacity(
-                        requested: SeatLayerPickerOpacityTokens.confirmScrim,
-                        reduceTransparency: true
-                    )
-                )
-                : SeatLayerPickerOpacityTokens.confirmScrim
+            // A flat `opacity.confirmScrimFlat` for every viewer: with no blur
+            // under it, the veil is already opaque enough, and the hole is
+            // what finds the seat.
             (tint ?? .black)
-                .opacity(opacity)
+                .opacity(SeatLayerPickerOpacityTokens.confirmScrimFlat)
                 .mask { mask(in: geometry.size) }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onPress)
@@ -59,7 +48,7 @@ struct SeatLayerPickerSpotlight: View {
 
     @ViewBuilder
     private func mask(in size: CGSize) -> some View {
-        if let seatPoint, !reduceTransparency {
+        if let seatPoint {
             let centre = CGPoint(x: seatPoint.x, y: seatPoint.y + anchorDy)
             let clear = SeatLayerPickerSizeTokens.confirmScrimClearRadius
             let feather = SeatLayerPickerSizeTokens.confirmScrimFeatherRadius
@@ -79,9 +68,8 @@ struct SeatLayerPickerSpotlight: View {
                 endRadius: feather
             )
         } else {
-            // No screen point, or a viewer who asked for less transparency:
-            // the veil is honest and flat rather than pretending to a hole it
-            // cannot place.
+            // No screen point: the veil is flat rather than pretending to a
+            // hole it cannot place.
             Rectangle()
         }
     }

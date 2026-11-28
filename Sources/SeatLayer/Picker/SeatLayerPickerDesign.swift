@@ -18,7 +18,7 @@ public let seatLayerPickerComponentSourceSHA256 =
 
 /// Hash of the platform-neutral picker specification.
 public let seatLayerPickerSpecSourceSHA256 =
-    "a32ef187799a5d593622942f8a9652f96758ab94eddc7ea9b32f2b864b1d1ea4"
+    "a6ed42bc23d9682f6ded3e5e9b6fd3fc33a13f33e065355f31e2bf44f5866372"
 
 // Every number the native chrome draws now enters Swift through
 // `SeatLayerPickerTokens*.g.swift`, generated from `Design/tokens.json`. This
