@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**The map: 1.0.8 to 1.0.9**
+
+Views load `https://cdn.seatlayer.io/seatlayer-js@1.0.9/mobile.html`.
+
+- On a phone held upright the level buttons show short codes, 2, 1, G and
+  All, so they take less room. Screen readers keep the full names, and a phone
+  held sideways keeps the long labels.
+- A Season hold reopened for the buyer who placed it lists its seats in the
+  cart, where it said "No seats selected".
+
 **The example app**
 
 - It needs `SEATLAYER_API_BASE` and shows setup guidance without it. It no

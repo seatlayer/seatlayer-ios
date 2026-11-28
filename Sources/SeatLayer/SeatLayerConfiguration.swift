@@ -153,7 +153,7 @@ public enum SeatLayer {
     /// This SDK's version.
     public static let sdkVersion = "0.5.0"
     /// Immutable hosted runtime loaded by production views.
-    public static let hostedWebVersion = "1.0.8"
+    public static let hostedWebVersion = "1.0.9"
     /// Runtime retained only for explicit offline demo/test fixtures.
     public static let legacyFixtureWebVersion = "0.59.0"
     @available(*, deprecated, renamed: "hostedWebVersion")

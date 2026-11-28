@@ -339,7 +339,7 @@ final class SeasonTests: XCTestCase {
         capabilities: [String] = ["season-surface-v1", "season-app-shell-v1", "connection-state-v1"]
     ) -> BundleInfo {
         BundleInfo([
-            "bundle": "1.0.8",
+            "bundle": "1.0.9",
             "protocol": ["min": 1, "max": 2],
             "capabilities": .array(capabilities.map(JSONValue.string)),
             "commands": ["season.requestClose", "season.setThemeMode", "season.setViewportInsets"],

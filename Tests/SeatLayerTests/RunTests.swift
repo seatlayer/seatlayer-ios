@@ -308,7 +308,7 @@ final class RunTests: XCTestCase {
 
     private func bundle(capabilities: [String] = ["group-surface-v1", "group-app-shell-v1", "connection-state-v1"]) -> BundleInfo {
         BundleInfo([
-            "bundle": "1.0.8",
+            "bundle": "1.0.9",
             "protocol": ["min": 1, "max": 2],
             "capabilities": .array(capabilities.map(JSONValue.string)),
             "commands": ["group.continue", "group.setViewportInsets"],
