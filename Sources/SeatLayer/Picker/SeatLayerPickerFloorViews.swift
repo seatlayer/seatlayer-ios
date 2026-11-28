@@ -16,6 +16,7 @@ public struct SeatLayerPickerFloorStrip: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let compact: Bool
     private let onFloorInfo: (@MainActor () -> Void)?
 
@@ -32,11 +33,17 @@ public struct SeatLayerPickerFloorStrip: View {
     }
 
     /// How tall the track is, so a layout can reserve the band it covers.
-    public static func height(compact: Bool = true) -> Double {
+    /// `railScale` is how far the rails' text has grown
+    /// (`type.scaleClamp.rail`); the chips grow with it.
+    public static func height(compact: Bool = true, railScale: Double = 1) -> Double {
+        chipHeight(compact: compact, railScale: railScale)
+            + SeatLayerPickerSizeTokens.floorRailPadding * 2
+    }
+
+    static func chipHeight(compact: Bool, railScale: Double) -> Double {
         (compact
             ? SeatLayerPickerSizeTokens.floorChipHeight
-            : SeatLayerPickerSizeTokens.floorChipHeight + 6)
-            + SeatLayerPickerSizeTokens.floorRailPadding * 2
+            : SeatLayerPickerSizeTokens.floorChipHeight + 6) * railScale
     }
 
     public var body: some View {
@@ -56,7 +63,7 @@ public struct SeatLayerPickerFloorStrip: View {
             let chosen = snapshot?.map.showsAllFloors == true
                 ? seatLayerAllFloors
                 : snapshot?.map.activeFloorId
-            let track = Self.height(compact: compact)
+            let track = Self.height(compact: compact, railScale: railScale)
             // Each chip answers a press on a band `minimumHitTarget` tall; the
             // track is drawn at its own height in the middle of that band, and
             // the band takes no room of its own.
@@ -108,13 +115,15 @@ public struct SeatLayerPickerFloorStrip: View {
             .mask { Capsule().frame(height: track) }
             .shadow(color: .black.opacity(0.12), radius: 4, y: 2)
             .padding(.vertical, -reach)
-            .dynamicTypeSize(...DynamicTypeSize.large)
+            .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
             // tokens.json gap: the rail wants a group name of its own
             // ("floors"); there is no string key for one.
             .accessibilityElement(children: .contain)
             .seatLayerPickerMapChromeRegion(SeatLayerPickerMapChromeKey.floorRail)
         }
     }
+
+    private var railScale: Double { seatLayerPickerRailScale(dynamicTypeSize) }
 
     /// Inside the track a chip is a segment, not a card: unselected it is
     /// transparent on the track's own ground and reads as muted text, and only
@@ -144,11 +153,7 @@ public struct SeatLayerPickerFloorStrip: View {
                         ? SeatLayerPickerSizeTokens.floorChipPaddingX
                         : SeatLayerPickerSizeTokens.floorChipPaddingX + 3
                 )
-                .frame(
-                    height: compact
-                        ? SeatLayerPickerSizeTokens.floorChipHeight
-                        : SeatLayerPickerSizeTokens.floorChipHeight + 6
-                )
+                .frame(height: Self.chipHeight(compact: compact, railScale: railScale))
                 .background(selected ? palette.accent : Color.clear)
                 .clipShape(Capsule())
                 .frame(maxHeight: .infinity)

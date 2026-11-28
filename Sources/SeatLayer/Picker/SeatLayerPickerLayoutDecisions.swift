@@ -10,6 +10,17 @@ enum SeatLayerPickerReadyMetrics {
     static let mapControlColumnInset = 56.0
     static let accessibilityColumnInset = 56.0
     static let accessibilityDockBarHeight = 72.0
+
+    /// The price legend's band: it and its chips grow with the rails' text.
+    static func topRailHeight(railScale: Double) -> Double {
+        topRailHeight * railScale
+    }
+
+    /// The levels' band: the chips grow with the rails' text, and the air
+    /// around them stays.
+    static func floorRailHeight(railScale: Double) -> Double {
+        floorRailHeight + SeatLayerPickerSizeTokens.floorChipHeight * (railScale - 1)
+    }
     static let wideRailWidth = 320.0
     static let accessibilityWideRailWidth = 380.0
 }
@@ -47,6 +58,9 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
     /// Whether the levels' pill, at its measured width, fits on the map's top
     /// line between the test chip and the Map | 3D control.
     var levelsFitTopLine: Bool
+    /// How far the rails' text has grown (`type.scaleClamp.rail`, 1 at the
+    /// platform's default size). The rails' bands grow with it.
+    var railScale: Double
     /// The bottom safe inset, absorbed once by whichever surface owns the
     /// bottom edge.
     var bottomSafeInset: Double
@@ -67,6 +81,7 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         containerWidth: Double? = nil,
         containerHeight: Double? = nil,
         levelsFitTopLine: Bool = false,
+        railScale: Double = 1,
         bottomSafeInset: Double = 0
     ) {
         self.snapshot = snapshot
@@ -84,6 +99,7 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         self.containerWidth = containerWidth
         self.containerHeight = containerHeight
         self.levelsFitTopLine = levelsFitTopLine
+        self.railScale = max(1, railScale)
         self.bottomSafeInset = max(0, bottomSafeInset)
     }
 }
@@ -212,11 +228,13 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             && sideways
             && context.levelsFitTopLine
 
-        var primary = topRailVisible ? SeatLayerPickerReadyMetrics.topRailHeight : 0
+        var primary = topRailVisible
+            ? SeatLayerPickerReadyMetrics.topRailHeight(railScale: context.railScale)
+            : 0
         // On the top line the levels share the band the Map | 3D control
         // already takes; with nothing else on that line they need their own.
         if floorRailVisible, !(levelsOnTopLine && topRailVisible) {
-            primary += SeatLayerPickerReadyMetrics.floorRailHeight
+            primary += SeatLayerPickerReadyMetrics.floorRailHeight(railScale: context.railScale)
         }
         primaryChromeHeight = primary
 
