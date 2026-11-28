@@ -1,4 +1,5 @@
 import SeatLayer
+import SwiftUI
 import UIKit
 
 /// End-to-end host for the ready-made native picker.
@@ -23,6 +24,11 @@ final class DemoViewController: UIViewController {
         static var locale: String {
             ProcessInfo.processInfo.environment["SEATLAYER_DEMO_LOCALE"] ?? "en"
         }
+
+        /// A run key opens the run picker instead of the event picker.
+        static var runKey: String? {
+            ProcessInfo.processInfo.environment["SEATLAYER_RUN_KEY"]
+        }
     }
 
     private var pickerHost: SeatLayerPickerViewController?
@@ -40,6 +46,10 @@ final class DemoViewController: UIViewController {
         case .light: overrideUserInterfaceStyle = .light
         case .dark: overrideUserInterfaceStyle = .dark
         case .auto: overrideUserInterfaceStyle = .unspecified
+        }
+        if let runKey = Fixture.runKey {
+            installRun(runKey, themeMode: themeMode)
+            return
         }
         if ProcessInfo.processInfo.environment["SEATLAYER_PREWARM"] == "1" {
             let indicator = installPrewarmIndicator()
@@ -200,6 +210,40 @@ final class DemoViewController: UIViewController {
             host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             host.view.topAnchor.constraint(equalTo: view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        host.didMove(toParent: self)
+    }
+
+    private func installRun(_ runKey: String, themeMode: SeatLayerPickerThemeMode) {
+        let picker = SeatLayerRunPicker(
+            configuration: SeatLayerRunConfiguration(
+                run: runKey,
+                apiBase: Fixture.apiBase,
+                locale: Fixture.locale
+            ),
+            themeMode: themeMode,
+            onContinue: { [weak self] handoff in
+                // Your checkout takes the hold from here.
+                let alert = UIAlertController(
+                    title: "Held for checkout",
+                    message: handoff.seatLabels.joined(separator: ", "),
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self?.present(alert, animated: true)
+            },
+            onClose: { [weak self] in self?.showClosedState() }
+        )
+        let host = UIHostingController(rootView: picker)
+        addChild(host)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.backgroundColor = .clear
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
         host.didMove(toParent: self)

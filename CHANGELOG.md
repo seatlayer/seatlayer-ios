@@ -9,6 +9,24 @@ The native picker follows the SeatLayer buyer picker's current phone design
 item by item, on hosted runtime `seatlayer-js@1.0.6`. Views load
 `https://cdn.seatlayer.io/seatlayer-js@1.0.6/mobile.html`.
 
+**A run of performances, new**
+
+- `SeatLayerRunPicker` opens a run: a few performances sold to one buyer as
+  one hold. The app's bar (brand mark, the run's name, the hold clock and
+  close) stands over SeatLayer's run page, which draws the performances, the
+  map, the seat card and the cart. `onContinue` hands over the hold
+  (`SeatLayerRunHandoff`); your server books it by `operationId`, at your
+  prices.
+- `SeatLayerRunController` publishes the run, its status, the hold and the
+  page's line, and sends `continueToCheckout`, `getHeldOrder`, `release`,
+  `setSelectionMode`, `markBooked`, `setViewportInsets` and `setForeground`.
+- `SeatLayerRunMapView` and `SeatLayerRunMap` host the page alone, for an app
+  that draws its own bar.
+- A page the system ends is opened again on the buyer's last hold, twice in a
+  minute at most, as the event picker's page is. A page that did not load
+  shows the event picker's panel, with its offline retries.
+- The example app opens a run with `SEATLAYER_RUN_KEY`.
+
 **The map: 0.84.1 to 1.0.6**
 
 Public names stay; these are the changes an app or a buyer can notice.
