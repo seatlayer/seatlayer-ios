@@ -265,6 +265,17 @@ drawn)
   checkout handler with the same hold, as React Native does. Apps that call
   `resumeAfterCheckout()` keep working; it still lets the buyer change the
   cart.
+- The accessibility sheet puts the map's two switches first and the needs
+  under their own heading, "SHOW SEATS FOR". A need's long name wraps and its
+  row grows; it was cut. Everything under the title scrolls, so a phone held
+  sideways reaches every row; only the needs scrolled, in a strip a row or two
+  tall. The title is 17 points, heavy, as on Flutter.
+- A sold-out price chip still filters the map when pressed, and is drawn
+  faded with a grey dot and its price struck through; it was greyed and did
+  nothing. A price is sold out only on the page's live count of free seats
+  (`SeatLayerPickerCategory.free`, from a page that names
+  `category-availability-v1`): before counts arrived, a price could be struck
+  through while seats were still free.
 - The spotlight under a seat card stands on the seat. On a map at its edge,
   which could not move as far as asked, it stood up to 120 points above it.
   The veil is a flat 50 per cent (it was 38) and keeps its clear hole with

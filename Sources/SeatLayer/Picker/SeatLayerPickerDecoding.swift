@@ -188,7 +188,8 @@ private func decodeCategory(_ value: JSONValue) -> SeatLayerPickerCategory? {
         available: max(0, reportedAvailability ?? 0),
         availabilityReported: reportedAvailability.map { $0 >= 0 } ?? false,
         notForSale: item["notForSale"]?.boolValue ?? false,
-        tiers: tiers
+        tiers: tiers,
+        free: exactInteger(item["free"]).map { max(0, $0) }
     )
 }
 

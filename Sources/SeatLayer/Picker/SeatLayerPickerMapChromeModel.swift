@@ -178,7 +178,8 @@ public enum SeatLayerPickerLegendModel {
         currency: String,
         allPricesLabel: String,
         amount: (Double) -> String,
-        soldOutSuffix: String
+        soldOutSuffix: String,
+        countsSeats: Bool = false
     ) -> [SeatLayerPickerLegendChip] {
         let categories = snapshot?.categories.filter { !$0.notForSale } ?? []
         guard !categories.isEmpty else { return [] }
@@ -195,7 +196,11 @@ public enum SeatLayerPickerLegendModel {
         ]
         for category in categories {
             let printed = amountText(category, amount: amount)
-            let soldOut = isSoldOut(category)
+            // A zero is believed only from a runtime that says it counts:
+            // without `category-availability-v1` an absent or zero figure
+            // means "not known yet", and striking a price the buyer can still
+            // book would lie.
+            let soldOut = countsSeats && isSoldOut(category)
             let spoken = [
                 printed.map { "\(category.label) — \($0)" } ?? category.label,
                 soldOut ? soldOutSuffix : "",
@@ -229,13 +234,13 @@ public enum SeatLayerPickerLegendModel {
         return "\(amount(category.priceMin))+"
     }
 
-    /// Sold out only on positive evidence.
+    /// Sold out only on positive evidence: the live `free` count is zero.
     ///
-    /// An absent availability figure means *unknown*, never zero: a rail that
-    /// struck a category through because nobody counted it would rewrite the
-    /// price ladder the buyer is reading.
+    /// An absent count means *unknown*, never zero: a rail that struck a
+    /// category through because nobody counted it would rewrite the price
+    /// ladder the buyer is reading.
     public static func isSoldOut(_ category: SeatLayerPickerCategory) -> Bool {
-        category.availabilityReported && category.available == 0
+        category.free == 0
     }
 }
 

@@ -185,12 +185,28 @@ final class PickerMapChromeModelTests: XCTestCase {
             currency: "EUR",
             allPricesLabel: "All prices",
             amount: { "€\(Int($0))" },
-            soldOutSuffix: "Sold out"
+            soldOutSuffix: "Sold out",
+            countsSeats: true
         )
 
         XCTAssertTrue(chips[2].soldOut, "a reported zero is sold out")
         XCTAssertTrue(chips[2].accessibilityLabel.hasSuffix("Sold out"))
+        XCTAssertFalse(chips[1].soldOut, "available is not the live count")
         XCTAssertFalse(chips[3].soldOut, "an unreported count is unknown, never zero")
+    }
+
+    func testAZeroIsBelievedOnlyFromARuntimeThatCounts() throws {
+        let chips = SeatLayerPickerLegendModel.chips(
+            snapshot: try makeSnapshot(),
+            compact: true,
+            currency: "EUR",
+            allPricesLabel: "All prices",
+            amount: { "€\(Int($0))" },
+            soldOutSuffix: "Sold out",
+            countsSeats: false
+        )
+
+        XCTAssertFalse(chips.contains(where: \.soldOut))
     }
 
     func testAChartWithNoSellableCategoryDrawsNoRail() throws {
@@ -404,6 +420,7 @@ final class PickerMapChromeModelTests: XCTestCase {
                     "priceMin": 45,
                     "priceMax": 90,
                     "available": 0,
+                    "free": 0,
                 ]),
                 .object(["key": "guest", "label": "Guest list", "price": 0]),
             ]
