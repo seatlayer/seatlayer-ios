@@ -55,6 +55,7 @@ public actor BridgeClient {
         "picker.continue", "picker.holdSelection", "picker.holdGA",
         "picker.bestAvailable", "picker.setTableQuantity",
         "picker.resumeHold", "picker.extendHold",
+        "group.continue",
     ]
 
     /// Shortest deadline for a command in `holdCommands`.
