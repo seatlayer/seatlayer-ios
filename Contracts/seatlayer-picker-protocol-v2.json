@@ -130,7 +130,7 @@
       "k": "hello",
       "t": "sys.hello",
       "p": {
-        "bundle": "1.0.6",
+        "bundle": "1.0.8",
         "protocol": {
           "min": 2,
           "max": 2
