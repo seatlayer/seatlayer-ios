@@ -29,6 +29,16 @@ final class DemoViewController: UIViewController {
         static var runKey: String? {
             ProcessInfo.processInfo.environment["SEATLAYER_RUN_KEY"]
         }
+
+        /// A Season key opens the Season picker instead of the event picker.
+        static var seasonKey: String? {
+            ProcessInfo.processInfo.environment["SEATLAYER_SEASON_KEY"]
+        }
+
+        /// The publishable key a public Season opens with.
+        static var publicKey: String? {
+            ProcessInfo.processInfo.environment["SEATLAYER_PUBLIC_KEY"]
+        }
     }
 
     private var pickerHost: SeatLayerPickerViewController?
@@ -49,6 +59,10 @@ final class DemoViewController: UIViewController {
         }
         if let runKey = Fixture.runKey {
             installRun(runKey, themeMode: themeMode)
+            return
+        }
+        if let seasonKey = Fixture.seasonKey {
+            installSeason(seasonKey, themeMode: themeMode)
             return
         }
         if ProcessInfo.processInfo.environment["SEATLAYER_PREWARM"] == "1" {
@@ -234,6 +248,41 @@ final class DemoViewController: UIViewController {
                 self?.present(alert, animated: true)
             },
             onClose: { [weak self] in self?.showClosedState() }
+        )
+        let host = UIHostingController(rootView: picker)
+        addChild(host)
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        host.view.backgroundColor = .clear
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        host.didMove(toParent: self)
+    }
+
+    private func installSeason(_ seasonKey: String, themeMode: SeatLayerPickerThemeMode) {
+        let picker = SeatLayerSeasonPicker(
+            configuration: SeatLayerSeasonConfiguration(
+                season: seasonKey,
+                apiBase: Fixture.apiBase,
+                publicKey: Fixture.publicKey,
+                locale: Fixture.locale
+            ),
+            themeMode: themeMode,
+            onContinue: { [weak self] handoff in
+                // Your checkout books the hold by its operation id from here.
+                let alert = UIAlertController(
+                    title: "Held for checkout",
+                    message: handoff.operationId,
+                    preferredStyle: .alert
+                )
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self?.present(alert, animated: true)
+            },
+            onClose: { [weak self] _ in self?.showClosedState() }
         )
         let host = UIHostingController(rootView: picker)
         addChild(host)

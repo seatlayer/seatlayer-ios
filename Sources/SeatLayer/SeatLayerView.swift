@@ -360,7 +360,7 @@ public final class SeatLayerView: UIView {
                         min: info.protocolRevision,
                         max: info.protocolRevision
                     ),
-                    reason: "the \(bridgeProfile.surface == .group ? "run page" : "picker runtime") did not confirm protocol revision 2"
+                    reason: "the \(bridgeProfile.pageName) did not confirm protocol revision 2"
                 )), owner: owner)
                 return
             }
@@ -516,7 +516,7 @@ public final class SeatLayerView: UIView {
                 delegate?.seatLayerView(self, didTapFloor: floorId)
             }
 
-        case _ where bridgeProfile.surface == .group:
+        case _ where bridgeProfile.isAppShellPage:
             session?.sessionEvent(name, payload: payload, owner: runtimeOwner)
 
         default:

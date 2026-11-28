@@ -56,7 +56,13 @@ public actor BridgeClient {
         "picker.bestAvailable", "picker.setTableQuantity",
         "picker.resumeHold", "picker.extendHold",
         "group.continue",
+        "season.holdSameSeat", "season.holdBestAvailable", "season.restoreOperation",
     ]
+
+    /// Commands that wait for the buyer, such as a question the page puts to
+    /// them: no deadline, since the buyer takes the time they take. The page
+    /// answers each once, and a page that goes away fails it.
+    public static let awaitingBuyerCommands: Set<String> = ["season.requestClose"]
 
     /// Shortest deadline for a command in `holdCommands`.
     public static let holdCommandTimeout: TimeInterval = 45
@@ -70,7 +76,8 @@ public actor BridgeClient {
         /// recently sent, which is the one an out-of-band `error` belongs to.
         let order: UInt64
         let continuation: CheckedContinuation<JSONValue, Error>
-        let timeoutTask: Task<Void, Never>
+        /// Nil for a command that waits for the buyer.
+        let timeoutTask: Task<Void, Never>?
         let timeout: TimeInterval
     }
 
@@ -130,6 +137,7 @@ public actor BridgeClient {
         let order = nextID
         let envelope = Envelope(kind: .cmd, type: name, id: id, payload: payload)
         let timeout = Self.timeout(for: name, base: self.timeout)
+        let timed = !Self.awaitingBuyerCommands.contains(name)
 
         // Register the continuation BEFORE sending: a synchronous reply must
         // never arrive to an empty pending table.
@@ -139,7 +147,7 @@ public actor BridgeClient {
                     continuation.resume(throwing: CancellationError())
                     return
                 }
-                let timeoutTask = Task { [weak self, timeout] in
+                let timeoutTask = !timed ? nil : Task { [weak self, timeout] in
                     try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                     guard !Task.isCancelled else { return }
                     await self?.expire(id: id)
@@ -167,7 +175,7 @@ public actor BridgeClient {
 
     private func expire(id: String) {
         guard let entry = pending.removeValue(forKey: id) else { return }
-        entry.timeoutTask.cancel()
+        entry.timeoutTask?.cancel()
         entry.continuation.resume(
             throwing: SeatLayerError.timeout(command: entry.command, seconds: entry.timeout)
         )
@@ -175,7 +183,7 @@ public actor BridgeClient {
 
     private func cancel(id: String) {
         guard let entry = pending.removeValue(forKey: id) else { return }
-        entry.timeoutTask.cancel()
+        entry.timeoutTask?.cancel()
         entry.continuation.resume(throwing: CancellationError())
     }
 
@@ -204,7 +212,7 @@ public actor BridgeClient {
             if commandErrorEvents.contains(envelope.type),
                let (id, entry) = mostRecentFailablePending() {
                 pending.removeValue(forKey: id)
-                entry.timeoutTask.cancel()
+                entry.timeoutTask?.cancel()
                 entry.continuation.resume(
                     throwing: SeatLayerError.bridge(BridgeErrorPayload(envelope.payload))
                 )
@@ -237,7 +245,7 @@ public actor BridgeClient {
     /// duplicate — is dropped.
     private func resolve(_ envelope: Envelope, with result: Result<JSONValue, Error>) {
         guard let id = envelope.id, let entry = pending.removeValue(forKey: id) else { return }
-        entry.timeoutTask.cancel()
+        entry.timeoutTask?.cancel()
         entry.continuation.resume(with: result)
     }
 
@@ -266,7 +274,7 @@ public actor BridgeClient {
         let open = pending
         pending.removeAll()
         for (_, entry) in open {
-            entry.timeoutTask.cancel()
+            entry.timeoutTask?.cancel()
             entry.continuation.resume(throwing: error)
         }
         signalHandler = nil
