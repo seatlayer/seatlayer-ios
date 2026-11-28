@@ -11,6 +11,9 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
         case picker
         /// The run page (`group.html`): a few performances of one run.
         case group
+        /// The Season page (`season.html`): a package of dates, the same seat
+        /// for each.
+        case season
     }
 
     static let raw = SeatLayerBridgeProfile(
@@ -90,6 +93,18 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
         )
     }
 
+    /// The Season page. The page draws the package, the dates, the map and
+    /// the cart; the app draws only its bar and the failure view.
+    static func season(config: [String: JSONValue] = [:]) -> SeatLayerBridgeProfile {
+        SeatLayerBridgeProfile(
+            surface: .season,
+            protocolRange: ProtocolRange(min: 2, max: 2),
+            requiredCapabilities: ["season-surface-v1", "season-app-shell-v1"],
+            optionalCapabilities: ["connection-state-v1"],
+            config: config
+        )
+    }
+
     /// The same profile without one host config key.
     func removingConfig(_ key: String) -> SeatLayerBridgeProfile {
         var trimmed = config
@@ -141,14 +156,28 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
     }
 
     var isPicker: Bool { surface == .picker }
-    /// A surface whose page reports to a native session: the picker, the run.
+    /// A surface whose page reports to a native session: the picker, the run,
+    /// the Season.
     var hostsSession: Bool { surface != .chart }
+    /// A page that draws all but the app's bar: the run, the Season. Its
+    /// events go to its session as they are.
+    var isAppShellPage: Bool { surface == .group || surface == .season }
+    /// The page's name in a handshake failure.
+    var pageName: String {
+        switch surface {
+        case .chart, .picker: return "picker runtime"
+        case .group: return "run page"
+        case .season: return "Season page"
+        }
+    }
+
     /// The command that tears the page's surface down.
     var destroyCommand: String {
         switch surface {
         case .chart: return "destroy"
         case .picker: return "picker.destroy"
         case .group: return "group.destroy"
+        case .season: return "season.destroy"
         }
     }
 
@@ -211,7 +240,7 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
     /// Adds this surface's own fields to a configuration's handshake reply.
     func surfaceInitPayload(_ base: JSONValue, bundle: BundleInfo? = nil) -> JSONValue {
         guard surface != .chart, var fields = base.objectValue else { return base }
-        if surface == .group {
+        if isAppShellPage {
             var merged = fields["config"]?.objectValue ?? [:]
             merged.merge(config) { _, profileValue in profileValue }
             fields["surface"] = ["kind": .string(surface.rawValue)]
