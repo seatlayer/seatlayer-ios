@@ -282,6 +282,16 @@ final class RunTests: XCTestCase {
         XCTAssertEqual(controller.hold?.operationId, "op_5")
     }
 
+    func testContinueWaitsAsLongAsAHoldMay() {
+        // The page waits up to 40 s for the server's hold; a shorter native
+        // limit would call a hold that worked failed.
+        XCTAssertEqual(
+            BridgeClient.timeout(for: "group.continue", base: BridgeClient.defaultTimeout),
+            BridgeClient.holdCommandTimeout
+        )
+        XCTAssertEqual(BridgeClient.timeout(for: "group.release", base: 10), 10)
+    }
+
     func testNothingIsSentBeforeThePageIsReady() async {
         let controller = SeatLayerRunController()
         do {
