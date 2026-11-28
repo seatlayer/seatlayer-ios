@@ -122,6 +122,15 @@ public struct SeatLayerPickerAnchorPlan: Sendable, Equatable {
         backPillHeight > 0 ? inset + backPillHeight + gap : inset
     }
 
+    /// Where the test-mode badge stands on a map that is not the immersive
+    /// scene: one line under the floor strip where that is drawn
+    /// (`floorStripHeight`), else on the map's own top line, beside the
+    /// Map | 3D control rather than under it.
+    public func testBadgeTop(floorStripHeight: Double?) -> Double {
+        guard let floorStripHeight, floorStripHeight > 0 else { return testChipTop }
+        return leadingRailTop + floorStripHeight + gap
+    }
+
     /// Where the floor rail starts: the map's own top line, or one line under
     /// the Map | 3D control when that shares the line. The rail runs the map's
     /// full width, so the two would otherwise be drawn over each other.

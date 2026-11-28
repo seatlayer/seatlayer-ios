@@ -661,7 +661,11 @@ private struct SeatLayerPickerReadyLayout: View {
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 10)
-                        .padding(.top, primaryChromeHeight + 4)
+                        .padding(.top, decision.anchorPlan.testBadgeTop(
+                            floorStripHeight: floorRailVisible
+                                ? SeatLayerPickerFloorStrip.height(compact: !usesWideLayout)
+                                : nil
+                        ))
                         Spacer(minLength: 0)
                     }
                 }

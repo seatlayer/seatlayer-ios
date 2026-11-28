@@ -52,6 +52,22 @@ final class PickerMapChromeModelTests: XCTestCase {
         )
     }
 
+    func testTheTestBadgeSharesTheTopLineWithMapAnd3DAndStepsUnderTheFloorStrip() {
+        let inset = SeatLayerPickerSizeTokens.mapAnchorInset
+        let gap = SeatLayerPickerSizeTokens.mapAnchorGap
+        let withSwitch = SeatLayerPickerAnchorPlan(
+            topTrailingControlHeight: SeatLayerPickerSizeTokens.viewModeControlHeight
+        )
+        // Beside the Map | 3D control, not under it.
+        XCTAssertEqual(withSwitch.testBadgeTop(floorStripHeight: nil), inset)
+        // One line under the floor strip, which itself is under the switch.
+        XCTAssertEqual(
+            withSwitch.testBadgeTop(floorStripHeight: 34),
+            inset + SeatLayerPickerSizeTokens.viewModeControlHeight + gap + 34 + gap
+        )
+        XCTAssertEqual(SeatLayerPickerAnchorPlan().testBadgeTop(floorStripHeight: 34), inset + 34 + gap)
+    }
+
     func testTheFloorRailStepsBelowTheMapAnd3DControlOnTheSameLine() {
         let alone = SeatLayerPickerAnchorPlan()
         XCTAssertEqual(alone.leadingRailTop, SeatLayerPickerSizeTokens.mapAnchorInset)
