@@ -171,6 +171,28 @@ SeatLayerRunPicker(
 - The bar is a SwiftUI view; the performances, map and cart are SeatLayer's
   page, shown inside your app.
 
+## Sell a Season
+
+A **Season** is a package of dates sold as the same seat for every date.
+
+```swift
+SeatLayerSeasonPicker(
+    configuration: SeatLayerSeasonConfiguration(season: "sea_your_season", publicKey: "pk_your_key"),
+    onContinue: { handoff in await bookOnYourBackend(handoff.operationId) },
+    onClose: { close in dismiss() }
+)
+```
+
+- `onContinue` hands over the hold. Your server books it by `operationId`, at
+  your prices, then the app calls `controller.markBooked`.
+- With seats held, close asks the buyer whether to release or keep them.
+  `onClose` says how it ended: `kept` comes with the hold's `operationId`, to
+  open it again with `initialOperationId`.
+- `initialOperationId` opens a hold again only for the buyer who placed it, so
+  pass that buyer's `buyerAccessToken` or `buyerAccessTokenProvider` with it.
+- With `themeMode: .auto` the page follows the app between light and dark
+  without a reload.
+
 ## Works as a native picker
 
 **Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
@@ -503,6 +525,8 @@ Environment Variables** to an authorized test event. Optional
 `SEATLAYER_API_BASE`, `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
 `SEATLAYER_DEMO_WIDE` and `SEATLAYER_PREWARM` values demonstrate the public
 configuration, adaptive layout, theme, locale and `prewarm()` APIs.
+`SEATLAYER_RUN_KEY` opens a run instead, and `SEATLAYER_SEASON_KEY` with
+`SEATLAYER_PUBLIC_KEY` a Season.
 Never commit credentials or customer event identifiers to the shared scheme.
 
 To build and test the package itself, see [CONTRIBUTING.md](CONTRIBUTING.md).

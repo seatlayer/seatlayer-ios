@@ -27,6 +27,29 @@ item by item, on hosted runtime `seatlayer-js@1.0.6`. Views load
   shows the event picker's panel, with its offline retries.
 - The example app opens a run with `SEATLAYER_RUN_KEY`.
 
+**A Season, new**
+
+- `SeatLayerSeasonPicker` opens a Season: a package of dates sold as the same
+  seat for every date. The app's bar (brand mark, the Season's name, the hold
+  clock and close) stands over SeatLayer's Season page, which draws the
+  package, the dates, the map and the cart. `onContinue` hands over the hold
+  (`SeatLayerSeasonHandoff`); your server books it by `operationId`, at your
+  prices.
+- With seats held, close asks the buyer whether to release or keep them;
+  `onClose` gets the outcome (`SeatLayerSeasonClose`). The question has no
+  deadline: the buyer takes the time they take.
+- `SeatLayerSeasonController` publishes the status (with the dates), the hold
+  and the page's line, and sends `holdSameSeat`, `holdBestAvailable`,
+  `restoreOperation`, `chooseSeats`, `choosePackage`, `markBooked`, `release`,
+  `getHeldOrder`, `requestClose`, `setForeground`, `setThemeMode` and
+  `setViewportInsets`. Holds wait up to 45 seconds, as the event picker's do.
+- With `themeMode: .auto` the page follows the app between light and dark in
+  place, without a reload.
+- `SeatLayerSeasonMapView` and `SeatLayerSeasonMap` host the page alone. A
+  page the system ends opens again on the buyer's last hold, as the run's does.
+- The example app opens a Season with `SEATLAYER_SEASON_KEY` and
+  `SEATLAYER_PUBLIC_KEY`.
+
 **The map: 0.84.1 to 1.0.6**
 
 Public names stay; these are the changes an app or a buyer can notice.
