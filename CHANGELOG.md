@@ -27,6 +27,10 @@
 
 **Right to left**
 
+- Kurdish reads left to right. The picker's Kurdish is Kurmanji in Latin
+  script, and the event, Season and run pickers laid it out right to left,
+  mirroring the words. Right to left is now Arabic, Persian and Hebrew, as on
+  the web.
 - Swiping a card in the open list to remove its seat follows the finger and
   shows the bin. The card moved the other way and covered the bin.
 - The seat that flies to the cart starts at the card and lands on the cart.

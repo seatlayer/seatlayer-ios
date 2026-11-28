@@ -330,7 +330,9 @@ public struct SeatLayerPickerStrings: Sendable, Equatable {
     var usesRightToLeftLayout: Bool {
         let language = requestedLocaleIdentifier.split(separator: "-").first
             .map { String($0).lowercased() } ?? "en"
-        return ["ar", "fa", "he", "ku"].contains(language)
+        // The web's right-to-left set. The picker's Kurdish is Kurmanji in
+        // Latin script, which reads left to right.
+        return ["ar", "fa", "he"].contains(language)
     }
 
     public func text(
