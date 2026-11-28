@@ -151,7 +151,7 @@ public struct SeatLayerConfiguration: Sendable {
 
 public enum SeatLayer {
     /// This SDK's version.
-    public static let sdkVersion = "0.4.0"
+    public static let sdkVersion = "0.5.0"
     /// Immutable hosted runtime loaded by production views.
     public static let hostedWebVersion = "1.0.8"
     /// Runtime retained only for explicit offline demo/test fixtures.
