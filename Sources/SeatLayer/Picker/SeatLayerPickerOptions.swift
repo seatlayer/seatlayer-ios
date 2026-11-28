@@ -7,23 +7,130 @@ public typealias SeatLayerPickerMoneyFormatter = @Sendable (
     _ currency: String
 ) throws -> String
 
-/// Native-chrome money presentation. Inventory prices and totals remain
-/// runtime-authored; this changes formatting only.
+/// The page's word for taking the app's prices: in `init.config.pricing` at
+/// load, and through `picker.setPricing` while it is open.
+let seatLayerHostPricingCapability = "host-pricing-v1"
+
+/// One category's price, or a price for each of its ticket types.
+public struct SeatLayerCategoryPricing: Sendable, Equatable {
+    /// The price without ticket types, and of a type `tiers` leaves out.
+    public var base: Double?
+    /// Price by ticket type id.
+    public var tiers: [String: Double]
+
+    public init(base: Double? = nil, tiers: [String: Double] = [:]) {
+        self.base = base
+        self.tiers = tiers
+    }
+
+    /// The page's shape: a bare number for one price, else `{ base, tiers }`;
+    /// nil when nothing here is a price.
+    var bridgeValue: JSONValue? {
+        let base = seatLayerHostPrice(base)
+        guard let tiers = seatLayerHostPrices(tiers) else { return base.map(JSONValue.double) }
+        return .object(compacting: ["base": base.map(JSONValue.double), "tiers": tiers])
+    }
+}
+
+/// One seat's or table's price, or a price for each ticket type. A seat has no
+/// base price.
+public struct SeatLayerSeatPricing: Sendable, Equatable {
+    /// The seat's price whatever the ticket type.
+    public var price: Double?
+    /// Price by ticket type id; empty when `price` is set.
+    public var tiers: [String: Double]
+
+    /// One price for this seat.
+    public init(_ price: Double) {
+        self.init(price: price, tiers: [:])
+    }
+
+    /// One price for each ticket type of this seat.
+    public static func tiers(_ tiers: [String: Double]) -> Self {
+        Self(price: nil, tiers: tiers)
+    }
+
+    private init(price: Double?, tiers: [String: Double]) {
+        self.price = price
+        self.tiers = tiers
+    }
+
+    /// The page's shape: a bare number, else `{ tiers }`; nil when nothing
+    /// here is a price.
+    var bridgeValue: JSONValue? {
+        if let price = seatLayerHostPrice(price) { return .double(price) }
+        return seatLayerHostPrices(tiers).map { .object(["tiers": $0]) }
+    }
+}
+
+/// The app's own prices and money writing, both for display: the hold is
+/// still priced by the server.
+///
+/// `categories` are the prices the buyer is shown — on the price rail, the
+/// seat card, the cart and the checkout handoff — in place of the chart's own;
+/// a category left out keeps the chart's price. `objects` price single seats
+/// and tables by their `label`, the booking identity, and win over their
+/// category's price. A page without `host-pricing-v1` keeps the chart's
+/// prices. Change them on the open map with
+/// `SeatLayerPickerController.setPricing(_:)`.
 public struct SeatLayerPickerPricing: Sendable, Equatable {
+    /// Prices by category key.
+    public var categories: [String: SeatLayerCategoryPricing]
+    /// Prices of single seats and tables, by their `label`.
+    public var objects: [String: SeatLayerSeatPricing]
+    /// How every amount in the native chrome is written.
     public var formatter: SeatLayerPickerMoneyFormatter? {
         didSet { formatterIdentity = formatter == nil ? nil : UUID() }
     }
 
     private var formatterIdentity: UUID?
 
-    public init(formatter: SeatLayerPickerMoneyFormatter? = nil) {
+    public init(
+        categories: [String: SeatLayerCategoryPricing] = [:],
+        objects: [String: SeatLayerSeatPricing] = [:],
+        formatter: SeatLayerPickerMoneyFormatter? = nil
+    ) {
+        self.categories = categories
+        self.objects = objects
         self.formatter = formatter
         formatterIdentity = formatter == nil ? nil : UUID()
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.formatterIdentity == rhs.formatterIdentity
+            && lhs.categories == rhs.categories
+            && lhs.objects == rhs.objects
     }
+
+    /// The page's `pricing` value: `{ prices, objects }`, each only where it
+    /// holds a price, or nil when nothing sets one. Anything that is not a
+    /// price — negative, not finite, or under an empty key — is left out.
+    var bridgeValue: JSONValue? {
+        let prices = seatLayerHostEntries(categories.mapValues(\.bridgeValue))
+        let seats = seatLayerHostEntries(objects.mapValues(\.bridgeValue))
+        guard prices != nil || seats != nil else { return nil }
+        return .object(compacting: ["prices": prices, "objects": seats])
+    }
+}
+
+/// A price the page can use: finite and not negative.
+private func seatLayerHostPrice(_ value: Double?) -> Double? {
+    guard let value, value.isFinite, value >= 0 else { return nil }
+    return value
+}
+
+/// Usable prices by id, or nil when none is usable.
+private func seatLayerHostPrices(_ values: [String: Double]) -> JSONValue? {
+    seatLayerHostEntries(values.mapValues { seatLayerHostPrice($0).map(JSONValue.double) })
+}
+
+/// The entries with a key and a value, or nil when none has both.
+private func seatLayerHostEntries(_ values: [String: JSONValue?]) -> JSONValue? {
+    var kept: [String: JSONValue] = [:]
+    for (key, value) in values where !key.isEmpty {
+        if let value { kept[key] = value }
+    }
+    return kept.isEmpty ? nil : .object(kept)
 }
 
 public enum SeatLayerPickerLayoutMode: String, Sendable, Equatable, CaseIterable {
@@ -273,6 +380,7 @@ public struct SeatLayerPickerOptions: Sendable, Equatable {
         if !normalizedLanguages.isEmpty {
             config["languages"] = .array(normalizedLanguages.map(JSONValue.string))
         }
+        if let pricing = pricing?.bridgeValue { config["pricing"] = pricing }
         return config
     }
 

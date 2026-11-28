@@ -213,3 +213,80 @@ final class PickerProjectionTests: XCTestCase {
         )
     }
 }
+
+final class PickerHostPricingTests: XCTestCase {
+    func testThePricesGoToThePageAtLoadInItsOwnShape() {
+        let options = SeatLayerPickerOptions(pricing: SeatLayerPickerPricing(
+            categories: [
+                "stalls": SeatLayerCategoryPricing(base: 45),
+                "circle": SeatLayerCategoryPricing(base: 30, tiers: ["adult": 30, "child": 15]),
+                "box": SeatLayerCategoryPricing(tiers: ["adult": 90]),
+            ],
+            objects: [
+                "Stalls-A-1": SeatLayerSeatPricing(55),
+                "Box-1": .tiers(["adult": 120]),
+            ]
+        ))
+
+        XCTAssertEqual(options.bridgeConfig["pricing"], .object([
+            "prices": .object([
+                "stalls": .double(45),
+                "circle": .object([
+                    "base": .double(30),
+                    "tiers": .object(["adult": .double(30), "child": .double(15)]),
+                ]),
+                "box": .object(["tiers": .object(["adult": .double(90)])]),
+            ]),
+            "objects": .object([
+                "Stalls-A-1": .double(55),
+                "Box-1": .object(["tiers": .object(["adult": .double(120)])]),
+            ]),
+        ]))
+    }
+
+    func testWhatIsNotAPriceStaysOffTheWire() {
+        let pricing = SeatLayerPickerPricing(
+            categories: [
+                "stalls": SeatLayerCategoryPricing(base: -1),
+                "circle": SeatLayerCategoryPricing(base: .nan, tiers: ["adult": .infinity, "child": 15]),
+                "": SeatLayerCategoryPricing(base: 10),
+            ],
+            objects: ["Stalls-A-1": .tiers(["": 5])]
+        )
+
+        XCTAssertEqual(pricing.bridgeValue, .object([
+            "prices": .object(["circle": .object(["tiers": .object(["child": .double(15)])])]),
+        ]))
+        // Nothing usable sends no pricing at all, and the chart keeps its own.
+        let nothing = SeatLayerPickerOptions(pricing: SeatLayerPickerPricing(
+            categories: ["stalls": SeatLayerCategoryPricing(base: -1)]
+        ))
+        XCTAssertNil(nothing.bridgeConfig["pricing"])
+        XCTAssertNil(SeatLayerPickerOptions().bridgeConfig["pricing"])
+        XCTAssertNil(SeatLayerPickerOptions(pricing: SeatLayerPickerPricing(
+            formatter: { amount, _ in "\(amount)" }
+        )).bridgeConfig["pricing"])
+    }
+
+    func testPricingIsEqualWhenItsPricesAndFormatterAre() {
+        let stalls = SeatLayerPickerPricing(categories: ["stalls": SeatLayerCategoryPricing(base: 45)])
+        XCTAssertEqual(stalls, SeatLayerPickerPricing(categories: ["stalls": SeatLayerCategoryPricing(base: 45)]))
+        XCTAssertNotEqual(stalls, SeatLayerPickerPricing(categories: ["stalls": SeatLayerCategoryPricing(base: 50)]))
+        XCTAssertNotEqual(stalls, SeatLayerPickerPricing(objects: ["Stalls-A-1": SeatLayerSeatPricing(45)]))
+    }
+
+    func testASelectedSeatNamesItsLevelOnAChartWithSeveral() throws {
+        let seat = try JSONDecoder().decode(SelectedSeat.self, from: Data("""
+        {"id": "s1", "label": "Circle-A-1", "floorId": "fl_circle", "levelName": "Circle"}
+        """.utf8))
+        XCTAssertEqual(seat.floorId, "fl_circle")
+        XCTAssertEqual(seat.levelName, "Circle")
+
+        // A level the chart does not name is not guessed from its id.
+        let unnamed = try JSONDecoder().decode(SelectedSeat.self, from: Data("""
+        {"id": "s2", "label": "A-1", "floorId": "fl_1"}
+        """.utf8))
+        XCTAssertEqual(unnamed.floorId, "fl_1")
+        XCTAssertNil(unnamed.levelName)
+    }
+}

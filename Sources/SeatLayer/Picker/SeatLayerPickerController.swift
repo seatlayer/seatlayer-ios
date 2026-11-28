@@ -66,6 +66,11 @@ public final class SeatLayerPickerController: ObservableObject {
         supports(capability: "hold-mark-booked-v1", command: "picker.markBooked")
     }
 
+    /// Whether the open page takes the app's prices (`host-pricing-v1`).
+    public var supportsHostPricing: Bool {
+        supports(capability: seatLayerHostPricingCapability, command: "picker.setPricing")
+    }
+
     /// Non-replaying signal for an explicitly expired hold. Deliberate hold
     /// release does not publish here.
     public var holdExpirations: AnyPublisher<Void, Never> {

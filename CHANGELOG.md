@@ -44,6 +44,25 @@
   band and the level buttons grow with their text, and the map is told the
   height that is drawn. Map / 3D and the badge keep their height.
 
+**Your own prices**
+
+- `SeatLayerPickerPricing` takes your prices: `categories` by category key,
+  with a base and a price for each ticket type, and `objects` for single seats
+  and tables by their label. The price list, the seat card and the cart show
+  them, as on React Native and Flutter. A seat's own price wins over its
+  category's; a category left out keeps the chart's price.
+- New pricing in the options reaches the open map, and so does
+  `controller.setPricing(_:)`; `nil` puts the chart's prices back. A map
+  without `supportsHostPricing` keeps the chart's prices. These prices are for
+  display: your server still charges.
+- Anything that is not a price (negative, not a number, or under an empty key)
+  is left out.
+
+**Levels**
+
+- `SelectedSeat.floorId` and `levelName` name a seat's level on a chart with
+  two or more.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**

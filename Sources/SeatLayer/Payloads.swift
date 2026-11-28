@@ -489,6 +489,11 @@ public struct SelectedSeat: Codable, Sendable, Equatable {
     /// Whether the view is a photograph, a render, or something this build has
     /// no name for. Present-only: no capability gates it.
     public var seatViewKind: String?
+    /// The seat's level, on a chart with two or more levels.
+    public var floorId: String?
+    /// The level's name, where the chart names it. It is never filled in from
+    /// `floorId`.
+    public var levelName: String?
 
     /// What to show the buyer. Booking still uses `label`.
     public var buyerFacingLabel: String { displayLabel ?? label }
