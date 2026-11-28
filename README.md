@@ -301,6 +301,9 @@ A seat's own price wins over its category's. New options reach the open map, as
 does `controller.setPricing(pricing)`. These prices are for display: charge from
 your server.
 
+**Levels.** `SelectedSeat.floorId` and `levelName` name a seat's level on a chart
+with two or more.
+
 **One whole part: a builder.** Each builder receives the live snapshot,
 controller, presentation state, style, and the canonical `defaultContent`:
 

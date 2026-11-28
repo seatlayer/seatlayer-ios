@@ -58,6 +58,11 @@
 - Anything that is not a price (negative, not a number, or under an empty key)
   is left out.
 
+**Levels**
+
+- `SelectedSeat.floorId` and `levelName` name a seat's level on a chart with
+  two or more.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**

@@ -274,4 +274,19 @@ final class PickerHostPricingTests: XCTestCase {
         XCTAssertNotEqual(stalls, SeatLayerPickerPricing(categories: ["stalls": SeatLayerCategoryPricing(base: 50)]))
         XCTAssertNotEqual(stalls, SeatLayerPickerPricing(objects: ["Stalls-A-1": SeatLayerSeatPricing(45)]))
     }
+
+    func testASelectedSeatNamesItsLevelOnAChartWithSeveral() throws {
+        let seat = try JSONDecoder().decode(SelectedSeat.self, from: Data("""
+        {"id": "s1", "label": "Circle-A-1", "floorId": "fl_circle", "levelName": "Circle"}
+        """.utf8))
+        XCTAssertEqual(seat.floorId, "fl_circle")
+        XCTAssertEqual(seat.levelName, "Circle")
+
+        // A level the chart does not name is not guessed from its id.
+        let unnamed = try JSONDecoder().decode(SelectedSeat.self, from: Data("""
+        {"id": "s2", "label": "A-1", "floorId": "fl_1"}
+        """.utf8))
+        XCTAssertEqual(unnamed.floorId, "fl_1")
+        XCTAssertNil(unnamed.levelName)
+    }
 }
