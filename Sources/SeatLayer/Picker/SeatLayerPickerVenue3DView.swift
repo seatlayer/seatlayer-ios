@@ -100,7 +100,7 @@ public struct SeatLayerVenue3D: View {
     private func backPill() -> some View {
         Button { execute(.back) } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .seatLayerPickerFont(
                         size: SeatLayerPickerSizeTokens.immersiveBackIconSize,
                         weight: .bold
@@ -150,7 +150,7 @@ public struct SeatLayerVenue3D: View {
                 HStack(spacing: SeatLayerPickerSizeTokens.mapAnchorGap) {
                     if targeted {
                         chip(
-                            symbol: "chevron.left",
+                            symbol: "chevron.backward",
                             label: style.strings.text(.previousSeat),
                             enabled: !busy && position.previousSeatId != nil
                         ) { execute(.previous) }
@@ -163,7 +163,7 @@ public struct SeatLayerVenue3D: View {
                             ) { openVenue360(position.targetSeatId) }
                         }
                         chip(
-                            symbol: "chevron.right",
+                            symbol: "chevron.forward",
                             label: style.strings.text(.nextSeat),
                             enabled: !busy && position.nextSeatId != nil
                         ) { execute(.next) }

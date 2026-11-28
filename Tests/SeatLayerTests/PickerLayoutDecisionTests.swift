@@ -100,6 +100,37 @@ final class PickerLayoutDecisionTests: XCTestCase {
         )
     }
 
+    func testTheRailsBandsGrowWithTheirText() throws {
+        // `type.scaleClamp.rail` is 1.3; the largest step under it is 1.24.
+        // The legend's band and chips grow by it, and the levels' chips do
+        // while the air around them stays: the band the map is told about is
+        // the one that is drawn.
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(floors: ["Stalls", "Circle"]),
+            railScale: 1.24
+        ))
+
+        XCTAssertEqual(decision.primaryChromeHeight, 44 * 1.24 + 44 + 28 * 0.24, accuracy: 1e-9)
+        XCTAssertEqual(
+            SeatLayerPickerReadyMetrics.floorRailHeight(railScale: 1.24)
+                - SeatLayerPickerReadyMetrics.floorRailHeight,
+            SeatLayerPickerSizeTokens.floorChipHeight * 0.24,
+            accuracy: 1e-9
+        )
+    }
+
+    func testSmallerTextKeepsTheRailsDesignHeights() throws {
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(floors: ["Stalls", "Circle"]),
+            railScale: 0.82
+        ))
+
+        XCTAssertEqual(
+            decision.primaryChromeHeight,
+            SeatLayerPickerReadyMetrics.topRailHeight + SeatLayerPickerReadyMetrics.floorRailHeight
+        )
+    }
+
     func testHeldSidewaysTheLevelsShareTheTopLineWhereTheyFit() throws {
         let decision = SeatLayerPickerLayoutDecision(makeContext(
             snapshot: try makeSnapshot(mode: "test", floors: ["Stalls", "Circle"]),
@@ -349,6 +380,7 @@ final class PickerLayoutDecisionTests: XCTestCase {
         containerWidth: Double? = nil,
         containerHeight: Double? = nil,
         levelsFitTopLine: Bool = false,
+        railScale: Double = 1,
         bottomSafeInset: Double = 0
     ) -> SeatLayerPickerLayoutContext {
         SeatLayerPickerLayoutContext(
@@ -367,6 +399,7 @@ final class PickerLayoutDecisionTests: XCTestCase {
             containerWidth: containerWidth,
             containerHeight: containerHeight,
             levelsFitTopLine: levelsFitTopLine,
+            railScale: railScale,
             bottomSafeInset: bottomSafeInset
         )
     }

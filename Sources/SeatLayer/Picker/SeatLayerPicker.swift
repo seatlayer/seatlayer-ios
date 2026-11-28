@@ -224,7 +224,9 @@ private struct SeatLayerPickerReadyLayout: View {
                 SeatLayerPickerPartHost(.legend) {
                     SeatLayerPickerPriceLegend(compact: !usesWideLayout)
                 }
-                .dynamicTypeSize(...DynamicTypeSize.large)
+                // A rail: it grows to `type.scaleClamp.rail`, and its band
+                // with it.
+                .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
             }
             ZStack {
                 SeatLayerPickerPartHost(.map) {
@@ -249,12 +251,15 @@ private struct SeatLayerPickerReadyLayout: View {
                         }
                         .padding(.top, decision.levelsOnTopLine
                             ? decision.anchorPlan.topLineLevelsTop(
-                                stripHeight: SeatLayerPickerFloorStrip.height(compact: true)
+                                stripHeight: SeatLayerPickerFloorStrip.height(
+                                    compact: true,
+                                    railScale: seatLayerPickerRailScale(dynamicTypeSize)
+                                )
                             )
                             : decision.anchorPlan.leadingRailTop)
                         .padding(.leading, decision.levelsOnTopLine ? topLineRoom.leading : 0)
                         .padding(.trailing, decision.levelsOnTopLine ? topLineRoom.trailing : 0)
-                        .dynamicTypeSize(...DynamicTypeSize.large)
+                        .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
                         Spacer(minLength: 0)
                     }
                     .padding(.trailing, usesWideLayout ? wideRailWidth : 0)
@@ -359,7 +364,7 @@ private struct SeatLayerPickerReadyLayout: View {
                 }
 
                 requiredTruthChrome
-                    .dynamicTypeSize(...DynamicTypeSize.large)
+                    .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
 
                 if !chromeVisibility.panorama, !immersiveInspectionVisible {
                     SeatLayerPickerConnectionLayer(
@@ -694,7 +699,10 @@ private struct SeatLayerPickerReadyLayout: View {
                         .padding(.horizontal, 10)
                         .padding(.top, decision.anchorPlan.testBadgeTop(
                             floorStripHeight: floorRailVisible && !decision.levelsOnTopLine
-                                ? SeatLayerPickerFloorStrip.height(compact: !usesWideLayout)
+                                ? SeatLayerPickerFloorStrip.height(
+                                    compact: !usesWideLayout,
+                                    railScale: seatLayerPickerRailScale(dynamicTypeSize)
+                                )
                                 : nil
                         ))
                         Spacer(minLength: 0)
@@ -778,6 +786,7 @@ private struct SeatLayerPickerReadyLayout: View {
             containerWidth: containerWidth,
             containerHeight: containerHeight,
             levelsFitTopLine: levelsFitTopLine,
+            railScale: seatLayerPickerRailScale(dynamicTypeSize),
             bottomSafeInset: bottomSafeInset
         )
     }

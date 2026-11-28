@@ -32,6 +32,7 @@ public struct SeatLayerPickerPriceLegend: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.layoutDirection) private var layoutDirection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var contentWidth: CGFloat = 0
     @State private var viewportWidth: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
@@ -76,13 +77,13 @@ public struct SeatLayerPickerPriceLegend: View {
                 scroller(Array(chips.dropFirst()), palette: palette)
             }
             .padding(.horizontal, compact ? 10 : 12)
-            .frame(height: SeatLayerPickerSizeTokens.topRailHeight)
+            .frame(height: SeatLayerPickerSizeTokens.topRailHeight * railScale)
             .frame(maxWidth: .infinity)
             .background(palette.surface)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(palette.divider).frame(height: 1)
             }
-            .dynamicTypeSize(...DynamicTypeSize.large)
+            .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
             // tokens.json gap: the rail wants a group name of its own
             // ("ticket prices"); there is no string key for one, and naming it
             // after the first chip would be worse than leaving the group
@@ -289,8 +290,10 @@ public struct SeatLayerPickerPriceLegend: View {
     }
 
     private var chipInkHeight: Double {
-        compact ? SeatLayerPickerSizeTokens.legendChipHeight : 40
+        (compact ? SeatLayerPickerSizeTokens.legendChipHeight : 40) * railScale
     }
+
+    private var railScale: Double { seatLayerPickerRailScale(dynamicTypeSize) }
 
     private func staggerAnimation(index: Int) -> Animation? {
         // Staggered arrival has no reduced form, so it is skipped rather than

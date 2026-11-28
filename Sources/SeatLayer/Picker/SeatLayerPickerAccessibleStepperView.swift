@@ -39,6 +39,7 @@ public struct SeatLayerPickerAccessibilityButton: View {
             Button { openFilters() } label: {
                 Image(systemName: needs ? "figure.roll" : "slider.horizontal.3")
                     .seatLayerPickerFont(size: 18, weight: .semibold)
+                    .environment(\.layoutDirection, .leftToRight)
                     .foregroundColor(activeCount > 0 ? palette.accent : palette.text)
                     .frame(
                         width: SeatLayerPickerSizeTokens.accessibilityControlSize,
@@ -139,6 +140,9 @@ public struct SeatLayerPickerAccessibleStepper: View {
                             size: SeatLayerPickerSizeTokens.accessStepFontSize,
                             weight: .bold
                         )
+                        // The mark keeps its shape, as on the other platforms;
+                        // SF Symbols would turn it to face the reading way.
+                        .environment(\.layoutDirection, .leftToRight)
                     Text(label)
                         .seatLayerPickerFont(
                             size: SeatLayerPickerSizeTokens.accessStepFontSize,

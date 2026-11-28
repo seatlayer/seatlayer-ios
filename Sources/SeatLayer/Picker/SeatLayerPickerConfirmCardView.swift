@@ -710,6 +710,19 @@ var seatLayerPickerCardTypeCeiling: DynamicTypeSize {
     seatLayerPickerTypeCeiling(SeatLayerPickerTypeScaleTokens.card)
 }
 
+/// The rails' Dynamic Type ceiling, as `type.scaleClamp.rail` names it: the
+/// price legend, the level buttons, Map | 3D and the "Test mode" badge.
+var seatLayerPickerRailTypeCeiling: DynamicTypeSize {
+    seatLayerPickerTypeCeiling(SeatLayerPickerTypeScaleTokens.rail)
+}
+
+/// How much a rail's text has grown at `size`, after the rails' ceiling. The
+/// heights around that text grow by the same factor, and never shrink below
+/// their design size.
+func seatLayerPickerRailScale(_ size: DynamicTypeSize) -> Double {
+    max(1, seatLayerPickerTypeScale(min(size, seatLayerPickerRailTypeCeiling)))
+}
+
 /// The largest Dynamic Type size whose growth stays inside `clamp`.
 func seatLayerPickerTypeCeiling(_ clamp: Double) -> DynamicTypeSize {
     let ordered: [DynamicTypeSize] = [

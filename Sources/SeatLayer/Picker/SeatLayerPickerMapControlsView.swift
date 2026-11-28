@@ -99,7 +99,8 @@ public struct SeatLayerPickerBuyerViewControl: View {
             .overlay { Capsule().stroke(disc.line, lineWidth: 1) }
             .clipShape(Capsule())
             .shadow(color: .black.opacity(0.16), radius: 8, y: 3)
-            .dynamicTypeSize(...DynamicTypeSize.large)
+            // The words grow to the rails' ceiling inside a height that stays.
+            .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(style.strings.text(.venueView))
             .seatLayerPickerMapChromeRegion(SeatLayerPickerMapChromeKey.viewMode)
@@ -195,7 +196,8 @@ public struct SeatLayerPickerTestModeIndicator: View {
             )
             .overlay { Capsule().stroke(palette.warning.opacity(0.5), lineWidth: 1) }
             .clipShape(Capsule())
-            .dynamicTypeSize(...DynamicTypeSize.large)
+            // The words grow to the rails' ceiling inside a height that stays.
+            .dynamicTypeSize(...seatLayerPickerRailTypeCeiling)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(style.strings.text(.testModeLong))
             .seatLayerPickerMapChromeRegion(SeatLayerPickerMapChromeKey.testChip)

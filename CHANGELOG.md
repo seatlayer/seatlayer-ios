@@ -25,6 +25,25 @@
   so on an iPhone Plus or Pro Max held sideways they could follow the wide
   layout while the picker was laid out as a phone.
 
+**Right to left**
+
+- Swiping a card in the open list to remove its seat follows the finger and
+  shows the bin. The card moved the other way and covered the bin.
+- The seat that flies to the cart starts at the card and lands on the cart.
+  Its path was mirrored.
+- The wheelchair keeps its shape, as on React Native and Flutter. SF Symbols
+  turned it to face the reading way.
+- The back chevrons, and the previous and next chevrons of the section bar
+  and the 3D bar, point the way the app reads.
+
+**Larger text on the rails**
+
+- The price legend, the level buttons, Map / 3D and the "Test mode" badge
+  grow with the phone's text size up to `type.scaleClamp.rail` (1.3), as on
+  React Native and Flutter. They stopped at the default size. The legend's
+  band and the level buttons grow with their text, and the map is told the
+  height that is drawn. Map / 3D and the badge keep their height.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**

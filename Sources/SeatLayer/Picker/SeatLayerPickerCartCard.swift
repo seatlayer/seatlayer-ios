@@ -418,7 +418,9 @@ private struct SeatLayerPickerSwipeToRemove: ViewModifier {
                     }
                     .accessibilityHidden(true)
                 }
-                content.offset(x: layoutDirection == .rightToLeft ? travelled : -travelled)
+                // `offset` already runs the reading way, so travel toward the
+                // leading edge is a negative offset in both directions.
+                content.offset(x: -travelled)
             }
             .background {
                 GeometryReader { geometry in
@@ -462,7 +464,8 @@ private struct SeatLayerPickerSwipeToRemove: ViewModifier {
             }
     }
 
-    /// A horizontal translation as travel toward the removing edge.
+    /// A drag's horizontal translation, which is measured on screen in both
+    /// directions, as travel toward the leading edge.
     private func toward(_ dx: Double) -> Double {
         layoutDirection == .rightToLeft ? dx : -dx
     }
