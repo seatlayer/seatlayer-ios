@@ -131,6 +131,13 @@ public struct SeatLayerPickerAnchorPlan: Sendable, Equatable {
         return leadingRailTop + floorStripHeight + gap
     }
 
+    /// Where the levels' pill starts when it stands on the map's top line,
+    /// between the test chip and the Map | 3D control: in the middle of the
+    /// control's line, or at the map's own top line without one.
+    func topLineLevelsTop(stripHeight: Double) -> Double {
+        inset + max(0, (topTrailingControlHeight - stripHeight) / 2)
+    }
+
     /// Where the floor rail starts: the map's own top line, or one line under
     /// the Map | 3D control when that shares the line. The rail runs the map's
     /// full width, so the two would otherwise be drawn over each other.

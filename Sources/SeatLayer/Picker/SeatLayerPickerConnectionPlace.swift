@@ -32,7 +32,8 @@ func seatLayerPickerConnectionPlace(
     fallbackTop: Double,
     wide: Bool,
     naturalWidth: Double,
-    height: Double = SeatLayerPickerSizeTokens.connectionStatusHeight
+    height: Double = SeatLayerPickerSizeTokens.connectionStatusHeight,
+    levelsOnLine: Bool = false
 ) -> SeatLayerPickerConnectionPlace {
     let gap = SeatLayerPickerSizeTokens.connectionStatusSwitchGap
     let lineMiddle: Double = testChip.map { Double($0.midY) }
@@ -42,7 +43,8 @@ func seatLayerPickerConnectionPlace(
     let end = viewMode.map { Double($0.minX) - gap } ?? (mapWidth - inset)
     var room = end - start
     if wide { room = min(room, seatLayerPickerConnectionWideMaxWidth) }
-    if naturalWidth <= room {
+    // The levels' pill holds the line between the chip and the switch.
+    if !levelsOnLine, naturalWidth <= room {
         return SeatLayerPickerConnectionPlace(
             x: start,
             y: lineMiddle - height / 2,
@@ -57,6 +59,24 @@ func seatLayerPickerConnectionPlace(
     var width = max(0, mapWidth - inset * 2)
     if wide { width = min(width, seatLayerPickerConnectionWideMaxWidth) }
     return SeatLayerPickerConnectionPlace(x: inset, y: lineBottom + gap, width: width, below: true)
+}
+
+/// Whether the levels' pill fits on the map's top line between the test chip
+/// and the Map / 3D switch, each `size.mapAnchorGap` away from it, on a map
+/// `mapWidth` wide. Frames are in leading-edge terms; an absent chip or switch
+/// leaves the map's inset at that end. A pill not measured yet does not fit.
+func seatLayerPickerLevelsFitTopLine(
+    mapWidth: Double,
+    inset: Double = 10,
+    testChip: CGRect?,
+    viewMode: CGRect?,
+    pillWidth: Double
+) -> Bool {
+    guard mapWidth > 0, pillWidth > 0 else { return false }
+    let gap = SeatLayerPickerSizeTokens.mapAnchorGap
+    let start = testChip.map { Double($0.maxX) + gap } ?? inset
+    let end = viewMode.map { Double($0.minX) - gap } ?? (mapWidth - inset)
+    return pillWidth <= end - start
 }
 
 /// `frame` measured from the map's left edge, turned to leading-edge terms.

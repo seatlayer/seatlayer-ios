@@ -6,10 +6,13 @@ import UIKit
 struct SeatLayerPickerConnectionAnchors: Equatable {
     var testChip: CGRect?
     var viewMode: CGRect?
+    /// The levels' pill, wherever it stands; only its width is read.
+    var floorRail: CGRect?
 
-    init(testChip: CGRect? = nil, viewMode: CGRect? = nil) {
+    init(testChip: CGRect? = nil, viewMode: CGRect? = nil, floorRail: CGRect? = nil) {
         self.testChip = testChip
         self.viewMode = viewMode
+        self.floorRail = floorRail
     }
 
     init(_ entries: [SeatLayerPickerBlockedRegionEntry]) {
@@ -20,6 +23,7 @@ struct SeatLayerPickerConnectionAnchors: Equatable {
         }
         testChip = frame(AnyHashable(SeatLayerPickerMapChromeKey.testChip))
         viewMode = frame(AnyHashable(SeatLayerPickerMapChromeKey.viewMode))
+        floorRail = frame(AnyHashable(SeatLayerPickerMapChromeKey.floorRail))
     }
 }
 
@@ -33,6 +37,7 @@ struct SeatLayerPickerConnectionLayer: View {
     let anchors: SeatLayerPickerConnectionAnchors
     let fallbackTop: Double
     let wide: Bool
+    var levelsOnLine = false
 
     @State private var natural: CGSize = .zero
 
@@ -54,7 +59,8 @@ struct SeatLayerPickerConnectionLayer: View {
                         fallbackTop: fallbackTop,
                         wide: wide,
                         naturalWidth: Double(natural.width),
-                        height: max(SeatLayerPickerSizeTokens.connectionStatusHeight, Double(natural.height))
+                        height: max(SeatLayerPickerSizeTokens.connectionStatusHeight, Double(natural.height)),
+                        levelsOnLine: levelsOnLine
                     )
                     SeatLayerPickerConnectionStatus(shown: shown, oneLineEach: !place.below)
                         .frame(width: place.width, alignment: .leading)

@@ -100,6 +100,66 @@ final class PickerLayoutDecisionTests: XCTestCase {
         )
     }
 
+    func testHeldSidewaysTheLevelsShareTheTopLineWhereTheyFit() throws {
+        let decision = SeatLayerPickerLayoutDecision(makeContext(
+            snapshot: try makeSnapshot(mode: "test", floors: ["Stalls", "Circle"]),
+            isRegularHeight: false,
+            containerWidth: 852,
+            containerHeight: 393,
+            levelsFitTopLine: true
+        ))
+
+        XCTAssertTrue(decision.levelsOnTopLine)
+        // The levels' own line is given back to the map.
+        XCTAssertEqual(decision.primaryChromeHeight, SeatLayerPickerReadyMetrics.topRailHeight)
+        XCTAssertEqual(
+            decision.topChromeHeight,
+            SeatLayerPickerReadyMetrics.topRailHeight + SeatLayerPickerReadyMetrics.truthBandHeight
+        )
+    }
+
+    func testTheLevelsKeepTheirOwnLineUprightWideOrWhenTheyDoNotFit() throws {
+        let floors = try makeSnapshot(floors: ["Stalls", "Circle"])
+        let cases: [(String, SeatLayerPickerLayoutContext)] = [
+            ("upright", makeContext(
+                snapshot: floors, containerWidth: 393, containerHeight: 852, levelsFitTopLine: true
+            )),
+            ("sideways, too wide", makeContext(
+                snapshot: floors, isRegularHeight: false,
+                containerWidth: 852, containerHeight: 393, levelsFitTopLine: false
+            )),
+            ("tablet", makeContext(
+                snapshot: floors, isRegularWidth: true,
+                containerWidth: 1180, containerHeight: 820, levelsFitTopLine: true
+            )),
+        ]
+        for (name, context) in cases {
+            let decision = SeatLayerPickerLayoutDecision(context)
+            XCTAssertFalse(decision.levelsOnTopLine, name)
+            XCTAssertEqual(
+                decision.primaryChromeHeight,
+                SeatLayerPickerReadyMetrics.topRailHeight + SeatLayerPickerReadyMetrics.floorRailHeight,
+                name
+            )
+        }
+    }
+
+    func testTheLevelsOnTheTopLineStandInTheMiddleOfTheSwitchesLine() {
+        let strip = 34.0
+        let withSwitch = SeatLayerPickerAnchorPlan(
+            topTrailingControlHeight: SeatLayerPickerSizeTokens.viewModeControlHeight
+        )
+        XCTAssertEqual(
+            withSwitch.topLineLevelsTop(stripHeight: strip),
+            SeatLayerPickerSizeTokens.mapAnchorInset
+                + (SeatLayerPickerSizeTokens.viewModeControlHeight - strip) / 2
+        )
+        XCTAssertEqual(
+            SeatLayerPickerAnchorPlan().topLineLevelsTop(stripHeight: strip),
+            SeatLayerPickerSizeTokens.mapAnchorInset
+        )
+    }
+
     func testLoadingPhaseAlwaysShowsTheStatusOverlay() throws {
         let decision = SeatLayerPickerLayoutDecision(
             makeContext(snapshot: nil, phase: .loading)
@@ -286,6 +346,7 @@ final class PickerLayoutDecisionTests: XCTestCase {
         options: SeatLayerPickerOptions = SeatLayerPickerOptions(),
         containerWidth: Double? = nil,
         containerHeight: Double? = nil,
+        levelsFitTopLine: Bool = false,
         bottomSafeInset: Double = 0
     ) -> SeatLayerPickerLayoutContext {
         SeatLayerPickerLayoutContext(
@@ -303,6 +364,7 @@ final class PickerLayoutDecisionTests: XCTestCase {
             phoneCartHeight: phoneCartHeight,
             containerWidth: containerWidth,
             containerHeight: containerHeight,
+            levelsFitTopLine: levelsFitTopLine,
             bottomSafeInset: bottomSafeInset
         )
     }

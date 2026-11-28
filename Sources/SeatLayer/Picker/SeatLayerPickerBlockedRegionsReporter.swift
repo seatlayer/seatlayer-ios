@@ -328,6 +328,14 @@ private struct SeatLayerPickerContainerWidthKey: PreferenceKey {
     }
 }
 
+/// The map stack's own width, which the top line's pieces are placed across.
+struct SeatLayerPickerMapWidthKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 private struct SeatLayerPickerContainerHeightKey: PreferenceKey {
     static var defaultValue: Double = 0
     static func reduce(value: inout Double, nextValue: () -> Double) {

@@ -29,6 +29,38 @@ final class PickerConnectionPlaceTests: XCTestCase {
         XCTAssertEqual(place.y, 91 + 8)
     }
 
+    func testUnderTheLineWhenTheLevelsHoldIt() {
+        let place = seatLayerPickerConnectionPlace(
+            mapWidth: 852, testChip: chip, viewMode: CGRect(x: 740, y: 55, width: 100, height: 36),
+            fallbackTop: 60, wide: false, naturalWidth: 140, levelsOnLine: true
+        )
+        XCTAssertTrue(place.below)
+        XCTAssertEqual(place.x, 10)
+        XCTAssertEqual(place.y, 91 + 8)
+    }
+
+    func testTheLevelsFitBetweenTheChipAndTheSwitchWithAGapEachSide() {
+        let gap = SeatLayerPickerSizeTokens.mapAnchorGap
+        let sideways = CGRect(x: 740, y: 10, width: 100, height: 36)
+        // 852 wide: the line between the chip (ends at 100) and the switch
+        // (starts at 740) holds 640 less two gaps.
+        let room = 740 - gap - (100 + gap)
+        XCTAssertTrue(seatLayerPickerLevelsFitTopLine(
+            mapWidth: 852, testChip: chip, viewMode: sideways, pillWidth: room
+        ))
+        XCTAssertFalse(seatLayerPickerLevelsFitTopLine(
+            mapWidth: 852, testChip: chip, viewMode: sideways, pillWidth: room + 1
+        ))
+        // Without a chip the line starts at the inset.
+        XCTAssertTrue(seatLayerPickerLevelsFitTopLine(
+            mapWidth: 852, testChip: nil, viewMode: sideways, pillWidth: 740 - gap - 10
+        ))
+        // A pill not measured yet stays on its own line.
+        XCTAssertFalse(seatLayerPickerLevelsFitTopLine(
+            mapWidth: 852, testChip: chip, viewMode: sideways, pillWidth: 0
+        ))
+    }
+
     func testWithoutAChipItStartsAtTheInset() {
         let place = seatLayerPickerConnectionPlace(
             mapWidth: 390, testChip: nil, viewMode: viewMode,

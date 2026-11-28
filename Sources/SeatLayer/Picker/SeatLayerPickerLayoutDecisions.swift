@@ -44,6 +44,9 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
     var containerWidth: Double?
     /// The same box's height, measured with its width.
     var containerHeight: Double?
+    /// Whether the levels' pill, at its measured width, fits on the map's top
+    /// line between the test chip and the Map | 3D control.
+    var levelsFitTopLine: Bool
     /// The bottom safe inset, absorbed once by whichever surface owns the
     /// bottom edge.
     var bottomSafeInset: Double
@@ -63,6 +66,7 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         phoneCartHeight: Double,
         containerWidth: Double? = nil,
         containerHeight: Double? = nil,
+        levelsFitTopLine: Bool = false,
         bottomSafeInset: Double = 0
     ) {
         self.snapshot = snapshot
@@ -79,6 +83,7 @@ struct SeatLayerPickerLayoutContext: Sendable, Equatable {
         self.phoneCartHeight = phoneCartHeight
         self.containerWidth = containerWidth
         self.containerHeight = containerHeight
+        self.levelsFitTopLine = levelsFitTopLine
         self.bottomSafeInset = max(0, bottomSafeInset)
     }
 }
@@ -96,6 +101,9 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
     let showsBuyerViewControl: Bool
     let topRailVisible: Bool
     let floorRailVisible: Bool
+    /// Held sideways the map is short, so the levels stand on its top line,
+    /// between the test chip and the Map | 3D control, where all three fit.
+    let levelsOnTopLine: Bool
     let truthBandVisibleAtTop: Bool
     let primaryChromeHeight: Double
     let topChromeHeight: Double
@@ -193,8 +201,23 @@ struct SeatLayerPickerLayoutDecision: Sendable, Equatable {
             && (snapshot?.map.floors.count ?? 0) > 1
         truthBandVisibleAtTop = !visibility.panorama && testMode
 
+        var sideways = false
+        if let width = context.containerWidth, let height = context.containerHeight,
+           width > 0, height > 0 {
+            sideways = width > height
+        }
+        levelsOnTopLine = floorRailVisible
+            && !usesWideLayout
+            && !visibility.venue3D
+            && sideways
+            && context.levelsFitTopLine
+
         var primary = topRailVisible ? SeatLayerPickerReadyMetrics.topRailHeight : 0
-        if floorRailVisible { primary += SeatLayerPickerReadyMetrics.floorRailHeight }
+        // On the top line the levels share the band the Map | 3D control
+        // already takes; with nothing else on that line they need their own.
+        if floorRailVisible, !(levelsOnTopLine && topRailVisible) {
+            primary += SeatLayerPickerReadyMetrics.floorRailHeight
+        }
         primaryChromeHeight = primary
 
         var top = primary
