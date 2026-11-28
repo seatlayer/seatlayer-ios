@@ -17,6 +17,7 @@
 		AA0000000000000000000108 /* ChromeGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000010 /* ChromeGoldenTests.swift */; };
 		AA0000000000000000000109 /* MapChromeGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000011 /* MapChromeGoldenTests.swift */; };
 		AA0000000000000000000110 /* SeatCardGoldenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000012 /* SeatCardGoldenTests.swift */; };
+		AA0000000000000000000111 /* DemoSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000013 /* DemoSetupTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		AA0000000000000000000010 /* ChromeGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChromeGoldenTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000000011 /* MapChromeGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapChromeGoldenTests.swift; sourceTree = "<group>"; };
 		AA0000000000000000000012 /* SeatCardGoldenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeatCardGoldenTests.swift; sourceTree = "<group>"; };
+		AA0000000000000000000013 /* DemoSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSetupTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 				AA0000000000000000000010 /* ChromeGoldenTests.swift */,
 				AA0000000000000000000011 /* MapChromeGoldenTests.swift */,
 				AA0000000000000000000012 /* SeatCardGoldenTests.swift */,
+				AA0000000000000000000013 /* DemoSetupTests.swift */,
 			);
 			path = SeatLayerDemoTests;
 			sourceTree = "<group>";
@@ -224,6 +227,7 @@
 				AA0000000000000000000108 /* ChromeGoldenTests.swift in Sources */,
 				AA0000000000000000000109 /* MapChromeGoldenTests.swift in Sources */,
 				AA0000000000000000000110 /* SeatCardGoldenTests.swift in Sources */,
+				AA0000000000000000000111 /* DemoSetupTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

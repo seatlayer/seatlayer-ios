@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+**The example app**
+
+- It needs `SEATLAYER_API_BASE` and shows setup guidance without it. It no
+  longer falls back to the production API, so a test key never goes there.
+
 ## 0.5.0
 
 0.4.0 was never released; the previous release is 0.3.4.

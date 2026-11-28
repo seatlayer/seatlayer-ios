@@ -521,9 +521,11 @@ screens, so draw your own seat sheet from `seatHoverDidChange`. An app built aga
 ## Run the example app
 
 `Example/SeatLayerDemo.xcodeproj` is a UIKit host for the ready-made native
-picker. Set `SEATLAYER_EVENT_KEY` in the scheme's **Run → Arguments →
-Environment Variables** to an authorized test event. Optional
-`SEATLAYER_API_BASE`, `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
+picker. Set `SEATLAYER_API_BASE` (for example `https://api.seatlayer.io`; the
+example never assumes one) and `SEATLAYER_EVENT_KEY`, an authorized test event,
+in the scheme's **Run → Arguments → Environment Variables**; when the API base
+is absent, the example shows setup guidance and does not mount a picker.
+Optional `SEATLAYER_DEMO_THEME`, `SEATLAYER_DEMO_LOCALE`,
 `SEATLAYER_DEMO_WIDE` and `SEATLAYER_PREWARM` values demonstrate the public
 configuration, adaptive layout, theme, locale and `prewarm()` APIs.
 `SEATLAYER_RUN_KEY` opens a run instead, and `SEATLAYER_SEASON_KEY` with
