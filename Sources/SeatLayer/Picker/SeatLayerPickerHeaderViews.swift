@@ -27,40 +27,19 @@ public struct SeatLayerPickerHeader: View {
     }
 
     public var body: some View {
-        let palette = resolveSeatLayerPickerPalette(
-            style: style,
-            colorScheme: colorScheme,
-            snapshot: controller.snapshot
-        )
-        HStack(spacing: 10) {
-            SeatLayerPickerLogo()
-                .fixedSize()
-            if !style.options.hideEventDetails {
-                VStack(alignment: .leading, spacing: 2) {
-                    // The host's own name for the event first: it is known
-                    // before the chart is, so the header reads as this event
-                    // from the first frame rather than as a generic heading
-                    // that changes under the buyer.
-                    Text(eventName ?? style.strings.text(.chooseSeats))
-                        .seatLayerPickerFont(size: compact ? 14 : 16, weight: .bold)
-                        .foregroundColor(palette.text)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    if !compact,
-                       let venue = controller.snapshot?.event.venue,
-                       !venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Text(venue)
-                            .seatLayerPickerFont(size: 11, weight: .medium)
-                            .foregroundColor(palette.mutedText)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
-            } else {
-                Spacer(minLength: 0)
-            }
+        SeatLayerHeaderBar(
+            palette: resolveSeatLayerPickerPalette(
+                style: style,
+                colorScheme: colorScheme,
+                snapshot: controller.snapshot
+            ),
+            title: eventName,
+            venue: controller.snapshot?.event.venue,
+            logoURL: controller.snapshot?.branding.logoURL,
+            showsDetails: !style.options.hideEventDetails,
+            compact: compact,
+            onClose: onClose
+        ) {
             if controller.snapshot?.event.salesClosed == true {
                 SeatLayerPickerSalesClosedPill()
                     .fixedSize(horizontal: true, vertical: false)
@@ -74,6 +53,68 @@ public struct SeatLayerPickerHeader: View {
                 }
                 .fixedSize(horizontal: true, vertical: false)
             }
+        }
+    }
+
+    /// What the header calls this event.
+    ///
+    /// The host's own name wins over the chart's: it is the name the buyer
+    /// already saw on the page that brought them here, and it is known before
+    /// the runtime has answered anything.
+    private var eventName: String? {
+        if let named = style.options.eventName,
+           !named.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return named
+        }
+        return controller.snapshot?.event.name
+    }
+}
+
+/// The bar the event picker and the run picker wear: brand mark, name, an
+/// optional venue line, a pill (the hold clock) and close.
+struct SeatLayerHeaderBar<Pill: View>: View {
+    @Environment(\.seatLayerPickerStyle) private var style
+    let palette: SeatLayerPickerPalette
+    /// Nil until a name is known: the bar reads "Choose seats".
+    let title: String?
+    let venue: String?
+    let logoURL: String?
+    let showsDetails: Bool
+    let compact: Bool
+    let onClose: (() -> Void)?
+    @ViewBuilder let pill: () -> Pill
+
+    var body: some View {
+        HStack(spacing: 10) {
+            SeatLayerHeaderLogo(logoURL: logoURL, palette: palette)
+                .fixedSize()
+            if showsDetails {
+                VStack(alignment: .leading, spacing: 2) {
+                    // The host's own name for the event first: it is known
+                    // before the chart is, so the header reads as this event
+                    // from the first frame rather than as a generic heading
+                    // that changes under the buyer.
+                    Text(title ?? style.strings.text(.chooseSeats))
+                        .seatLayerPickerFont(size: compact ? 14 : 16, weight: .bold)
+                        .foregroundColor(palette.text)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if !compact,
+                       let venue,
+                       !venue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(venue)
+                            .seatLayerPickerFont(size: 11, weight: .medium)
+                            .foregroundColor(palette.mutedText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            } else {
+                Spacer(minLength: 0)
+            }
+            pill()
             if let onClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
@@ -99,19 +140,6 @@ public struct SeatLayerPickerHeader: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isHeader)
         .accessibilitySortPriority(headerReadingOrder)
-    }
-
-    /// What the header calls this event.
-    ///
-    /// The host's own name wins over the chart's: it is the name the buyer
-    /// already saw on the page that brought them here, and it is known before
-    /// the runtime has answered anything.
-    private var eventName: String? {
-        if let named = style.options.eventName,
-           !named.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return named
-        }
-        return controller.snapshot?.event.name
     }
 
     /// §4.10 reading order: the header is read first, at 800.
@@ -162,13 +190,25 @@ public struct SeatLayerPickerLogo: View {
     public init() {}
 
     public var body: some View {
-        let palette = resolveSeatLayerPickerPalette(
-            style: style,
-            colorScheme: colorScheme,
-            snapshot: controller.snapshot
+        SeatLayerHeaderLogo(
+            logoURL: controller.snapshot?.branding.logoURL,
+            palette: resolveSeatLayerPickerPalette(
+                style: style,
+                colorScheme: colorScheme,
+                snapshot: controller.snapshot
+            )
         )
+    }
+}
+
+/// The brand mark: the organizer's logo, or a seat on the accent.
+struct SeatLayerHeaderLogo: View {
+    let logoURL: String?
+    let palette: SeatLayerPickerPalette
+
+    var body: some View {
         Group {
-            if let raw = controller.snapshot?.branding.logoURL,
+            if let raw = logoURL,
                let url = URL(string: raw) {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFit()
@@ -203,7 +243,6 @@ public struct SeatLayerPickerHoldCountdown: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let expiresAt: Double
 
     public init(expiresAt: Double) {
@@ -211,44 +250,62 @@ public struct SeatLayerPickerHoldCountdown: View {
     }
 
     public var body: some View {
-        let palette = resolveSeatLayerPickerPalette(
-            style: style,
-            colorScheme: colorScheme,
-            snapshot: controller.snapshot
-        )
         if controller.snapshot?.hold.active == true, controller.holdLapse == nil {
-            TimelineView(.periodic(from: .now, by: tickSeconds)) { context in
-                let remaining = seatLayerPickerHoldSecondsRemaining(
-                    expiresAt: expiresAt,
-                    now: context.date.timeIntervalSince1970
-                )
-                // With the line down, a clock at 0:00 waits there in grey: the
-                // hold's end is the server's to say once the line is back.
-                let waiting = remaining == 0 && controller.connection?.lineDown == true
-                let expiring = remaining <= seatLayerPickerHoldExpiringSeconds && !waiting
-                let clock = seatLayerPickerHoldClock(remaining)
-                HStack(spacing: 5) {
-                    statusLight(expiring: expiring, palette: palette, date: context.date)
-                    Text(clock).monospacedDigit()
-                }
-                .seatLayerPickerFont(size: 12, weight: .bold)
-                .foregroundColor(expiring ? palette.onAccent : waiting ? palette.mutedText : palette.text)
-                .padding(.horizontal, 10)
-                .frame(minHeight: pillHeight)
-                .background(
-                    expiring
-                        ? palette.accent
-                        : waiting ? palette.mutedText.opacity(0.12) : palette.background
-                )
-                .clipShape(Capsule())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(style.strings.text(.heldFor, replacing: ["clock": clock]))
-                // Announced politely on the minute, and every second of the
-                // last one — an interruption a buyer cannot silence would be
-                // worse than the deadline it describes.
-                .accessibilityAddTraits(.updatesFrequently)
-                .accessibilityIdentifier("seatlayer-hold-countdown")
+            SeatLayerHoldClock(
+                expiresAt: expiresAt,
+                palette: resolveSeatLayerPickerPalette(
+                    style: style,
+                    colorScheme: colorScheme,
+                    snapshot: controller.snapshot
+                ),
+                awaitingServer: controller.connection?.lineDown == true
+            )
+        }
+    }
+}
+
+/// The hold clock: the event picker's and the run's.
+struct SeatLayerHoldClock: View {
+    @Environment(\.seatLayerPickerStyle) private var style
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Epoch milliseconds.
+    let expiresAt: Double
+    let palette: SeatLayerPickerPalette
+    /// The line is down: at 0:00 the clock waits for the server's word.
+    let awaitingServer: Bool
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: tickSeconds)) { context in
+            let remaining = seatLayerPickerHoldSecondsRemaining(
+                expiresAt: expiresAt,
+                now: context.date.timeIntervalSince1970
+            )
+            // With the line down, a clock at 0:00 waits there in grey: the
+            // hold's end is the server's to say once the line is back.
+            let waiting = remaining == 0 && awaitingServer
+            let expiring = remaining <= seatLayerPickerHoldExpiringSeconds && !waiting
+            let clock = seatLayerPickerHoldClock(remaining)
+            HStack(spacing: 5) {
+                statusLight(expiring: expiring, palette: palette, date: context.date)
+                Text(clock).monospacedDigit()
             }
+            .seatLayerPickerFont(size: 12, weight: .bold)
+            .foregroundColor(expiring ? palette.onAccent : waiting ? palette.mutedText : palette.text)
+            .padding(.horizontal, 10)
+            .frame(minHeight: pillHeight)
+            .background(
+                expiring
+                    ? palette.accent
+                    : waiting ? palette.mutedText.opacity(0.12) : palette.background
+            )
+            .clipShape(Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(style.strings.text(.heldFor, replacing: ["clock": clock]))
+            // Announced politely on the minute, and every second of the
+            // last one — an interruption a buyer cannot silence would be
+            // worse than the deadline it describes.
+            .accessibilityAddTraits(.updatesFrequently)
+            .accessibilityIdentifier("seatlayer-hold-countdown")
         }
     }
 

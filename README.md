@@ -151,6 +151,26 @@ message to the host. A custom host can call `controller.lifecycle`,
 See [Native picker integration](Docs/native-picker.md) and
 [security and hold ownership](Docs/native-picker-security.md).
 
+## Sell a run
+
+A **run** is a few performances sold to one buyer as one hold.
+
+```swift
+SeatLayerRunPicker(
+    configuration: SeatLayerRunConfiguration(run: "pg_your_run"),
+    onContinue: { handoff in await bookOnYourBackend(handoff.operationId) },
+    onClose: { dismiss() }
+)
+```
+
+- `onContinue` hands over the hold. Your server books it by `operationId`, at
+  your prices. A run's handoff carries no prices.
+- `initialOperationId` with `initialHoldId` opens a hold again only for the
+  buyer who placed it, so pass that buyer's `buyerAccessToken` or
+  `buyerAccessTokenProvider` with them.
+- The bar is a SwiftUI view; the performances, map and cart are SeatLayer's
+  page, shown inside your app.
+
 ## Works as a native picker
 
 **Every buyer control is native SwiftUI or UIKit.** The seat map itself (venue,
