@@ -251,6 +251,12 @@ drawn)
 
 **Fixed**
 
+- Standing areas and boxes offer only amounts the page accepts. A box is
+  sold as all its places, or as a party inside its range; with the wheelchair
+  filter on, an area offers its wheelchair places. An area with nothing to
+  offer cannot be confirmed. Any other amount the page answered with no hold
+  and no reason. New on `GAArea`: `bookingMode`, `minOccupancy`,
+  `maxOccupancy`, `wheelchairPlaces` and `wheelchairAvailable`.
 - A general-admission hold the page refuses (the places were just taken)
   says why inside the prompt, which stays open. The sentence was drawn behind
   the prompt, where the buyer could not see it. The prompt's second button is

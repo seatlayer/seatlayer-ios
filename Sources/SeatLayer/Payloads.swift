@@ -580,6 +580,15 @@ public struct GAArea: Codable, Sendable, Equatable {
     public var price: Double?
     public var currency: String?
     public var tiers: [CategoryTier]?
+    /// How an area is sold when it is one box for one party: `whole` takes
+    /// all its places, `variable` a party from `minOccupancy` to
+    /// `maxOccupancy`. Nil for an area sold per person.
+    public var bookingMode: String?
+    public var minOccupancy: Int?
+    public var maxOccupancy: Int?
+    /// The area's wheelchair places, and how many of them are free.
+    public var wheelchairPlaces: Int?
+    public var wheelchairAvailable: Int?
 }
 
 /// One floor of a multi-floor venue.

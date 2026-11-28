@@ -36,13 +36,17 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
 
     public var body: some View {
         if presentation.canMutateInventory,
-           let area = suppliedArea ?? controller.generalAdmissionCandidate {
+           let candidate = suppliedArea ?? controller.generalAdmissionCandidate {
+            let area = seatLayerLiveStandingArea(candidate, snapshot: controller.snapshot)
+            let amounts = seatLayerStandingAmounts(area, snapshot: controller.snapshot)
             promptFrame(
                 eyebrow: style.strings.text(.generalAdmission),
                 title: area.label ?? style.strings.text(.generalAdmission),
                 subtitle: style.strings.text(
                     .placesAvailable,
-                    replacing: ["count": String(max(0, area.available ?? 0))]
+                    replacing: [
+                        "count": String(seatLayerStandingPlacesFree(area, snapshot: controller.snapshot) ?? 0),
+                    ]
                 ),
                 dismiss: { controller.dismissGeneralAdmissionCandidate() }
             ) {
@@ -62,9 +66,11 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                     }
                     .frame(maxHeight: Double(SeatLayerPickerSizeTokens.confirmActionHeight * 5))
                 }
+                // Only amounts the page accepts: it answers any other with no
+                // hold and no reason.
                 quantityPicker(
-                    minimum: 1,
-                    maximum: maximum(for: area),
+                    minimum: amounts?.minimum ?? 1,
+                    maximum: amounts?.maximum ?? 0,
                     fewer: style.strings.text(.fewerTickets),
                     more: style.strings.text(.moreTickets)
                 )
@@ -73,7 +79,7 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                 actionRow(
                     cancelTitle: style.strings.text(.cancel),
                     confirmTitle: confirmTitle(for: area),
-                    confirmEnabled: maximum(for: area) > 0 && tierIsReady(for: area)
+                    confirmEnabled: amounts != nil && tierIsReady(for: area)
                 ) {
                     controller.dismissGeneralAdmissionCandidate()
                 } confirm: {
@@ -109,7 +115,14 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
                 }
             }
             .id(area.id)
+            .onAppear { quantity = clamped(quantity, to: amounts) }
+            .onChange(of: amounts) { quantity = clamped(quantity, to: $0) }
         }
+    }
+
+    private func clamped(_ value: Int, to amounts: SeatLayerStandingAmounts?) -> Int {
+        guard let amounts else { return value }
+        return min(max(value, amounts.minimum), amounts.maximum)
     }
 
     /// Why the last press was refused, in the error's colour, until the next.
@@ -133,11 +146,6 @@ public struct SeatLayerPickerGeneralAdmissionPrompt: View {
         let text = [words.message, words.detail].compactMap { $0 }.joined(separator: " ")
         refused = text
         UIAccessibility.post(notification: .announcement, argument: text)
-    }
-
-    private func maximum(for area: GAArea) -> Int {
-        let room = max(0, (controller.snapshot?.maxSelection ?? 10) - (controller.snapshot?.ticketCount ?? 0))
-        return max(0, min(area.available ?? room, room))
     }
 
     private var paletteForPrompt: SeatLayerPickerPalette {
