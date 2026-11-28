@@ -271,6 +271,72 @@ final class PickerCardDecisionTests: XCTestCase {
         XCTAssertGreaterThan(seatLayerPickerCardCancelShare, 1.0 / 3)
     }
 
+    /// Where its word fits in 34%, Cancel keeps exactly 34%: a 390-point
+    /// phone's 290-point row at the default size.
+    func testCancelKeepsItsShareWhereItsWordFits() {
+        XCTAssertEqual(
+            seatLayerPickerAnswerLayout(
+                available: 290,
+                reservedFor3D: 0,
+                cancelLabel: 44,
+                primaryLabel: 58
+            ),
+            .row(cancelWidth: (290 - 8) * 0.34)
+        )
+    }
+
+    /// At the largest text, with the 3D square in the row, "Cancel" needs
+    /// more than 34% and takes it, rather than printing as "Can…".
+    func testCancelTakesTheWidthItsWordNeeds() {
+        let layout = seatLayerPickerAnswerLayout(
+            available: 290,
+            reservedFor3D: 57.2 + 8,
+            cancelLabel: 61.3,
+            primaryLabel: 74.6
+        )
+        // 62 of word and 24 of padding, over a share of 73.7.
+        XCTAssertEqual(layout, .row(cancelWidth: 86))
+    }
+
+    /// The primary answer may shrink its word to 70% before the answers
+    /// stack.
+    func testThePrimaryAnswerShrinksBeforeTheAnswersStack() {
+        // 202 of room less 86 for Cancel leaves 116: "Add seat" at 75 points
+        // needs 47 + 53, which fits.
+        XCTAssertEqual(
+            seatLayerPickerAnswerLayout(
+                available: 210,
+                reservedFor3D: 0,
+                cancelLabel: 62,
+                primaryLabel: 75
+            ),
+            .row(cancelWidth: 86)
+        )
+        // At 100 points the word needs 47 + 70 and does not.
+        XCTAssertEqual(
+            seatLayerPickerAnswerLayout(
+                available: 210,
+                reservedFor3D: 0,
+                cancelLabel: 62,
+                primaryLabel: 100
+            ),
+            .stacked
+        )
+    }
+
+    /// A long Cancel and a long primary answer stack on a 320-point phone.
+    func testLongAnswersStack() {
+        XCTAssertEqual(
+            seatLayerPickerAnswerLayout(
+                available: 276,
+                reservedFor3D: 57.2 + 8,
+                cancelLabel: 96,
+                primaryLabel: 150
+            ),
+            .stacked
+        )
+    }
+
     // MARK: - The sight line
 
     /// The number arrives already rounded, so this only decides whether to
