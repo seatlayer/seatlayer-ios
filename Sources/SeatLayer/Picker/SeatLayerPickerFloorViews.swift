@@ -250,8 +250,10 @@ public struct SeatLayerPickerDockBar: View {
                         .layoutPriority(1)
                 }
                 Spacer(minLength: 2)
-                step("chevron.left", label: style.strings.text(.previousSection), section: adjacent(-1))
-                step("chevron.right", label: style.strings.text(.nextSection), section: adjacent(1))
+                // Backward and forward turn with the reading way, as the
+                // steps do.
+                step("chevron.backward", label: style.strings.text(.previousSection), section: adjacent(-1))
+                step("chevron.forward", label: style.strings.text(.nextSection), section: adjacent(1))
                 backOut(palette: palette)
             }
             .foregroundColor(palette.text)
@@ -358,7 +360,7 @@ public struct SeatLayerPickerDockBar: View {
             runPickerAction(controller) { _ = try await controller.overview() }
         } label: {
             HStack(spacing: 3) {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .seatLayerPickerFont(
                         size: SeatLayerPickerSizeTokens.dockBackChevronSize,
                         weight: .bold

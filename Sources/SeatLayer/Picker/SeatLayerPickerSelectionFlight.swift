@@ -262,6 +262,9 @@ struct SeatLayerPickerSelectionFlightOverlay: View {
                     }
             }
         }
+        // Origin and target are measured on screen; a right-to-left layout
+        // would mirror the flight's path.
+        .environment(\.layoutDirection, .leftToRight)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
