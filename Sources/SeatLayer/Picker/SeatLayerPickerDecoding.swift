@@ -153,7 +153,7 @@ private func decodePickerEvent(_ value: JSONValue?) -> SeatLayerPickerEventDetai
     )
 }
 
-private func decodeBranding(_ value: JSONValue?) -> SeatLayerPickerBranding {
+func decodeBranding(_ value: JSONValue?) -> SeatLayerPickerBranding {
     let item = value?.objectValue
     let tokens = item?["tokens"]?.objectValue
     return SeatLayerPickerBranding(
