@@ -190,6 +190,9 @@ SeatLayerSeasonPicker(
   open it again with `initialOperationId`.
 - `initialOperationId` opens a hold again only for the buyer who placed it, so
   pass that buyer's `buyerAccessToken` or `buyerAccessTokenProvider` with it.
+- For a Season, the hold belongs to the buyer access session that placed it.
+  To open it again, give the page that same session's token while it is
+  still valid: a new session made for the same buyer does not see the hold.
 - With `themeMode: .auto` the page follows the app between light and dark
   without a reload.
 
