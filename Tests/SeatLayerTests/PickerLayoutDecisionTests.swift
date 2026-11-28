@@ -199,10 +199,12 @@ final class PickerLayoutDecisionTests: XCTestCase {
     }
 
     func testAPhoneHeldSidewaysKeepsThePhoneLayout() throws {
-        // Every current iPhone held sideways is wider than `wideBreakpoint`
-        // and shorter than `tabletShortestSide`: the box the picker measures,
-        // safe areas included. Plus and Pro Max are also regular in width.
+        // Every iPhone held sideways is shorter than `tabletShortestSide`, and
+        // the larger ones are wider than `wideBreakpoint`: the box the picker
+        // measures, safe areas included. Plus and Pro Max are also regular in
+        // width. The 320-point SE (1st generation) runs the iOS 15 floor.
         let sideways: [(String, Double, Double, Bool)] = [
+            ("iPhone SE (1st generation)", 568, 320, false),
             ("iPhone SE", 667, 375, false),
             ("iPhone 16", 852, 393, false),
             ("iPhone 16 Pro", 874, 402, false),
