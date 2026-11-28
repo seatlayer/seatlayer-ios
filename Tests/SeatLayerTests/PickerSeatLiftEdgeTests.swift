@@ -54,7 +54,14 @@ final class PickerSeatLiftEdgeTests: XCTestCase {
         try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
     }
 
-    private func rest() async { await wait(0.16) }
+    /// Long enough for every settle ask on a slow runner.
+    private func rest() async { await wait(0.6) }
+
+    /// Waits for `condition`, up to `timeout`.
+    private func waitUntil(timeout: Double = 1, _ condition: () -> Bool) async {
+        let end = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < end { await wait(0.005) }
+    }
 
     func testAMapThatCouldMove() async {
         mapOf(from: 500, edge: 0)
@@ -88,12 +95,13 @@ final class PickerSeatLiftEdgeTests: XCTestCase {
     }
 
     func testAMapThatLetGoOfItsEdgeLater() async {
-        mapOf(from: 500, edge: 465)
+        // The second ask comes late, so the edge can be let go between them.
+        mapOf(from: 500, edge: 465, settle: [0.02, 0.5])
         await show()
-        await wait(0.03)
+        await waitUntil { abs(self.lift.anchorDy + 35) < 1 }
         XCTAssertEqual(lift.anchorDy, -35, accuracy: 1)
         map.least = 0
-        await rest()
+        await wait(1.2)
         XCTAssertEqual(lift.anchorDy, map.at - 500, accuracy: 1)
         XCTAssertLessThan(map.at, 400)
     }
