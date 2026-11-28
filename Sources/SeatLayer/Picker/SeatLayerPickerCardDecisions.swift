@@ -356,7 +356,8 @@ struct SeatLayerPickerIdentityCell: Equatable {
 func seatLayerPickerIdentityCells(
     _ seat: SelectedSeat,
     strings: SeatLayerPickerStrings,
-    sectionCode: String?
+    sectionCode: String?,
+    inCart: Bool = false
 ) -> [SeatLayerPickerIdentityCell] {
     let section = seat.sectionLabel?.trimmingCharacters(in: .whitespaces) ?? ""
     let row = seatLayerPickerRowLabel(
@@ -373,7 +374,7 @@ func seatLayerPickerIdentityCells(
             longSection: section.count > seatLayerPickerConfirmSectionShortMax
         ))
     }
-    if let table = seatLayerPickerTableIdentity(seat, strings: strings) {
+    if let table = seatLayerPickerTableIdentity(seat, strings: strings, inCart: inCart) {
         return cells + table.map {
             SeatLayerPickerIdentityCell(eyebrow: $0.word, value: $0.value, longSection: false)
         }
@@ -395,20 +396,26 @@ func seatLayerPickerIdentityCells(
 
 
 /// A table booked as one (`objectType` table with a `bookingMode`): its party
-/// size and its name, "Guests 4" and "Table T2" ("Guests 2–6" where the buyer
-/// chooses how many), or nil for anything else.
+/// size and its name, "Guests 4" and "Table T2", or nil for anything else. A
+/// party table gives its range ("Guests 2–6"); in the cart (`inCart`), the
+/// party it carries ("Guests 3"). Before the buyer chooses, the runtime sends
+/// the least as the count, so only a line in the cart names one.
 ///
 /// The runtime sends such a table with its name as the row and no seat
 /// number, so the row and seat cells would print the name twice. The name is
 /// given with or without a section.
 func seatLayerPickerTableIdentity(
     _ seat: SelectedSeat,
-    strings: SeatLayerPickerStrings
+    strings: SeatLayerPickerStrings,
+    inCart: Bool = false
 ) -> [(word: String, value: String)]? {
     let mode = seat.bookingMode?.trimmingCharacters(in: .whitespaces) ?? ""
     guard seat.objectType?.rawValue == "table", !mode.isEmpty else { return nil }
     let guests: String?
-    if mode == "variable", let min = seat.minOccupancy, let max = seat.maxOccupancy {
+    if inCart, mode == "variable", let party = seat.quantity, party > 0,
+       party >= (seat.minOccupancy ?? party), party <= (seat.maxOccupancy ?? party) {
+        guests = "\(party)"
+    } else if mode == "variable", let min = seat.minOccupancy, let max = seat.maxOccupancy {
         guests = min == max ? "\(min)" : "\(min)–\(max)"
     } else {
         guests = seat.capacity.map { "\($0)" }

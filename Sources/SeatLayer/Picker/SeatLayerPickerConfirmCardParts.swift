@@ -36,12 +36,16 @@ struct SeatLayerPickerIdentityGrid: View {
     /// rather than beside it, so the grid can breathe and the names — read at a
     /// glance against a venue the buyer is already inside — need less weight.
     let immersive: Bool
+    /// Whether the card asks about a line already in the cart (the remove
+    /// card), whose party a party table then names.
+    var inCart = false
 
     var body: some View {
         let cells = seatLayerPickerIdentityCells(
             seat,
             strings: strings,
-            sectionCode: sectionCode
+            sectionCode: sectionCode,
+            inCart: inCart
         )
         HStack(spacing: 0) {
             ForEach(Array(cells.enumerated()), id: \.offset) { index, cell in
