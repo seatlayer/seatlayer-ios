@@ -67,9 +67,17 @@ func resolveSeatLayerPickerPalette(
     colorScheme: ColorScheme,
     snapshot: SeatLayerPickerSnapshot?
 ) -> SeatLayerPickerPalette {
+    resolveSeatLayerPickerPalette(style: style, colorScheme: colorScheme, branding: snapshot?.branding)
+}
+
+/// The palette for an organizer's branding, as the run page reports it.
+func resolveSeatLayerPickerPalette(
+    style: SeatLayerPickerStyleEnvironment,
+    colorScheme: ColorScheme,
+    branding brand: SeatLayerPickerBranding?
+) -> SeatLayerPickerPalette {
     let dark = style.mode == .dark || (style.mode == .auto && colorScheme == .dark)
     let defaults = dark ? PickerHex.dark : PickerHex.light
-    let brand = snapshot?.branding
 
     func role(_ explicit: String?, _ fallback: String) -> String {
         guard let explicit, UIColor(slHex: explicit) != nil else { return fallback }

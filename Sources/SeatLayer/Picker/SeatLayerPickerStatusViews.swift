@@ -172,7 +172,6 @@ public struct SeatLayerPickerErrorView: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
-    @State private var inFront = UIApplication.shared.applicationState != .background
     private let retry: () -> Void
 
     public init(retry: @escaping () -> Void) {
@@ -180,11 +179,38 @@ public struct SeatLayerPickerErrorView: View {
     }
 
     public var body: some View {
-        let palette = resolveSeatLayerPickerPalette(
-            style: style,
-            colorScheme: colorScheme,
-            snapshot: controller.snapshot
+        SeatLayerFailurePanel(
+            error: failure,
+            retryable: controller.lastError?.isRetryable != false,
+            palette: resolveSeatLayerPickerPalette(
+                style: style,
+                colorScheme: colorScheme,
+                snapshot: controller.snapshot
+            ),
+            owner: controller,
+            retry: retry
         )
+    }
+
+    private var failure: SeatLayerError? {
+        guard case .failed(let error) = controller.phase else { return nil }
+        return error
+    }
+}
+
+/// The panel a page that did not load shows: the offline sign and words when
+/// nothing answered, the map's failure otherwise, and "Try again".
+struct SeatLayerFailurePanel: View {
+    @Environment(\.seatLayerPickerStyle) private var style
+    @State private var inFront = UIApplication.shared.applicationState != .background
+    let error: SeatLayerError?
+    let retryable: Bool
+    let palette: SeatLayerPickerPalette
+    /// Keys the offline retry steps.
+    let owner: AnyObject
+    let retry: () -> Void
+
+    var body: some View {
         let kind = failureKind
         VStack(spacing: 12) {
             if kind == .connection {
@@ -207,7 +233,7 @@ public struct SeatLayerPickerErrorView: View {
                     .foregroundColor(palette.mutedText)
                     .multilineTextAlignment(.center)
             }
-            if controller.lastError?.isRetryable != false {
+            if retryable {
                 Button(style.strings.text(.retry), action: retry)
                     .seatLayerPickerFont(size: 14, weight: .bold)
                     .foregroundColor(palette.onAccent)
@@ -224,7 +250,7 @@ public struct SeatLayerPickerErrorView: View {
         .padding(20)
         .task(id: kind == .connection && inFront) { await retryWhileOffline(kind) }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            seatLayerPickerOfflineTries(for: controller).restart()
+            seatLayerPickerOfflineTries(for: owner).restart()
             inFront = true
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
@@ -235,7 +261,7 @@ public struct SeatLayerPickerErrorView: View {
     /// Why the page did not load: nothing answered, its server failed, or
     /// anything else (a chart that would not draw, a page too slow to start).
     private var failureKind: SeatLayerPickerFailureKind {
-        guard case .failed(let error) = controller.phase else { return .other }
+        guard let error else { return .other }
         return seatLayerPickerFailureKind(error)
     }
 
@@ -243,7 +269,7 @@ public struct SeatLayerPickerErrorView: View {
     /// itself after 10 s and 20 s, then every 30 s. In the background it waits.
     private func retryWhileOffline(_ kind: SeatLayerPickerFailureKind) async {
         guard kind == .connection, inFront else { return }
-        let tries = seatLayerPickerOfflineTries(for: controller)
+        let tries = seatLayerPickerOfflineTries(for: owner)
         try? await Task.sleep(nanoseconds: UInt64(tries.nextWait() * 1_000_000_000))
         guard !Task.isCancelled else { return }
         tries.tried()
