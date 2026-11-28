@@ -26,8 +26,9 @@ public let seatLayerSheetSeatFraction = 0.48
 
 /// What the runtime answers a frame with.
 public struct SeatLayerSeatFrame: Sendable, Equatable {
-    /// The screen-space vertical pan the runtime made. Zero when it declined,
-    /// or when the seat was already in place.
+    /// The screen-space vertical pan the runtime asked of its map. Zero when
+    /// it declined, or when the seat was already in place. A map at its edge
+    /// moves less.
     public let dy: Double
     /// The runtime's count of the buyer's own camera moves, handed back on a
     /// later frame so it can refuse once the buyer has taken the wheel.

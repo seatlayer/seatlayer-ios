@@ -265,6 +265,10 @@ drawn)
   checkout handler with the same hold, as React Native does. Apps that call
   `resumeAfterCheckout()` keep working; it still lets the buyer change the
   cart.
+- The spotlight under a seat card stands on the seat. On a map at its edge,
+  which could not move as far as asked, it stood up to 120 points above it.
+  The veil is a flat 50 per cent (it was 38) and keeps its clear hole with
+  Reduce Transparency on, where it went flat and lost the seat.
 
 **Breaking**
 
