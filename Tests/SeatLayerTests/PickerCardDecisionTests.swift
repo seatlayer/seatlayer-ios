@@ -148,6 +148,42 @@ final class PickerCardDecisionTests: XCTestCase {
         XCTAssertNil(seatLayerPickerTableIdentity(chair, strings: strings))
     }
 
+    /// The guest prompt names the table as the seat card does: its row, else
+    /// the label the buyer sees.
+    func testATableIsNamedByItsRowElseItsLabel() throws {
+        let named = try seat(
+            #"{"id":"c1","label":"Gallery T3","objectType":"table","bookingMode":"variable","rowLabel":"T3"}"#
+        )
+        let unnamed = try seat(
+            #"{"id":"c1","label":"T4","objectType":"table","bookingMode":"variable","rowLabel":"  "}"#
+        )
+        XCTAssertEqual(seatLayerPickerTableName(named), "T3")
+        XCTAssertEqual(seatLayerPickerTableName(unnamed), unnamed.buyerFacingLabel)
+    }
+
+    /// The guest prompt reads as the seat card: "Section | Guests | Table", and
+    /// a table with no section gives no section cell.
+    func testTheGuestPromptReadsAsTheSeatCard() throws {
+        let gallery = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","rowLabel":"T3","sectionLabel":"Gallery"}"#
+        )
+        let bare = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","rowLabel":"T3"}"#
+        )
+        let blank = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","rowLabel":"T3","sectionLabel":" "}"#
+        )
+        func words(_ table: SelectedSeat) -> [String] {
+            seatLayerPickerTablePromptCells(table, guests: 4, strings: strings).map { "\($0.word) \($0.value)" }
+        }
+        let section = strings.text(.sectionWord)
+        let guests = strings.text(.guestsWord)
+        let tableWord = strings.text(.tableWord)
+        XCTAssertEqual(words(gallery), ["\(section) Gallery", "\(guests) 4", "\(tableWord) T3"])
+        XCTAssertEqual(words(bare), ["\(guests) 4", "\(tableWord) T3"])
+        XCTAssertEqual(words(blank), ["\(section) —", "\(guests) 4", "\(tableWord) T3"])
+    }
+
     /// A prompt taller than its room scrolls; one that fits does not.
     func testAPromptScrollsOnlyWhenTallerThanItsRoom() {
         XCTAssertFalse(seatLayerPickerPromptScrolls(content: 400, room: 400))

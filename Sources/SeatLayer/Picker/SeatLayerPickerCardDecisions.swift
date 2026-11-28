@@ -413,13 +413,34 @@ func seatLayerPickerTableIdentity(
     } else {
         guests = seat.capacity.map { "\($0)" }
     }
-    let name = [seat.rowLabel, seat.displayLabel]
-        .map { $0?.trimmingCharacters(in: .whitespaces) ?? "" }
-        .first { !$0.isEmpty } ?? seat.buyerFacingLabel
     var parts: [(word: String, value: String)] = []
     if let guests { parts.append((strings.text(.guestsWord), guests)) }
-    parts.append((strings.text(.tableWord), name))
+    parts.append((strings.text(.tableWord), seatLayerPickerTableName(seat)))
     return parts
+}
+
+/// A table's name as the runtime sends it: the row, else its display label.
+func seatLayerPickerTableName(_ seat: SelectedSeat) -> String {
+    [seat.rowLabel, seat.displayLabel]
+        .map { $0?.trimmingCharacters(in: .whitespaces) ?? "" }
+        .first { !$0.isEmpty } ?? seat.buyerFacingLabel
+}
+
+/// The guest prompt's summary, in the seat card's words: the section where the
+/// table has one, the guests chosen so far, then the table's name.
+func seatLayerPickerTablePromptCells(
+    _ table: SelectedSeat,
+    guests: Int,
+    strings: SeatLayerPickerStrings
+) -> [(word: String, value: String)] {
+    var cells: [(word: String, value: String)] = []
+    if let label = table.sectionLabel {
+        let section = label.trimmingCharacters(in: .whitespaces)
+        cells.append((strings.text(.sectionWord), section.isEmpty ? "—" : section))
+    }
+    cells.append((strings.text(.guestsWord), String(guests)))
+    cells.append((strings.text(.tableWord), seatLayerPickerTableName(table)))
+    return cells
 }
 
 /// The metre figure as the runtime rounded it.
