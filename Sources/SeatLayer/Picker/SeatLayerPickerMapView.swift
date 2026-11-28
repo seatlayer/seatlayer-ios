@@ -15,18 +15,12 @@ import SwiftUI
 public final class SeatLayerPickerMapView: UIView {
     public let controller: SeatLayerPickerController
 
-    private var configuration: SeatLayerConfiguration?
     private let chartView: SeatLayerView
-    private var loadTask: Task<Void, Never>?
-    private var loadWaiters: [UUID: CheckedContinuation<ReadyInfo, Error>] = [:]
-    private var loadedReadyInfo: ReadyInfo?
-    private var pageRecovery = SeatLayerPickerPageRecovery()
-    private var awaitingActive: NSObjectProtocol?
-    /// Whether the app is in front. Read when the system ends the page: a page
-    /// of an app in the background is mostly ended there, and reloading it
-    /// there would only be ended again.
-    var applicationIsActive: () -> Bool = {
-        UIApplication.shared.applicationState == .active
+    private let loader: SeatLayerSurfaceLoader
+    /// Whether the app is in front. Read when the system ends the page.
+    var applicationIsActive: () -> Bool {
+        get { loader.applicationIsActive }
+        set { loader.applicationIsActive = newValue }
     }
 
     public init(
@@ -34,14 +28,13 @@ public final class SeatLayerPickerMapView: UIView {
         options: SeatLayerPickerOptions = .init(),
         controller: SeatLayerPickerController? = nil
     ) {
-        self.configuration = configuration
         let resolvedController = controller ?? SeatLayerPickerController()
         resolvedController.touchNavigation3D = options.touchNavigation3D
         resolvedController.initialHoldId = options.initialHoldId?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
         self.controller = resolvedController
-        let pageURL = configuration.pageURL ?? SeatLayer.mobilePageURL
+        let pageURL = configuration.resolvedPageURL
         let prewarmedHost = SeatLayerPickerPrewarmPool.shared.consume(pageURL: pageURL)
         self.chartView = SeatLayerView(
             frame: .zero,
@@ -50,25 +43,18 @@ public final class SeatLayerPickerMapView: UIView {
                 enableSeatView: options.enableSeatView,
                 config: options.bridgeConfig
             ),
-            pickerController: resolvedController,
+            session: resolvedController,
             prewarmedHost: prewarmedHost
         )
+        self.loader = SeatLayerSurfaceLoader(view: chartView, surface: configuration)
         super.init(frame: .zero)
+        loader.onPageLost = { [weak resolvedController] in resolvedController?.pageLost() }
+        loader.onGiveUp = { [weak resolvedController] in resolvedController?.fail($0) }
         setUp()
     }
 
     public required init?(coder: NSCoder) {
         return nil
-    }
-
-    deinit {
-        if let awaitingActive { NotificationCenter.default.removeObserver(awaitingActive) }
-        loadTask?.cancel()
-        let waiters = Array(loadWaiters.values)
-        loadWaiters.removeAll(keepingCapacity: false)
-        for waiter in waiters { waiter.resume(throwing: SeatLayerError.destroyed) }
-        let chartView = chartView
-        Task { @MainActor in try? await chartView.destroy() }
     }
 
     private func setUp() {
@@ -81,7 +67,6 @@ public final class SeatLayerPickerMapView: UIView {
             chartView.topAnchor.constraint(equalTo: topAnchor),
             chartView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
-        chartView.onPageLost = { [weak self] in self?.pageLost() }
     }
 
     /// The system ended the page after it was ready, mostly to free memory.
@@ -89,91 +74,18 @@ public final class SeatLayerPickerMapView: UIView {
     /// it comes back, and asked for the hold handed to checkout. Two pages
     /// ended within a minute are replaced; the third ends in the error view.
     func pageLost(at now: TimeInterval = ProcessInfo.processInfo.systemUptime) {
-        guard configuration != nil else { return }
-        controller.pageLost()
-        loadedReadyInfo = nil
-        guard pageRecovery.lost(at: now) else {
-            controller.fail(.transport("The system keeps closing the SeatLayer page."))
-            return
-        }
-        chartView.dropInitialHoldFromPageStart()
-        if let awaitingActive {
-            NotificationCenter.default.removeObserver(awaitingActive)
-            self.awaitingActive = nil
-        }
-        guard applicationIsActive() else {
-            awaitingActive = NotificationCenter.default.addObserver(
-                forName: UIApplication.didBecomeActiveNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reloadLostPage() }
-            }
-            return
-        }
-        reloadLostPage()
-    }
-
-    private func reloadLostPage() {
-        if let awaitingActive {
-            NotificationCenter.default.removeObserver(awaitingActive)
-            self.awaitingActive = nil
-        }
-        Task { @MainActor [weak self] in _ = try? await self?.load() }
+        loader.pageLost(at: now)
     }
 
     /// Start the hosted renderer once and await its protocol-2 handshake.
     @discardableResult
     public func load() async throws -> ReadyInfo {
-        if let loadedReadyInfo { return loadedReadyInfo }
-        guard let configuration else { throw SeatLayerError.destroyed }
-        let waiter = UUID()
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                guard !Task.isCancelled else {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                loadWaiters[waiter] = continuation
-                guard loadTask == nil else { return }
-                loadTask = Task { @MainActor [weak self, configuration, chartView] in
-                    do {
-                        let ready = try await chartView.load(configuration)
-                        self?.finishLoad(.success(ready))
-                    } catch {
-                        self?.finishLoad(.failure(error))
-                    }
-                }
-            }
-        } onCancel: {
-            Task { @MainActor [weak self] in self?.cancelLoadWaiter(waiter) }
-        }
+        try await loader.load()
     }
 
     /// Tear down the chart and reject subsequent controller actions.
     public func destroy() async {
-        if let awaitingActive {
-            NotificationCenter.default.removeObserver(awaitingActive)
-            self.awaitingActive = nil
-        }
-        loadTask?.cancel()
-        loadTask = nil
-        loadedReadyInfo = nil
-        finishLoad(.failure(SeatLayerError.destroyed))
-        configuration = nil
-        try? await chartView.destroy()
-    }
-
-    private func finishLoad(_ result: Result<ReadyInfo, Error>) {
-        loadTask = nil
-        if case .success(let info) = result { loadedReadyInfo = info }
-        let waiters = Array(loadWaiters.values)
-        loadWaiters.removeAll(keepingCapacity: false)
-        for waiter in waiters { waiter.resume(with: result) }
-    }
-
-    private func cancelLoadWaiter(_ id: UUID) {
-        loadWaiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        await loader.destroy()
     }
 }
 

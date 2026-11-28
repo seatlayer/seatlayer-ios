@@ -234,6 +234,18 @@ final class UnknownToleranceTests: XCTestCase {
         )
         XCTAssertTrue(configuration.usesPrivateAccess)
         XCTAssertTrue(configuration.usesSelectionPolicy)
+        // A page without the features the policy and the access need refuses.
+        XCTAssertEqual(
+            configuration.compatibilityProblem(with: BundleInfo(["capabilities": ["selection-controls", "selection-validity"]])),
+            "the bundle does not support private buyer access"
+        )
+        XCTAssertEqual(
+            configuration.compatibilityProblem(with: BundleInfo(["capabilities": ["native-access-provider"]])),
+            "the bundle does not support the configured selection policy"
+        )
+        XCTAssertNil(configuration.compatibilityProblem(with: BundleInfo([
+            "capabilities": ["native-access-provider", "selection-controls", "selection-validity"],
+        ])))
     }
 
     func testSelectionAndAccessEventsDecodeUnknownValuesWithoutFailing() throws {

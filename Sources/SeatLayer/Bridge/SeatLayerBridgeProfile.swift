@@ -9,6 +9,8 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
     enum Surface: String, Sendable {
         case chart
         case picker
+        /// The run page (`group.html`): a few performances of one run.
+        case group
     }
 
     static let raw = SeatLayerBridgeProfile(
@@ -76,11 +78,32 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
         )
     }
 
+    /// The run page. The page draws the run; the app draws only its bar
+    /// (brand, name, hold clock, close) and the failure view.
+    static func group(config: [String: JSONValue] = [:]) -> SeatLayerBridgeProfile {
+        SeatLayerBridgeProfile(
+            surface: .group,
+            protocolRange: ProtocolRange(min: 2, max: 2),
+            requiredCapabilities: ["group-surface-v1", "group-app-shell-v1"],
+            optionalCapabilities: ["connection-state-v1"],
+            config: config
+        )
+    }
+
     /// The same profile without one host config key.
     func removingConfig(_ key: String) -> SeatLayerBridgeProfile {
         var trimmed = config
         trimmed.removeValue(forKey: key)
-        return SeatLayerBridgeProfile(
+        return replacingConfig(trimmed)
+    }
+
+    /// The same profile with these host config keys set.
+    func settingConfig(_ values: [String: JSONValue]) -> SeatLayerBridgeProfile {
+        replacingConfig(config.merging(values) { _, new in new })
+    }
+
+    private func replacingConfig(_ trimmed: [String: JSONValue]) -> SeatLayerBridgeProfile {
+        SeatLayerBridgeProfile(
             surface: surface,
             protocolRange: protocolRange,
             requiredCapabilities: requiredCapabilities,
@@ -118,6 +141,16 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
     }
 
     var isPicker: Bool { surface == .picker }
+    /// A surface whose page reports to a native session: the picker, the run.
+    var hostsSession: Bool { surface != .chart }
+    /// The command that tears the page's surface down.
+    var destroyCommand: String {
+        switch surface {
+        case .chart: return "destroy"
+        case .picker: return "picker.destroy"
+        case .group: return "group.destroy"
+        }
+    }
 
     /// Fails closed when a surface cannot provide the complete contract this
     /// profile needs. Additive capabilities remain optional and are checked at
@@ -166,11 +199,26 @@ struct SeatLayerBridgeProfile: Sendable, Equatable {
 
     /// Builds the handshake reply without changing the raw chart payload.
     func initPayload(
-        configuration: SeatLayerConfiguration,
+        configuration: any SeatLayerSurfaceLoading,
         bundle: BundleInfo? = nil
     ) -> JSONValue {
-        let base = configuration.initPayload(protocolRange: protocolRange)
-        guard isPicker, var fields = base.objectValue else { return base }
+        surfaceInitPayload(
+            configuration.initPayload(protocolRange: protocolRange),
+            bundle: bundle
+        )
+    }
+
+    /// Adds this surface's own fields to a configuration's handshake reply.
+    func surfaceInitPayload(_ base: JSONValue, bundle: BundleInfo? = nil) -> JSONValue {
+        guard surface != .chart, var fields = base.objectValue else { return base }
+        if surface == .group {
+            var merged = fields["config"]?.objectValue ?? [:]
+            merged.merge(config) { _, profileValue in profileValue }
+            fields["surface"] = ["kind": .string(surface.rawValue)]
+            // A null here leaves out what the configuration would say.
+            fields["config"] = .object(merged.filter { !$0.value.isNull })
+            return .object(fields)
+        }
 
         var mergedConfig = fields["config"]?.objectValue ?? [:]
         mergedConfig.merge(config) { _, profileValue in profileValue }
