@@ -4,10 +4,9 @@ import UIKit
 
 /// End-to-end host for the ready-made native picker.
 ///
-/// The default fixture is SeatLayer's controlled production test event. It
-/// uses the hosted CDN runtime and hosted HTTPS API end to end, while remaining
-/// sandbox inventory. Override either value with a launch environment variable
-/// when exercising a local or customer-specific event.
+/// It needs `SEATLAYER_API_BASE` and `SEATLAYER_EVENT_KEY` in the launch
+/// environment. Without the API base it shows setup guidance and opens no
+/// picker.
 @MainActor
 final class DemoViewController: UIViewController {
     private enum Fixture {
@@ -16,9 +15,12 @@ final class DemoViewController: UIViewController {
                 ?? "ev_your_test_event"
         }
 
+        /// Required. The SeatLayer API the example calls, e.g.
+        /// `https://api.seatlayer.io`. It is never assumed, so a key from a test
+        /// environment is never sent to another environment's API.
         static var apiBase: String {
-            ProcessInfo.processInfo.environment["SEATLAYER_API_BASE"]
-                ?? "https://api.seatlayer.io"
+            ProcessInfo.processInfo.environment["SEATLAYER_API_BASE"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         }
 
         static var locale: String {
@@ -56,6 +58,10 @@ final class DemoViewController: UIViewController {
         case .light: overrideUserInterfaceStyle = .light
         case .dark: overrideUserInterfaceStyle = .dark
         case .auto: overrideUserInterfaceStyle = .unspecified
+        }
+        if Fixture.apiBase.isEmpty {
+            installSetupGuidance()
+            return
         }
         if let runKey = Fixture.runKey {
             installRun(runKey, themeMode: themeMode)
@@ -304,6 +310,47 @@ final class DemoViewController: UIViewController {
         case "auto": return .auto
         default: return .dark
         }
+    }
+
+    private func installSetupGuidance() {
+        let eyebrow = UILabel()
+        eyebrow.text = "SEATLAYER EXAMPLE"
+        eyebrow.font = .preferredFont(forTextStyle: .caption1)
+        eyebrow.textColor = .secondaryLabel
+
+        let title = UILabel()
+        title.text = "Connect a test event"
+        title.font = .preferredFont(forTextStyle: .title2)
+        title.textColor = .label
+
+        let body = UILabel()
+        body.text = "Set SEATLAYER_API_BASE and SEATLAYER_EVENT_KEY, then restart the app."
+        body.font = .preferredFont(forTextStyle: .body)
+        body.textColor = .secondaryLabel
+
+        let code = UILabel()
+        code.text = "SEATLAYER_API_BASE=https://api.seatlayer.io\nSEATLAYER_EVENT_KEY=ev_your_test_event"
+        code.font = UIFontMetrics(forTextStyle: .footnote).scaledFont(
+            for: .monospacedSystemFont(ofSize: 13, weight: .regular)
+        )
+        code.textColor = .label
+
+        let stack = UIStackView(arrangedSubviews: [eyebrow, title, body, code])
+        for label in [eyebrow, title, body, code] {
+            label.numberOfLines = 0
+            label.adjustsFontForContentSizeCategory = true
+        }
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.setCustomSpacing(20, after: body)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.accessibilityIdentifier = "seatlayer-demo-setup"
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 28),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -28),
+            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
+        ])
     }
 
     private func showCheckoutReceipt(_ handoff: SeatLayerPickerCheckoutHandoff) {
