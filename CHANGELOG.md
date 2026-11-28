@@ -276,6 +276,10 @@ drawn)
   (`SeatLayerPickerCategory.free`, from a page that names
   `category-availability-v1`): before counts arrived, a price could be struck
   through while seats were still free.
+- A level chip on a phone answers a press on the 44 points across it, as the
+  other small controls do; it answered on its 28-point chip only. The track
+  looks as before. The level being drawn scrolls into view in a track with
+  more levels than fit.
 - The spotlight under a seat card stands on the seat. On a map at its edge,
   which could not move as far as asked, it stood up to 120 points above it.
   The veil is a flat 50 per cent (it was 38) and keeps its clear hole with
