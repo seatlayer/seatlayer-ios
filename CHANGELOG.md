@@ -70,6 +70,14 @@
   Guests 2–6. Everywhere else, before the buyer chooses and in the 3D
   caption, a party table keeps its range.
 
+**The seat card's answers fit at any text size**
+
+- `Cancel` takes the width its word needs where 34% of the row is too little,
+  so at a large text size it no longer prints as "Can…". The primary answer
+  takes the rest and may shrink its word to 70%. Where even that does not fit,
+  the answers stack: the primary answer on top at full width, then `Cancel`
+  with the 3D square in front of it.
+
 **A seat card with many notes leaves its seat in view**
 
 - The seat card stops where the map would no longer show its seat: under the

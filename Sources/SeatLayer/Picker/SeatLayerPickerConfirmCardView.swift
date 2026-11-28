@@ -141,6 +141,7 @@ struct SeatLayerPickerConfirmationCard: View {
     @Environment(\.seatLayerOnSeatConfidence) private var onSeatConfidence
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.legibilityWeight) private var legibilityWeight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let seat: SelectedSeat
@@ -158,6 +159,9 @@ struct SeatLayerPickerConfirmationCard: View {
     @State private var added = false
     /// How far down the buyer has pushed the card, in points.
     @State private var drag: Double = 0
+    /// The decision row's width as last laid out, for whether the answers
+    /// fit side by side.
+    @State private var answerRowWidth: Double?
     /// Whether an answer is already on its way, so a second one is ignored.
     @State private var answering = false
     /// Whether this seat's photograph was named but never arrived.
@@ -377,54 +381,138 @@ struct SeatLayerPickerConfirmationCard: View {
     // MARK: - The decision row
 
     private func decisionRow(palette: SeatLayerPickerPalette) -> some View {
-        GeometryReader { geometry in
-            HStack(spacing: 8) {
-                // With no photograph to ride, the 3D way in is a square in
-                // front of the two answers: still one tap away, and it costs
-                // the card no row of its own.
-                if show3DSquare {
-                    SeatLayerPickerSee3DSquare(
-                        palette: palette,
-                        strings: style.strings,
-                        side: actionHeight,
-                        action: busy ? nil : { inspect(.venue3D) }
-                    )
+        Group {
+            if case .stacked = answerLayout(available: answerRowWidth) {
+                // The primary answer on top at full width, then the way out
+                // with the 3D square in front of it.
+                VStack(spacing: seatLayerPickerAnswerGap) {
+                    primaryButton(palette: palette)
+                        .frame(height: actionHeight)
+                    HStack(spacing: seatLayerPickerAnswerGap) {
+                        see3DSquare(palette: palette)
+                        cancelButton(palette: palette)
+                    }
+                    .frame(height: actionHeight)
                 }
-                // Just over a third to leave, the rest to accept: the two
-                // answers are not equally likely, and the card should not
-                // pretend that they are.
-                SeatLayerPickerCancelButton(
-                    label: style.strings.text(.cancel),
-                    palette: palette,
-                    style: slots.secondaryButton,
-                    action: busy ? nil : { cancel() }
-                )
-                .frame(width: seatLayerPickerCancelWidth(
-                    available: geometry.size.width,
-                    reservedFor3D: show3DSquare ? CGFloat(actionHeight) + 8 : 0
-                ))
-                SeatLayerPickerAddSeatButton(
-                    label: added ? style.strings.text(.added) : primaryLabel,
-                    palette: palette,
-                    style: slots.primaryButton,
-                    destructive: question == .remove,
-                    added: added,
-                    invite: !touched && !reduceMotion,
-                    onInviteEnd: { touched = true },
-                    action: busy ? nil : { answer() }
-                )
-                .accessibilityFocused($focusOnPrimary)
+            } else {
+                GeometryReader { geometry in
+                    HStack(spacing: seatLayerPickerAnswerGap) {
+                        // With no photograph to ride, the 3D way in is a
+                        // square in front of the two answers: still one tap
+                        // away, and it costs the card no row of its own.
+                        see3DSquare(palette: palette)
+                        // Just over a third to leave, the rest to accept: the
+                        // two answers are not equally likely, and the card
+                        // should not pretend that they are. Cancel takes more
+                        // where its own word needs it.
+                        cancelButton(palette: palette)
+                            .frame(width: cancelWidth(available: geometry.size.width))
+                        primaryButton(palette: palette)
+                    }
+                }
+                // Forty-four points of answer at the platform's default, and
+                // proportionally more once the buyer has scaled their text
+                // up: a fixed box would clip the word the whole card exists
+                // to offer.
+                .frame(height: actionHeight)
             }
         }
-        // Forty-four points of answer at the platform's default, and
-        // proportionally more once the buyer has scaled their text up: a fixed
-        // box would clip the word the whole card exists to offer.
-        .frame(height: actionHeight)
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: SeatLayerPickerAnswerRowWidthKey.self,
+                    value: Double(geometry.size.width)
+                )
+            }
+        }
+        .onPreferenceChange(SeatLayerPickerAnswerRowWidthKey.self) { width in
+            // A pass before the card has its size reports no width at all;
+            // only a real width decides the row.
+            guard width > 0, abs((answerRowWidth ?? -1) - width) >= 0.5 else { return }
+            answerRowWidth = width
+        }
         .padding(.horizontal, 10)
         .padding(.top, topGap)
         .padding(.bottom, immersive
             ? SeatLayerPickerSizeTokens.confirmImmersiveBodyBottom
             : 10)
+    }
+
+    @ViewBuilder
+    private func see3DSquare(palette: SeatLayerPickerPalette) -> some View {
+        if show3DSquare {
+            SeatLayerPickerSee3DSquare(
+                palette: palette,
+                strings: style.strings,
+                side: actionHeight,
+                action: busy ? nil : { inspect(.venue3D) }
+            )
+        }
+    }
+
+    private func cancelButton(palette: SeatLayerPickerPalette) -> some View {
+        SeatLayerPickerCancelButton(
+            label: style.strings.text(.cancel),
+            palette: palette,
+            style: slots.secondaryButton,
+            action: busy ? nil : { cancel() }
+        )
+    }
+
+    private func primaryButton(palette: SeatLayerPickerPalette) -> some View {
+        SeatLayerPickerAddSeatButton(
+            label: added ? style.strings.text(.added) : primaryLabel,
+            palette: palette,
+            style: slots.primaryButton,
+            destructive: question == .remove,
+            added: added,
+            invite: !touched && !reduceMotion,
+            onInviteEnd: { touched = true },
+            action: busy ? nil : { answer() }
+        )
+        .accessibilityFocused($focusOnPrimary)
+    }
+
+    /// Side by side or stacked, for a row `available` points wide; side by
+    /// side until the row has been measured.
+    private func answerLayout(available: Double?) -> SeatLayerPickerAnswerLayout? {
+        guard let available, available > 0 else { return nil }
+        let boldText = legibilityWeight == .bold
+        return seatLayerPickerAnswerLayout(
+            available: available,
+            reservedFor3D: show3DSquare ? actionHeight + seatLayerPickerAnswerGap : 0,
+            cancelLabel: seatLayerPickerAnswerLabelWidth(
+                style.strings.text(.cancel),
+                dynamicTypeSize: dynamicTypeSize,
+                boldText: boldText
+            ),
+            // The wider of the question and its receipt, so the row does not
+            // change shape under the press.
+            primaryLabel: max(
+                seatLayerPickerAnswerLabelWidth(
+                    primaryLabel,
+                    dynamicTypeSize: dynamicTypeSize,
+                    boldText: boldText
+                ),
+                seatLayerPickerAnswerLabelWidth(
+                    style.strings.text(.added),
+                    dynamicTypeSize: dynamicTypeSize,
+                    boldText: boldText
+                )
+            )
+        )
+    }
+
+    private func cancelWidth(available: CGFloat) -> CGFloat {
+        if case let .row(cancelWidth) = answerLayout(available: Double(available)) {
+            return CGFloat(cancelWidth)
+        }
+        let reserved = show3DSquare ? actionHeight + seatLayerPickerAnswerGap : 0
+        return CGFloat(max(
+            0,
+            (Double(available) - reserved - seatLayerPickerAnswerGap)
+                * seatLayerPickerCardCancelShare
+        ))
     }
 
     private func tierPicker(palette: SeatLayerPickerPalette) -> some View {
@@ -825,12 +913,14 @@ func seatLayerPickerTypeScale(_ size: DynamicTypeSize) -> Double {
     @unknown default: return 1.0
     }
 }
-/// The cancel button's share of the decision row, once the 3D square and the
-/// gutter between the two answers have taken theirs. Spelled out with one
-/// numeric type so every toolchain reads the arithmetic the same way.
-func seatLayerPickerCancelWidth(available: CGFloat, reservedFor3D: CGFloat) -> CGFloat {
-    let gutter: CGFloat = 8
-    let share = CGFloat(seatLayerPickerCardCancelShare)
-    return max(0, (available - reservedFor3D - gutter) * share)
+
+/// The decision row's width, for whether the answers fit side by side.
+struct SeatLayerPickerAnswerRowWidthKey: PreferenceKey {
+    static let defaultValue: Double = 0
+    // The widest report wins: the views inside the row report nothing, which
+    // reaches here as the default.
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
 }
 #endif

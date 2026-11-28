@@ -13,6 +13,24 @@ import SwiftUI
 /// is about the buyer's own action, and the ticket was counted before the sweep
 /// started — this is a receipt, not a progress bar.
 
+/// How wide an answer's label draws at the card's type size: 13 points
+/// heavy, grown with Dynamic Type up to the card's ceiling, as
+/// `seatLayerPickerFont(size: 13, weight: .heavy)` draws it.
+func seatLayerPickerAnswerLabelWidth(
+    _ label: String,
+    dynamicTypeSize: DynamicTypeSize,
+    boldText: Bool = false
+) -> Double {
+    let category = UIContentSizeCategory(min(dynamicTypeSize, seatLayerPickerCardTypeCeiling))
+    let size = UIFontMetrics(forTextStyle: .body).scaledValue(
+        for: 13,
+        compatibleWith: UITraitCollection(preferredContentSizeCategory: category)
+    )
+    // Bold Text draws the heavy weight one step heavier.
+    let font = UIFont.systemFont(ofSize: size, weight: boldText ? .black : .heavy)
+    return Double((label as NSString).size(withAttributes: [.font: font]).width)
+}
+
 /// The card's quiet answer: no fill, so it never competes with `Add seat`.
 struct SeatLayerPickerCancelButton: View {
     let label: String

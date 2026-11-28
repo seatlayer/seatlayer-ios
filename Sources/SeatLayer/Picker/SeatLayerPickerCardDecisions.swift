@@ -321,6 +321,50 @@ public func seatLayerPickerCardDragDismisses(
 // tokens.json gap: a file-local `_cancelShare` in Flutter too.
 public let seatLayerPickerCardCancelShare = 0.34
 
+/// The gap between the two answers, and between the 3D square and `Cancel`.
+public let seatLayerPickerAnswerGap = 8.0
+
+/// What `Cancel` adds to its label: 12 points either side.
+public let seatLayerPickerCancelChrome = 24.0
+
+/// What the primary answer adds to its label: 12 points either side, and the
+/// 16-point tick with 7 points before the word.
+public let seatLayerPickerPrimaryChrome = 47.0
+
+/// How far the primary answer's label may shrink before the answers stack.
+public let seatLayerPickerPrimaryMinimumScale = 0.7
+
+/// How the seat card lays out its two answers.
+public enum SeatLayerPickerAnswerLayout: Equatable, Sendable {
+    /// Side by side: `Cancel` this wide, the primary answer the rest.
+    case row(cancelWidth: Double)
+    /// The primary answer on top at the row's full width; `Cancel` under it,
+    /// with the 3D square in front of it.
+    case stacked
+}
+
+/// The answers in a row `available` points wide.
+///
+/// `Cancel` takes its 34%, or the width its own label needs where that is
+/// more, so it never prints as "Can…". The primary answer takes the rest, and
+/// its label may shrink to 70%. Where even that does not fit, the answers
+/// stack. Label widths are at the size the card draws them.
+public func seatLayerPickerAnswerLayout(
+    available: Double,
+    reservedFor3D: Double,
+    cancelLabel: Double,
+    primaryLabel: Double
+) -> SeatLayerPickerAnswerLayout {
+    let room = max(0, available - reservedFor3D - seatLayerPickerAnswerGap)
+    let cancel = max(
+        room * seatLayerPickerCardCancelShare,
+        cancelLabel.rounded(.up) + seatLayerPickerCancelChrome
+    )
+    let primary = primaryLabel.rounded(.up) * seatLayerPickerPrimaryMinimumScale
+        + seatLayerPickerPrimaryChrome
+    return room - cancel >= primary ? .row(cancelWidth: cancel) : .stacked
+}
+
 /// How far above the foot of the screen the flying chip aims.
 ///
 /// The collapsed sheet's summary line is what the ticket has just changed, so

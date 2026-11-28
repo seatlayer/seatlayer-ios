@@ -75,6 +75,62 @@ final class SeatCardGoldenTests: XCTestCase {
         }
     }
 
+    /// The answers as the card itself measures them, at a large text size
+    /// on the 390-point canvas with the 3D square in the row: English keeps
+    /// them side by side, with "Cancel" whole; German stacks them, so its card
+    /// is one answer and one gap taller.
+    func testTheAnswersStackOnlyWhereTheyDoNotFit() throws {
+        let english = try renderedCardHeight(locale: "en")
+        let german = try renderedCardHeight(locale: "de")
+        let answer = SeatLayerPickerSizeTokens.confirmActionHeight
+            * min(
+                SeatLayerPickerTypeScaleTokens.card,
+                seatLayerPickerTypeScale(.accessibility3)
+            )
+        XCTAssertEqual(
+            german - english,
+            answer + seatLayerPickerAnswerGap,
+            accuracy: 2,
+            "English \(english) pt, German \(german) pt"
+        )
+    }
+
+    /// The card's height on the canvas, read from the rendered pixels down
+    /// the canvas's middle: the card is the one non-black run there.
+    private func renderedCardHeight(locale: String) throws -> Double {
+        let fixture = makeFixture()
+        var style = fixture.style
+        style.strings = SeatLayerPickerStrings(localeIdentifier: locale)
+        let view = SeatLayerPickerSeatConfirmation()
+            .environmentObject(fixture.controller)
+            .environmentObject(fixture.presentation)
+            .environment(\.seatLayerPickerStyle, style)
+            .environment(\.dynamicTypeSize, .accessibility3)
+        let image = try XCTUnwrap(GoldenRenderer.image(of: view, colorScheme: .dark))
+        let cgImage = try XCTUnwrap(image.cgImage)
+        let width = cgImage.width
+        let height = cgImage.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let column = width / 2
+        let lit = (0..<height).filter { row in
+            let at = (row * width + column) * 4
+            return Int(pixels[at]) + Int(pixels[at + 1]) + Int(pixels[at + 2]) > 24
+        }
+        let first = try XCTUnwrap(lit.first)
+        let last = try XCTUnwrap(lit.last)
+        return Double(last - first + 1) / Double(image.scale)
+    }
+
     // MARK: - Harness
 
     struct Fixture {
