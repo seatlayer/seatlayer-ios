@@ -1,9 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
-This work ships as 0.5.0, together with a newer map. 0.4.0 was never released;
-the last release is 0.3.4.
+0.4.0 was never released; the previous release is 0.3.4.
 
 The native picker follows the SeatLayer buyer picker's current phone design
 item by item, on hosted runtime `seatlayer-js@1.0.8`. Views load
