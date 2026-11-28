@@ -98,7 +98,14 @@ public struct SeatLayerPickerSeatCardLayer: View {
         area: CGSize
     ) -> some View {
         SeatLayerPickerPartHost(.confirmCard) {
-            SeatLayerPickerSeatConfirmation(onAction: onAction)
+            SeatLayerPickerSeatConfirmation(
+                maxHeight: seatLayerConfirmCardRoom(
+                    mapHeight: Double(area.height),
+                    topInset: topInset,
+                    bottomInset: bottomInset
+                ),
+                onAction: onAction
+            )
         }
         .background {
             GeometryReader { card in

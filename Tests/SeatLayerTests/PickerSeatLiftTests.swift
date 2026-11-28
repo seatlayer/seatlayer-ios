@@ -37,6 +37,30 @@ final class PickerSeatLiftTests: XCTestCase {
         XCTAssertEqual(crowded, 96 + seatLayerConfirmCardTopInset)
     }
 
+    /// The card's room is the map less its chrome, a seat strip and the rest
+    /// inset: the card never covers the seat it asks about.
+    func testTheCardsRoomLeavesTheSeatStripFree() {
+        XCTAssertEqual(seatLayerConfirmCardSeatStrip, 88)
+        XCTAssertEqual(
+            seatLayerConfirmCardRoom(mapHeight: 661, topInset: 90, bottomInset: 56),
+            661 - 90 - 56 - 88 - seatLayerConfirmCardRestInset
+        )
+        XCTAssertEqual(seatLayerConfirmCardRoom(mapHeight: 200, topInset: 90, bottomInset: 56), 0)
+        XCTAssertNil(seatLayerConfirmCardRoom(mapHeight: 0, topInset: 90, bottomInset: 56))
+    }
+
+    /// The notes scroll in what the room leaves after the parts that never
+    /// scroll, and a tiny map still shows one note row.
+    func testTheCardsBodyTakesTheRestOfTheRoomAndAtLeastOneNoteRow() {
+        XCTAssertEqual(seatLayerConfirmCardBodyMax(room: 400, fixed: 220, firstNoteRow: 50, hasNotes: true), 180)
+        XCTAssertEqual(seatLayerConfirmCardBodyMax(room: 150, fixed: 220, firstNoteRow: 50, hasNotes: true), 50)
+        // Price choices alone keep one hit target in view.
+        XCTAssertEqual(
+            seatLayerConfirmCardBodyMax(room: 150, fixed: 220, firstNoteRow: nil, hasNotes: false),
+            SeatLayerPickerSizeTokens.minimumHitTarget
+        )
+    }
+
     /// The clear band ends in daylight above the card, not against its shadow.
     func testTheReportedSheetBandStopsAGapAboveTheCard() {
         let top = seatLayerConfirmCardTop(card: CGSize(width: 310, height: 220), area: area)
