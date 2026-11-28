@@ -176,6 +176,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     let configuration: SeatLayerConfiguration
     let callbacks: SeatLayerPickerCallbacks
     let onCheckout: SeatLayerPickerCheckoutHandler
@@ -187,6 +188,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var reportedHold: SeatLayerPickerHold?
     @State private var phoneCartHeight = SeatLayerPickerSizeTokens.peekHeight
     @State private var containerWidth: Double?
+    @State private var containerHeight: Double?
     @State private var connectionAnchors = SeatLayerPickerConnectionAnchors()
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
@@ -418,6 +420,7 @@ private struct SeatLayerPickerReadyLayout: View {
         .background(palette.background)
         .seatLayerPickerContainerMetrics(
             width: $containerWidth,
+            height: $containerHeight,
             bottomSafeInset: $bottomSafeInset
         )
         .seatLayerPickerToastFeed()
@@ -741,9 +744,11 @@ private struct SeatLayerPickerReadyLayout: View {
             pendingSeatId: presentation.pendingSeat?.id,
             hasActivePrompt: presentation.activePrompt != nil,
             isRegularWidth: horizontalSizeClass == .regular,
+            isRegularHeight: verticalSizeClass != .compact,
             isAccessibilityTypeSize: dynamicTypeSize.isAccessibilitySize,
             phoneCartHeight: phoneCartHeight,
             containerWidth: containerWidth,
+            containerHeight: containerHeight,
             bottomSafeInset: bottomSafeInset
         )
     }
