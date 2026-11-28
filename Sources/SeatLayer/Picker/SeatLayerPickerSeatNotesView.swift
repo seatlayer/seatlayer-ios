@@ -53,6 +53,14 @@ func seatLayerSeatNoteToneColors(
 /// `compact` is the wide layout's tap-card form — a narrower popup floating
 /// over the map, so the type comes down a rung and the text inset moves to the
 /// tap card's own leading inset. The bands stay bands.
+/// The first note band's height: the seat card's body never shows less.
+struct SeatLayerPickerFirstNoteRowKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 public struct SeatLayerPickerSeatNotes: View {
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
@@ -82,6 +90,16 @@ public struct SeatLayerPickerSeatNotes: View {
                         // fight the category band's own edge.
                         joined: index > 0
                     )
+                    .background {
+                        if index == 0 {
+                            GeometryReader { band in
+                                Color.clear.preference(
+                                    key: SeatLayerPickerFirstNoteRowKey.self,
+                                    value: band.size.height
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

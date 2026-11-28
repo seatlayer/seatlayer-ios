@@ -30,11 +30,18 @@ public struct SeatLayerPickerSeatConfirmation: View {
     @EnvironmentObject private var controller: SeatLayerPickerController
     @EnvironmentObject private var presentation: SeatLayerPickerPresentationModel
     @Environment(\.seatLayerPickerStyle) private var style
+    private let maxHeight: Double?
     private let onAction: ((SeatLayerPickerConfirmationAction, SelectedSeat) -> Void)?
 
+    /// - Parameter maxHeight: the room a layout gives the card, in points
+    ///   (see `seatLayerConfirmCardRoom`). Without it the card takes at most
+    ///   72% of the screen. Past the room, the notes and the price choices
+    ///   scroll inside the card.
     public init(
+        maxHeight: Double? = nil,
         onAction: ((SeatLayerPickerConfirmationAction, SelectedSeat) -> Void)? = nil
     ) {
+        self.maxHeight = maxHeight
         self.onAction = onAction
     }
 
@@ -47,6 +54,7 @@ public struct SeatLayerPickerSeatConfirmation: View {
             SeatLayerPickerConfirmationCard(
                 seat: question.seat,
                 question: question.question,
+                maxHeight: maxHeight,
                 onAction: onAction
             )
             // A card asking about a second seat is a second card: it points at
@@ -101,6 +109,22 @@ func seatLayerPickerCardQuestion(
     return subject
 }
 
+/// The card's height and its body's, from one layout pass, so the part that
+/// never scrolls is always one card less its own body.
+private struct SeatLayerPickerCardMeasure: Equatable {
+    var card: Double = 0
+    var body: Double = 0
+}
+
+private struct SeatLayerPickerCardMeasureKey: PreferenceKey {
+    static var defaultValue = SeatLayerPickerCardMeasure()
+    static func reduce(value: inout SeatLayerPickerCardMeasure, nextValue: () -> SeatLayerPickerCardMeasure) {
+        let next = nextValue()
+        value.card = max(value.card, next.card)
+        value.body = max(value.body, next.body)
+    }
+}
+
 /// How tall the card's body would be if nothing capped it.
 private struct SeatLayerPickerCardBodyHeightKey: PreferenceKey {
     static var defaultValue: Double = 0
@@ -121,6 +145,8 @@ struct SeatLayerPickerConfirmationCard: View {
 
     let seat: SelectedSeat
     let question: SeatLayerPickerCardQuestion
+    /// The room the layout gives the card; 72% of the screen without one.
+    let maxHeight: Double?
     let onAction: ((SeatLayerPickerConfirmationAction, SelectedSeat) -> Void)?
 
     /// Whether the buyer has found this card yet.
@@ -142,6 +168,10 @@ struct SeatLayerPickerConfirmationCard: View {
     @State private var photoMissed = false
     /// How tall the card's body wants to be, once it has been laid out.
     @State private var bodyHeight: Double?
+    /// The card and its body as last laid out.
+    @State private var measure = SeatLayerPickerCardMeasure()
+    /// The first note row's height: the least the body ever shows.
+    @State private var firstNoteRow: Double?
     @AccessibilityFocusState private var focusOnPrimary: Bool
 
     var body: some View {
@@ -224,12 +254,23 @@ struct SeatLayerPickerConfirmationCard: View {
                         }
                     }
                     // The body gives way before the answers do: a card that
-                    // grows past the screen must never push its own decision
-                    // row off the bottom of it.
+                    // grows past its room must never push its own decision
+                    // row off the bottom of it, nor cover its seat.
                     .frame(maxHeight: min(bodyHeight ?? bodyCeiling, bodyCeiling))
                     .onPreferenceChange(SeatLayerPickerCardBodyHeightKey.self) { measured in
                         guard measured.isFinite, measured > 0 else { return }
                         bodyHeight = measured
+                    }
+                    .background {
+                        GeometryReader { frame in
+                            Color.clear.preference(
+                                key: SeatLayerPickerCardMeasureKey.self,
+                                value: SeatLayerPickerCardMeasure(body: frame.size.height)
+                            )
+                        }
+                    }
+                    .onPreferenceChange(SeatLayerPickerFirstNoteRowKey.self) { row in
+                        firstNoteRow = row > 0 ? row : nil
                     }
                 }
                 // A disclosure with nowhere to open stays the teaser it has
@@ -257,6 +298,18 @@ struct SeatLayerPickerConfirmationCard: View {
                             + SeatLayerPickerSizeTokens.confirmImmersiveInspectGap)
                 }
                 decisionRow(palette: palette)
+            }
+            .background {
+                GeometryReader { frame in
+                    Color.clear.preference(
+                        key: SeatLayerPickerCardMeasureKey.self,
+                        value: SeatLayerPickerCardMeasure(card: frame.size.height)
+                    )
+                }
+            }
+            .onPreferenceChange(SeatLayerPickerCardMeasureKey.self) { measured in
+                guard measured.card.isFinite, measured.body.isFinite else { return }
+                measure = measured
             }
         }
         .frame(maxWidth: immersive
@@ -528,14 +581,27 @@ struct SeatLayerPickerConfirmationCard: View {
         return hasBody ? 10 : 8
     }
 
-    /// The card sizes itself to its content and to the screen less one gutter
-    /// on each side; whoever places it decides where on the map it sits.
+    /// How tall the body may be: the card's room less the parts that never
+    /// scroll, and at least one note row.
+    ///
+    /// The room is what the map leaves above the card's rest and below a seat
+    /// strip, so the card never covers its seat; a card placed by hand with no
+    /// room takes at most 72% of the screen. Until the card has been laid out
+    /// once, the parts that never scroll are estimated from their tokens.
     private var bodyCeiling: Double {
-        UIScreen.main.bounds.height * 0.72
-            - SeatLayerPickerSizeTokens.confirmIdentityHeight
-            - SeatLayerPickerSizeTokens.confirmBandHeight
-            - actionHeight
-            - 40
+        let room = maxHeight ?? UIScreen.main.bounds.height * seatLayerConfirmCardMaxHeightShare
+        let fixed = measure.card > 0 && measure.body > 0
+            ? measure.card - measure.body
+            : SeatLayerPickerSizeTokens.confirmIdentityHeight
+                + SeatLayerPickerSizeTokens.confirmBandHeight
+                + actionHeight
+                + 40
+        return seatLayerConfirmCardBodyMax(
+            room: room,
+            fixed: fixed,
+            firstNoteRow: firstNoteRow,
+            hasNotes: !notes.isEmpty
+        )
     }
 
     /// Everything the card is about, as one sentence.

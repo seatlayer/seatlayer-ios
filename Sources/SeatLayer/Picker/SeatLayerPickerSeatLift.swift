@@ -61,6 +61,44 @@ public func seatLayerConfirmCardTop(
     return max(ceiling, foot - restInset - Double(card.height))
 }
 
+/// The strip the card leaves free above itself, under the map's top chrome:
+/// two hit targets, where `picker.frameSeat` puts the seat it asks about.
+public let seatLayerConfirmCardSeatStrip = SeatLayerPickerSizeTokens.minimumHitTarget * 2
+
+/// The share of the screen a card may take where no map gives it a room.
+public let seatLayerConfirmCardMaxHeightShare = 0.72
+
+/// How tall a seat card may be over a map `mapHeight` tall.
+///
+/// The map less its top chrome and its dock, less the seat strip and the
+/// card's rest inset, so the card never covers the seat it asks about.
+/// Answers `nil` for a map not measured yet.
+public func seatLayerConfirmCardRoom(
+    mapHeight: Double,
+    topInset: Double = 0,
+    bottomInset: Double = 0
+) -> Double? {
+    guard mapHeight > 0 else { return nil }
+    return max(
+        0,
+        mapHeight - max(0, topInset) - max(0, bottomInset)
+            - seatLayerConfirmCardSeatStrip - seatLayerConfirmCardRestInset
+    )
+}
+
+/// How tall the card's body may be: the room less the parts that never
+/// scroll (the seat's name, its band, the photograph and the answers), and
+/// never less than one note row, so a tiny map still shows one note.
+func seatLayerConfirmCardBodyMax(
+    room: Double,
+    fixed: Double,
+    firstNoteRow: Double?,
+    hasNotes: Bool
+) -> Double {
+    let floor = hasNotes ? firstNoteRow ?? 0 : SeatLayerPickerSizeTokens.minimumHitTarget
+    return max(floor, room - fixed)
+}
+
 /// What the raised sheet covers, as a bottom viewport inset for the runtime.
 ///
 /// The runtime frames every fit and every focus glide INSIDE the insets the

@@ -70,6 +70,19 @@
   Guests 2–6. Everywhere else, before the buyer chooses and in the 3D
   caption, a party table keeps its range.
 
+**A seat card with many notes leaves its seat in view**
+
+- The seat card stops where the map would no longer show its seat: under the
+  map's top controls it leaves a strip of 88 points free, where the map puts
+  the seat. Past that the notes and the price choices scroll inside the card;
+  the seat's name, its price band, the photograph and the two answers stay
+  put, and at least one note always shows. The card took up to 72% of the
+  screen, so at a large text size a seat with many notes covered the seat it
+  asked about. The same rule as React Native's.
+- `SeatLayerPickerSeatConfirmation` takes `maxHeight`, the room a layout of
+  your own gives it (`seatLayerConfirmCardRoom` works it out from the map);
+  without it the card stops at 72% of the screen.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**
