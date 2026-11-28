@@ -6,8 +6,8 @@
 [![iOS](https://img.shields.io/badge/iOS-%E2%89%A515-000000.svg)](https://developer.apple.com/ios/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
-> **Latest release: 0.5.0.** Add it with Swift Package Manager from this
-> repository's `v0.5.0` tag.
+> **Latest release: 0.5.1.** Add it with Swift Package Manager from this
+> repository's `v0.5.1` tag.
 
 The official SeatLayer iOS seat map SDK for Swift and SwiftUI adds an
 interactive seating chart and a ready-made native seat picker to ticketing apps.
@@ -61,7 +61,7 @@ Or declare it explicitly in a manifest:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.5.0")
+    .package(url: "https://github.com/seatlayer/seatlayer-ios.git", from: "0.5.1")
 ]
 ```
 
