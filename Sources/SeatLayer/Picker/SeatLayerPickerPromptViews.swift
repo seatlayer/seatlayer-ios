@@ -362,7 +362,7 @@ public struct SeatLayerPickerTablePrompt: View {
             SeatLayerPickerPromptSheet(surface: palette.surface) {
                 VStack(alignment: .leading, spacing: 14) {
                     head(table, palette: palette)
-                    summary(table, palette: palette, range: range)
+                    summary(table, palette: palette)
                     Text(style.strings.text(.numberOfGuests))
                         .seatLayerPickerFont(size: 12, weight: .bold)
                         .foregroundColor(palette.mutedText)
@@ -402,7 +402,7 @@ public struct SeatLayerPickerTablePrompt: View {
                 .seatLayerPickerFont(size: 11, weight: .bold)
                 .modifier(SeatLayerPickerLetterSpacing(amount: 0.6))
                 .foregroundColor(palette.mutedText)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
             Text(table.buyerFacingLabel)
                 .seatLayerPickerFont(size: 19, weight: .heavy)
                 .foregroundColor(palette.text)
@@ -419,28 +419,13 @@ public struct SeatLayerPickerTablePrompt: View {
     @ViewBuilder
     private func summary(
         _ table: SelectedSeat,
-        palette: SeatLayerPickerPalette,
-        range: ClosedRange<Int>
+        palette: SeatLayerPickerPalette
     ) -> some View {
+        let cells = seatLayerPickerTablePromptCells(table, guests: quantity, strings: style.strings)
         HStack(spacing: 0) {
-            cell(
-                key: style.strings.text(.sectionWord),
-                value: table.sectionLabel ?? "—",
-                palette: palette
-            )
-            cell(
-                key: style.strings.text(.numberOfGuests),
-                value: String(quantity),
-                palette: palette
-            )
-            cell(
-                key: style.strings.text(.seatWord),
-                value: style.strings.text(
-                    SeatLayerPickerPluralKeys.seatsFree,
-                    count: range.upperBound
-                ),
-                palette: palette
-            )
+            ForEach(Array(cells.enumerated()), id: \.offset) { item in
+                cell(key: item.element.word, value: item.element.value, palette: palette)
+            }
         }
         .padding(.vertical, 8)
         .background(palette.background)

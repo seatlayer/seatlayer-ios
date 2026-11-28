@@ -205,6 +205,10 @@ drawn)
   without a section. The card's spoken sentence and the 3D view's caption name
   the table the same way, and its line in the cart reads "Table T2" with
   "Guests 4" under it (it read "T2 · T2").
+- The table prompt names the table the same way: "Gallery | Guests 2 |
+  Table T3", the guests following the buyer's choice. It read "Number of
+  guests 2 | Seat 6 seats". A table with no section has no Section cell, as
+  on the card. Its heading wraps instead of being cut.
 - The general-admission and table prompts scroll when they are taller than
   the screen (a short phone, large text, many ticket types), and open at
   their foot with the buttons in sight. They ran off the screen.
