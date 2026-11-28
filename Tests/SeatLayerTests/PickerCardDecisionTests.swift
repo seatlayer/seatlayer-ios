@@ -148,6 +148,34 @@ final class PickerCardDecisionTests: XCTestCase {
         XCTAssertNil(seatLayerPickerTableIdentity(chair, strings: strings))
     }
 
+    /// A party table asked about from the cart names the party it carries,
+    /// not its range; a count outside the range is no party the buyer chose.
+    func testAPartyTableInTheCartNamesItsParty() throws {
+        let chosen = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","minOccupancy":2,"maxOccupancy":6,"capacity":6,"quantity":3,"rowLabel":"T3"}"#
+        )
+        XCTAssertEqual(seatLayerPickerIdentityCells(chosen, strings: strings, sectionCode: nil, inCart: true).map(\.value), ["3", "T3"])
+        let outside = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","minOccupancy":2,"maxOccupancy":6,"quantity":9,"rowLabel":"T3"}"#
+        )
+        XCTAssertEqual(seatLayerPickerIdentityCells(outside, strings: strings, sectionCode: nil, inCart: true).map(\.value), ["2–6", "T3"])
+        let whole = try seat(
+            #"{"id":"c1","label":"T2","objectType":"table","bookingMode":"whole","capacity":4,"quantity":1,"rowLabel":"T2"}"#
+        )
+        XCTAssertEqual(seatLayerPickerIdentityCells(whole, strings: strings, sectionCode: nil, inCart: true).map(\.value), ["4", "T2"])
+    }
+
+    /// At the first tap the runtime sends a party table with quantity =
+    /// minOccupancy, before the buyer chooses: every card that is not asking
+    /// about a cart line, and the 3D caption, keep the range.
+    func testAPartyTableBeforeTheBuyerChoosesKeepsItsRange() throws {
+        let pending = try seat(
+            #"{"id":"c1","label":"T3","objectType":"table","bookingMode":"variable","minOccupancy":2,"maxOccupancy":6,"quantity":2,"rowLabel":"T3"}"#
+        )
+        XCTAssertEqual(seatLayerPickerIdentityCells(pending, strings: strings, sectionCode: nil).map(\.value), ["2–6", "T3"])
+        XCTAssertEqual(seatLayerPickerTableIdentity(pending, strings: strings)?.first?.value, "2–6")
+    }
+
     /// The guest prompt names the table as the seat card does: its row, else
     /// the label the buyer sees.
     func testATableIsNamedByItsRowElseItsLabel() throws {

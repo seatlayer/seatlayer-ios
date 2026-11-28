@@ -63,6 +63,13 @@
 - `SelectedSeat.floorId` and `levelName` name a seat's level on a chart with
   two or more.
 
+**A party table in the cart names its party**
+
+- A party table in the cart, asked about again on the seat card, reads
+  Guests 3, the number of guests the buyer chose. It read the table's range,
+  Guests 2–6. Everywhere else, before the buyer chooses and in the 3D
+  caption, a party table keeps its range.
+
 ## 0.5.1
 
 **The map: 1.0.8 to 1.0.9**

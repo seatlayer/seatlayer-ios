@@ -160,7 +160,8 @@ struct SeatLayerPickerConfirmationCard: View {
                         controller.snapshot,
                         sectionLabel: seat.sectionLabel
                     ),
-                    immersive: immersive
+                    immersive: immersive,
+                    inCart: question == .remove
                 )
                 // The band is the category speaking for itself: its colour, its
                 // name and what it costs. Without a category there is nothing
@@ -547,7 +548,7 @@ struct SeatLayerPickerConfirmationCard: View {
         var parts: [String] = []
         let section = seat.sectionLabel?.trimmingCharacters(in: .whitespaces) ?? ""
         if !section.isEmpty { parts.append(section) }
-        if let table = seatLayerPickerTableIdentity(seat, strings: style.strings) {
+        if let table = seatLayerPickerTableIdentity(seat, strings: style.strings, inCart: question == .remove) {
             parts += table.map { "\($0.word) \($0.value)" }
             if let category { parts.append(category.label) }
             if let priceText { parts.append(priceText) }
