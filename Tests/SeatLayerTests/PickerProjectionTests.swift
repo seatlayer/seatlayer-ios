@@ -86,6 +86,9 @@ final class PickerProjectionTests: XCTestCase {
         XCTAssertTrue(SeatLayerPickerStrings(localeIdentifier: "ar-SA").usesRightToLeftLayout)
         XCTAssertTrue(SeatLayerPickerStrings(localeIdentifier: "he").usesRightToLeftLayout)
         XCTAssertFalse(SeatLayerPickerStrings(localeIdentifier: "de-DE").usesRightToLeftLayout)
+        XCTAssertTrue(SeatLayerPickerStrings(localeIdentifier: "fa").usesRightToLeftLayout)
+        XCTAssertFalse(SeatLayerPickerStrings(localeIdentifier: "ku").usesRightToLeftLayout)
+        XCTAssertFalse(SeatLayerPickerStrings(localeIdentifier: "ku-TR").usesRightToLeftLayout)
         XCTAssertEqual(
             SeatLayerPickerStrings(localeIdentifier: "es-MX").resolvedLocale.identifier
                 .replacingOccurrences(of: "_", with: "-"),
