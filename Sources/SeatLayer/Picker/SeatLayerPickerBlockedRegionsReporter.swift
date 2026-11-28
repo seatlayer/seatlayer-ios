@@ -336,6 +336,14 @@ struct SeatLayerPickerMapWidthKey: PreferenceKey {
     }
 }
 
+/// The map stack's own height, which chrome standing on it is fitted to.
+struct SeatLayerPickerMapHeightKey: PreferenceKey {
+    static var defaultValue: Double = 0
+    static func reduce(value: inout Double, nextValue: () -> Double) {
+        value = max(value, nextValue())
+    }
+}
+
 private struct SeatLayerPickerContainerHeightKey: PreferenceKey {
     static var defaultValue: Double = 0
     static func reduce(value: inout Double, nextValue: () -> Double) {

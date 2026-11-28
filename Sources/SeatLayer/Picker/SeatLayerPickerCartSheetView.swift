@@ -22,6 +22,7 @@ public struct SeatLayerPickerCartSheet: View {
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.seatLayerPickerMapHeight) private var mapHeight
 
     @State private var contentHeight: Double = 0
     @State private var footHeight: Double = 0
@@ -122,7 +123,13 @@ public struct SeatLayerPickerCartSheet: View {
     }
 
     private var bodyHeight: Double {
-        drag ?? detents.height(of: presentation.sheetDetent)
+        // The open region never takes the map's top line: on a phone held
+        // sideways it scrolls in what is left.
+        seatLayerPickerCartRegionHeight(
+            wanted: drag ?? detents.height(of: presentation.sheetDetent),
+            mapHeight: mapHeight,
+            rowHeight: chrome
+        )
     }
 
     /// Up grows the sheet 1:1, both ends give rather than stop, and a release
@@ -172,24 +179,29 @@ public struct SeatLayerPickerCartSheet: View {
         } else {
             // An event that has stopped selling says so where the buyer would
             // otherwise be offered seats.
-            Group {
-                if controller.snapshot?.event.salesClosed == true {
-                    SeatLayerPickerSalesClosedStatement()
-                } else {
-                    SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
-                }
-            }
-                .padding(.horizontal, SeatLayerPickerSizeTokens.cartTrayPadX)
-                .padding(.top, SeatLayerPickerSizeTokens.cartTrayPadTop)
-                .background {
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: SeatLayerPickerCartContentHeightKey.self,
-                            value: geometry.size.height
-                                + SeatLayerPickerSizeTokens.cartTrayPadTop
-                        )
+            // The tray scrolls inside its box rather than being cut where the
+            // map leaves it less room than it wants.
+            ScrollView(.vertical, showsIndicators: false) {
+                Group {
+                    if controller.snapshot?.event.salesClosed == true {
+                        SeatLayerPickerSalesClosedStatement()
+                    } else {
+                        SeatLayerPickerPartHost(.bestAvailable) { SeatLayerBestSeatsForm() }
                     }
                 }
+                    .padding(.horizontal, SeatLayerPickerSizeTokens.cartTrayPadX)
+                    .padding(.top, SeatLayerPickerSizeTokens.cartTrayPadTop)
+                    .background {
+                        GeometryReader { geometry in
+                            Color.clear.preference(
+                                key: SeatLayerPickerCartContentHeightKey.self,
+                                value: geometry.size.height
+                                    + SeatLayerPickerSizeTokens.cartTrayPadTop
+                            )
+                        }
+                    }
+            }
+                .seatLayerPickerBouncesOnlyWhenScrollable()
                 .frame(height: max(0, bodyHeight), alignment: .top)
                 .clipped()
         }

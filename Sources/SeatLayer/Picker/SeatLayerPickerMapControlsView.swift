@@ -244,6 +244,8 @@ public struct SeatLayerPickerMapControls: View {
     @Environment(\.seatLayerPickerStyle) private var style
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.seatLayerPickerWideLayout) private var pickerWide
+    @Environment(\.seatLayerPickerMapHeight) private var mapHeight
     private let topInset: Double
     private let bottomInset: Double
     private let edgeInset: Double
@@ -317,21 +319,59 @@ public struct SeatLayerPickerMapControls: View {
                             )
                     }
                 }
-                if !column(plan).isEmpty {
+                // A map too short for even one disc, as under the open cart
+                // list on a phone held sideways, draws none rather than a
+                // sliver over the Map | 3D control.
+                if !column(plan).isEmpty, columnRoom >= SeatLayerPickerSizeTokens.mapControlSize {
                     anchored(.bottomTrailing) {
-                        VStack(alignment: .trailing, spacing: anchorPlan.gap(for: .bottomTrailing)) {
-                            ForEach(column(plan), id: \.self) { control in
-                                self.control(control, plan: plan, palette: palette)
-                            }
-                        }
-                        .seatLayerPickerMapChromeRegion(
-                            SeatLayerPickerMapChromeKey.controlColumn
-                        )
+                        controlColumn(plan, palette: palette)
+                            .seatLayerPickerMapChromeRegion(
+                                SeatLayerPickerMapChromeKey.controlColumn
+                            )
+                            // The column stands under the map's top line,
+                            // never over the Map | 3D control, and never asks
+                            // the map for more room than it has.
+                            .frame(maxHeight: columnRoom, alignment: .bottomTrailing)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// One column; on a map too short for it, as on a phone held sideways
+    /// with the list open, the same controls stand beside one another.
+    @ViewBuilder
+    private func controlColumn(
+        _ plan: SeatLayerPickerControlColumnPlan,
+        palette: SeatLayerPickerPalette
+    ) -> some View {
+        let spacing = anchorPlan.gap(for: .bottomTrailing)
+        let stack = VStack(alignment: .trailing, spacing: spacing) {
+            ForEach(column(plan), id: \.self) { control in
+                self.control(control, plan: plan, palette: palette)
+            }
+        }
+        if #available(iOS 16.0, *) {
+            ViewThatFits(in: .vertical) {
+                stack
+                HStack(alignment: .bottom, spacing: spacing) {
+                    ForEach(column(plan), id: \.self) { control in
+                        self.control(control, plan: plan, palette: palette)
+                    }
+                }
+            }
+        } else {
+            stack
+        }
+    }
+
+    /// The height between the map's top line and the bottom anchor. Without a
+    /// map height, outside a picker, the column has the room it is given.
+    private var columnRoom: Double {
+        guard let mapHeight, mapHeight > 0 else { return .infinity }
+        let top = includeBuyerViewControl ? seatLayerPickerMapTopLine : edgeInset
+        return max(0, mapHeight - top - edgeInset - bottomInset)
     }
 
     private func column(_ plan: SeatLayerPickerControlColumnPlan) -> [SeatLayerPickerMapControl] {
@@ -494,7 +534,7 @@ public struct SeatLayerPickerMapControls: View {
         switch style.options.layout {
         case .wide: return true
         case .phone: return false
-        case .adaptive: return horizontalSizeClass == .regular
+        case .adaptive: return pickerWide ?? (horizontalSizeClass == .regular)
         }
     }
 }

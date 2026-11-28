@@ -191,6 +191,7 @@ private struct SeatLayerPickerReadyLayout: View {
     @State private var containerWidth: Double?
     @State private var containerHeight: Double?
     @State private var mapWidth: Double = 0
+    @State private var mapHeight: Double?
     @State private var connectionAnchors = SeatLayerPickerConnectionAnchors()
     @State private var bottomSafeInset: Double = 0
     @State private var previousRung: String?
@@ -419,17 +420,24 @@ private struct SeatLayerPickerReadyLayout: View {
                     }
                 }
             }
+            // Chrome standing on the map is told its height. An open cart
+            // region leaves the map its top line, so the map is never pushed
+            // taller than the room it is given.
+            .environment(\.seatLayerPickerMapHeight, mapHeight)
+            .environment(\.seatLayerPickerWideLayout, usesWideLayout)
             .clipped()
             .background {
                 GeometryReader { geometry in
-                    Color.clear.preference(
-                        key: SeatLayerPickerMapWidthKey.self,
-                        value: geometry.size.width
-                    )
+                    Color.clear
+                        .preference(key: SeatLayerPickerMapWidthKey.self, value: geometry.size.width)
+                        .preference(key: SeatLayerPickerMapHeightKey.self, value: geometry.size.height)
                 }
             }
             .onPreferenceChange(SeatLayerPickerMapWidthKey.self) { width in
                 if width > 0, width != mapWidth { mapWidth = width }
+            }
+            .onPreferenceChange(SeatLayerPickerMapHeightKey.self) { height in
+                if height > 0, height != mapHeight { mapHeight = height }
             }
             .onPreferenceChange(SeatLayerPickerBlockedRegionsPreferenceKey.self) { entries in
                 let anchors = SeatLayerPickerConnectionAnchors(entries)
